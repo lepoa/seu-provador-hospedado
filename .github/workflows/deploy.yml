@@ -36,6 +36,6 @@ jobs:
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./dist/
-          server-dir: ./
+          server-dir: ./domains/lightcoral-cod-859891.hostingersite.com/public_html/
           log-level: verbose
-          state-name: .ftp-deploy-sync-state-force-new.json
+          state-name: .ftp-deploy-sync-state-final-fix.json
