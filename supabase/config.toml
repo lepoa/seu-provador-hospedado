@@ -1,0 +1,55 @@
+project_id = "fozxeyiqulvpbbawjznw"
+
+[functions.analyze-product-image]
+verify_jwt = false
+
+[functions.analyze-quiz]
+verify_jwt = false
+
+[functions.calculate-shipping]
+verify_jwt = false
+
+[functions.create-mp-preference]
+verify_jwt = false
+
+[functions.create-live-cart-payment]
+verify_jwt = false
+
+[functions.generate-product-description]
+verify_jwt = false
+
+[functions.mp-webhook]
+verify_jwt = false
+
+[functions.send-auth-email]
+verify_jwt = false
+
+[functions.get-live-cart-public]
+verify_jwt = false
+
+[functions.generate-business-insights]
+verify_jwt = false
+
+[functions.revalidate-payment]
+verify_jwt = false
+
+[functions.expire-reservations]
+verify_jwt = false
+
+[functions.generate-shipping-label]
+verify_jwt = false
+
+[functions.generate-order-shipping-label]
+verify_jwt = false
+
+[functions.sync-order-tracking]
+verify_jwt = false
+
+[functions.sync-live-cart-tracking]
+verify_jwt = false
+
+[functions.request-password-reset]
+verify_jwt = false
+
+[functions.reset-password]
+verify_jwt = false
