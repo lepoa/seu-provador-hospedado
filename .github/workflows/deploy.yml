@@ -23,7 +23,10 @@ jobs:
         run: npm ci
 
       - name: 🏗️ Build Project
-        run: npm run build
+        run: |
+          npm run build
+          echo "📂 Listing build directory contents:"
+          ls -R dist/
 
       - name: 📂 Sync files (FTP)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
@@ -32,4 +35,5 @@ jobs:
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./dist/
-          server-dir: ./
+          server-dir: ./public_html/
+          log-level: verbose
