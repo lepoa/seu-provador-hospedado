@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { 
-  Clock, CheckCircle, Truck, CreditCard, X, ChevronDown, Copy, 
+import {
+  Clock, CheckCircle, Truck, CreditCard, X, ChevronDown, Copy,
   Package, Search, MessageCircle, Radio, Store, StickyNote, User,
   Save, Edit2, RefreshCw, AlertCircle, Send, Timer, FileText, Printer,
   MapPin, Lock, Filter, XCircle
@@ -32,15 +32,15 @@ import { useSellers } from "@/hooks/useSellers";
 import { RevalidatePaymentModal } from "./RevalidatePaymentModal";
 import { OrderPackingSlipPrint, BatchPackingSlipPrint } from "./orders/OrderPackingSlipPrint";
 import { OrderShippingLabelPrint } from "./orders/OrderShippingLabelPrint";
-import { 
-  getWhatsAppTemplateForStatus, 
+import {
+  getWhatsAppTemplateForStatus,
   getShortOrderId,
-  type OrderStatus 
+  type OrderStatus
 } from "@/lib/whatsappTemplates";
-import { 
-  parseOrdersUrlParams, 
-  getSpecialFilterLabel, 
-  isPendingActionsFilter 
+import {
+  parseOrdersUrlParams,
+  getSpecialFilterLabel,
+  isPendingActionsFilter
 } from "@/lib/dashboardNavigation";
 import { getOperationalPendingOrders, type PendingOrderType } from "@/lib/pendingOrdersUtils";
 
@@ -158,15 +158,15 @@ interface OrdersManagerProps {
 
 export function OrdersManager({ initialFilter }: OrdersManagerProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  
+
   // Parse URL filters
   const urlFilters = useMemo(() => parseOrdersUrlParams(searchParams), [searchParams]);
-  
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderItems, setOrderItems] = useState<Record<string, OrderItem[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
-  
+
   // Initialize filters from URL or props
   const [filterStatus, setFilterStatus] = useState<string>(() => {
     if (urlFilters.status !== "all") return urlFilters.status;
@@ -176,7 +176,7 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
   const [filterSeller, setFilterSeller] = useState<string | null>(() => urlFilters.seller);
   const [specialFilter, setSpecialFilter] = useState<string | null>(() => urlFilters.specialFilter);
   const [pendingOrderIds, setPendingOrderIds] = useState<Set<string>>(new Set());
-  
+
   const [searchTerm, setSearchTerm] = useState("");
   const [editingTrackingCode, setEditingTrackingCode] = useState<string | null>(null);
   const [trackingCodeValue, setTrackingCodeValue] = useState("");
@@ -184,19 +184,19 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
   const [notesValue, setNotesValue] = useState("");
   const [showRevalidateModal, setShowRevalidateModal] = useState(false);
   const [revalidateOrderId, setRevalidateOrderId] = useState<string | null>(null);
-  
+
   // WhatsApp message state per order
   const [whatsappMessages, setWhatsappMessages] = useState<Record<string, string>>({});
   const [whatsappPendingSend, setWhatsappPendingSend] = useState<Record<string, boolean>>({});
   const [editingWhatsappMessage, setEditingWhatsappMessage] = useState<string | null>(null);
-  
+
   // Multi-select state for batch printing
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
-  
+
   // Delivery method edit state
   const [editingDeliveryOrder, setEditingDeliveryOrder] = useState<string | null>(null);
   const [newDeliveryMethod, setNewDeliveryMethod] = useState<string>("");
-  
+
   const { sellers } = useSellers();
 
   // Toggle single order selection
@@ -253,11 +253,11 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
     if (newUrlFilters.seller) setFilterSeller(newUrlFilters.seller);
     if (newUrlFilters.specialFilter) setSpecialFilter(newUrlFilters.specialFilter);
   }, [searchParams]);
-  
+
   useEffect(() => {
     loadOrders();
   }, []);
-  
+
   // Load pending order IDs when special filter is active
   useEffect(() => {
     if (specialFilter && isPendingActionsFilter(specialFilter)) {
@@ -268,36 +268,102 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
   }, [specialFilter]);
 
   const loadOrders = async () => {
-    const { data, error } = await supabase
-      .from("orders")
-      .select(`
-        *,
-        live_event:live_events(titulo)
-      `)
-      .order("created_at", { ascending: false });
+    setIsLoading(true);
+    try {
+      // 1. Fetch Regular Orders
+      const { data: regularOrders, error: ordersError } = await supabase
+        .from("orders")
+        .select(`
+          *,
+          live_event:live_events(titulo)
+        `)
+        .order("created_at", { ascending: false });
 
-    if (error) {
+      if (ordersError) {
+        throw ordersError;
+      }
+
+      // 2. Fetch Orphaned Live Carts (Fallback for when webhook fails to create order)
+      // Only fetch those that are NOT linked to an order yet (order_id is null)
+      const { data: liveCarts, error: liveError } = await supabase
+        .from("live_carts")
+        .select(`
+          *,
+          live_customer:live_customers(*),
+          live_event:live_events(titulo)
+        `)
+        .is("order_id", null)
+        .neq("status", "aberto") // Only show finalized/checkout carts
+        .neq("status", "abandonado")
+        .order("created_at", { ascending: false });
+
+      if (liveError) {
+        console.error("Error fetching live carts:", liveError);
+        // Don't throw, just show what we have
+      }
+
+      // 3. Map Live Carts to Order Interface
+      const mappedLiveOrders: Order[] = (liveCarts || []).map((cart: any) => ({
+        id: cart.id,
+        created_at: cart.created_at,
+        status: cart.status,
+        total: cart.total,
+        customer_name: cart.live_customer?.nome || cart.live_customer?.instagram_handle || "Cliente Live",
+        customer_phone: cart.live_customer?.whatsapp || "",
+        customer_address: cart.shipping_address_snapshot?.full_address || "Endereço não capturado",
+        customer_id: cart.user_id || null, // Updated to use the new user_id column
+        payment_link: null,
+        tracking_code: cart.shipping_tracking_code || null,
+        delivery_method: cart.delivery_method,
+        live_event_id: cart.live_event_id,
+        seller_id: cart.seller_id,
+        internal_notes: null,
+        mp_checkout_url: null,
+        customer_notes: cart.customer_checkout_notes || cart.customer_live_notes,
+        delivery_period: cart.delivery_period,
+        last_whatsapp_status: null,
+        last_whatsapp_sent_at: null,
+        whatsapp_message_override: null,
+        reserved_until: null,
+        address_snapshot: cart.shipping_address_snapshot,
+        me_shipment_id: cart.me_shipment_id,
+        me_label_url: cart.me_label_url,
+        paid_at: cart.paid_at,
+        // Live specific fields
+        source: "live",
+        live_cart_id: cart.id,
+        live_bag_number: cart.bag_number,
+        live_event: cart.live_event,
+        requires_physical_cancel: false // Default to false
+      }));
+
+      // 4. Merge and Sort
+      const allOrders = [...(regularOrders || []), ...mappedLiveOrders].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      // Cast the data to our Order type
+      setOrders(allOrders as unknown as Order[]);
+    } catch (error) {
+      console.error("Error loading orders:", error);
       toast.error("Erro ao carregar pedidos");
-      return;
+    } finally {
+      setIsLoading(false);
     }
-
-    // Cast the data to our Order type since address_snapshot is a JSON field
-    setOrders((data || []) as unknown as Order[]);
-    setIsLoading(false);
   };
-  
+
   // Load pending order IDs for special filters
   const loadPendingOrderIds = async () => {
     if (!specialFilter) return;
-    
+
     const pendingType = specialFilterToPendingType[specialFilter];
     if (!pendingType) return;
-    
+
     const result = await getOperationalPendingOrders({ type: pendingType });
     const ids = new Set(result.allOrders.map(o => o.id));
     setPendingOrderIds(ids);
   };
-  
+
   // Clear all filters and URL params
   const clearAllFilters = () => {
     setFilterStatus("all");
@@ -305,7 +371,7 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
     setFilterSeller(null);
     setSpecialFilter(null);
     setSearchTerm("");
-    
+
     // Clear URL params except tab
     const newParams = new URLSearchParams();
     newParams.set("tab", "orders");
@@ -332,12 +398,12 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
     // Build update payload - set paid_at when changing to paid status
     const normalizedStatus = newStatus.toLowerCase().trim();
     const isPaidStatus = ['pago', 'paid', 'approved', 'payment_approved'].includes(normalizedStatus);
-    
-    const updatePayload: Record<string, any> = { 
+
+    const updatePayload: Record<string, any> = {
       status: newStatus,
       updated_at: new Date().toISOString()
     };
-    
+
     // Set paid_at = now() when marking as paid (if not already set)
     if (isPaidStatus && !order.paid_at) {
       updatePayload.paid_at = new Date().toISOString();
@@ -355,13 +421,13 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
 
     // Update local state
     setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { 
-        ...o, 
+      prev.map((o) => (o.id === orderId ? {
+        ...o,
         status: newStatus,
         paid_at: updatePayload.paid_at || o.paid_at
       } : o))
     );
-    
+
     // Auto-generate WhatsApp message for new status
     const templateData = {
       customerName: order.customer_name.split(' ')[0], // First name
@@ -371,10 +437,10 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
     };
     const newMessage = getWhatsAppTemplateForStatus(newStatus as OrderStatus, templateData);
     setWhatsappMessages(prev => ({ ...prev, [orderId]: newMessage }));
-    
+
     // Mark as pending send to alert admin
     setWhatsappPendingSend(prev => ({ ...prev, [orderId]: true }));
-    
+
     toast.success("Status atualizado — mensagem pronta para enviar!");
   };
 
@@ -400,15 +466,15 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
     const normalizedStatus = (order.status || '').toLowerCase().trim();
     const paidStatuses = ['pago', 'paid', 'approved', 'payment_approved', 'etiqueta_gerada', 'enviado', 'entregue'];
     const isPaid = paidStatuses.includes(normalizedStatus) || !!order.paid_at;
-    
+
     if (isPaid) {
       return { allowed: false, reason: "Não é possível alterar entrega após pagamento confirmado." };
     }
-    
+
     if (order.tracking_code || order.me_label_url || order.me_shipment_id) {
       return { allowed: false, reason: "Não é possível alterar entrega com etiqueta/rastreio gerado." };
     }
-    
+
     return { allowed: true };
   };
 
@@ -432,7 +498,7 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
 
     const { error } = await supabase
       .from("orders")
-      .update({ 
+      .update({
         delivery_method: method,
         updated_at: new Date().toISOString()
       })
@@ -446,7 +512,7 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
     setOrders((prev) =>
       prev.map((o) => (o.id === orderId ? { ...o, delivery_method: method } : o))
     );
-    
+
     setEditingDeliveryOrder(null);
     toast.success(`Método de entrega alterado para ${getDeliveryLabel(method)}`);
   };
@@ -553,9 +619,9 @@ Qualquer dúvida estamos à disposição! 💕`;
     if (order.source === 'live' || order.live_event_id) {
       const liveName = order.live_event?.titulo ? ` • ${order.live_event.titulo}` : '';
       const bagNumber = order.live_bag_number ? ` • Sacola #${order.live_bag_number}` : '';
-      return { 
-        label: "Live", 
-        icon: Radio, 
+      return {
+        label: "Live",
+        icon: Radio,
         color: "bg-pink-100 text-pink-700",
         details: `${liveName}${bagNumber}`.replace(/^ • /, '')
       };
@@ -582,21 +648,21 @@ Qualquer dúvida estamos à disposição! 💕`;
     if (order.status !== 'aguardando_pagamento' || !order.reserved_until) {
       return null;
     }
-    
+
     const now = new Date();
     const expiresAt = new Date(order.reserved_until);
     const diffMs = expiresAt.getTime() - now.getTime();
-    
+
     if (diffMs <= 0) {
       return { expired: true, text: "Expirado", minutesLeft: 0 };
     }
-    
+
     const minutesLeft = Math.ceil(diffMs / (1000 * 60));
     const hoursLeft = Math.floor(minutesLeft / 60);
     const daysLeft = Math.floor(hoursLeft / 24);
-    
+
     const isLiveOrder = order.source === 'live' || order.live_event_id;
-    
+
     // For live orders, show days/hours format
     if (isLiveOrder) {
       if (daysLeft >= 1) {
@@ -609,22 +675,22 @@ Qualquer dúvida estamos à disposição! 💕`;
       // Less than 1 hour - show minutes
       return { expired: false, text: `${minutesLeft}min`, minutesLeft, urgent: true };
     }
-    
+
     // For catalog orders, show minutes
     if (minutesLeft <= 5) {
       return { expired: false, text: `${minutesLeft}min`, minutesLeft, urgent: true };
     }
-    
+
     return { expired: false, text: `${minutesLeft}min`, minutesLeft, urgent: false };
   };
 
   // Count orders requiring attention
   const attentionOrdersCount = orders.filter(o => o.requires_physical_cancel).length;
-  
+
   // Check if any filters are active (for showing clear button)
-  const hasActiveFilters = filterStatus !== "all" || filterSource !== "all" || 
+  const hasActiveFilters = filterStatus !== "all" || filterSource !== "all" ||
     filterSeller !== null || specialFilter !== null || searchTerm !== "";
-  
+
   // Get active filter description
   const specialFilterLabel = getSpecialFilterLabel(specialFilter);
 
@@ -639,20 +705,20 @@ Qualquer dúvida estamos à disposição! 💕`;
         // For specific pending types, use the pendingOrderIds set
         return pendingOrderIds.has(order.id);
       }
-      
+
       // Regular status filter
-      const matchesStatus = filterStatus === "all" || 
+      const matchesStatus = filterStatus === "all" ||
         (filterStatus === "attention" && order.requires_physical_cancel) ||
         order.status === filterStatus;
-        
+
       // Source filter
-      const matchesSource = filterSource === "all" || 
+      const matchesSource = filterSource === "all" ||
         (filterSource === "live" && (order.source === 'live' || order.live_event_id)) ||
         (filterSource === "catalog" && order.source !== 'live' && !order.live_event_id);
-        
+
       // Seller filter
       const matchesSeller = !filterSeller || order.seller_id === filterSeller;
-      
+
       // Search filter
       const matchesSearch =
         searchTerm === "" ||
@@ -660,7 +726,7 @@ Qualquer dúvida estamos à disposição! 💕`;
         order.customer_phone.includes(searchTerm) ||
         order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (order.live_bag_number && order.live_bag_number.toString().includes(searchTerm));
-        
+
       return matchesStatus && matchesSource && matchesSeller && matchesSearch;
     });
   }, [orders, filterStatus, filterSource, filterSeller, specialFilter, pendingOrderIds, searchTerm]);
@@ -682,7 +748,7 @@ Qualquer dúvida estamos à disposição! 💕`;
             <Filter className="h-4 w-4" />
             <span>Filtros ativos:</span>
           </div>
-          
+
           {specialFilterLabel && (
             <Badge variant="secondary" className="gap-1">
               {specialFilterLabel}
@@ -691,7 +757,7 @@ Qualquer dúvida estamos à disposição! 💕`;
               </button>
             </Badge>
           )}
-          
+
           {filterStatus !== "all" && !specialFilter && (
             <Badge variant="secondary" className="gap-1">
               Status: {statusConfig[filterStatus]?.label || filterStatus}
@@ -700,7 +766,7 @@ Qualquer dúvida estamos à disposição! 💕`;
               </button>
             </Badge>
           )}
-          
+
           {filterSource !== "all" && (
             <Badge variant="secondary" className="gap-1">
               Origem: {filterSource === "live" ? "Live" : "Catálogo"}
@@ -709,7 +775,7 @@ Qualquer dúvida estamos à disposição! 💕`;
               </button>
             </Badge>
           )}
-          
+
           {filterSeller && (
             <Badge variant="secondary" className="gap-1">
               Vendedora: {sellers.find(s => s.id === filterSeller)?.name || filterSeller}
@@ -718,13 +784,13 @@ Qualquer dúvida estamos à disposição! 💕`;
               </button>
             </Badge>
           )}
-          
+
           <Button variant="ghost" size="sm" onClick={clearAllFilters} className="h-6 text-xs">
             Limpar todos
           </Button>
         </div>
       )}
-      
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -843,9 +909,8 @@ Qualquer dúvida estamos à disposição! 💕`;
                       </div>
                       <div>
                         <ChevronDown
-                          className={`h-4 w-4 text-muted-foreground transition-transform ${
-                            isExpanded ? "rotate-180" : ""
-                          }`}
+                          className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "rotate-180" : ""
+                            }`}
                         />
                       </div>
                       <div className="font-mono text-xs text-muted-foreground">
@@ -883,21 +948,20 @@ Qualquer dúvida estamos à disposição! 💕`;
                           {status.label}
                         </Badge>
                         {expiryInfo && (
-                          <Badge 
-                            className={`border-0 gap-1 text-[10px] px-1.5 py-0 ${
-                              expiryInfo.expired 
-                                ? "bg-destructive text-destructive-foreground" 
-                                : expiryInfo.urgent 
-                                  ? "bg-amber-100 text-amber-700 animate-pulse-soft" 
+                          <Badge
+                            className={`border-0 gap-1 text-[10px] px-1.5 py-0 ${expiryInfo.expired
+                                ? "bg-destructive text-destructive-foreground"
+                                : expiryInfo.urgent
+                                  ? "bg-amber-100 text-amber-700 animate-pulse-soft"
                                   : "bg-secondary text-muted-foreground"
-                            }`}
+                              }`}
                           >
                             <Timer className="h-2.5 w-2.5" />
                             {expiryInfo.expired ? "Reserva expirada" : `Reserva: ${expiryInfo.text}`}
                           </Badge>
                         )}
                         {order.requires_physical_cancel && (
-                          <Badge 
+                          <Badge
                             className="border-0 gap-1 text-[10px] px-1.5 py-0 bg-orange-100 text-orange-700 animate-pulse"
                           >
                             <AlertCircle className="h-2.5 w-2.5" />
@@ -918,9 +982,8 @@ Qualquer dúvida estamos à disposição! 💕`;
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <div className="flex items-center gap-2">
                           <ChevronDown
-                            className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${
-                              isExpanded ? "rotate-180" : ""
-                            }`}
+                            className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${isExpanded ? "rotate-180" : ""
+                              }`}
                           />
                           <div>
                             <p className="font-medium text-sm">{order.customer_name}</p>
@@ -943,21 +1006,20 @@ Qualquer dúvida estamos à disposição! 💕`;
                           {status.label}
                         </Badge>
                         {expiryInfo && (
-                          <Badge 
-                            className={`border-0 gap-1 text-[10px] px-1.5 ${
-                              expiryInfo.expired 
-                                ? "bg-destructive text-destructive-foreground" 
-                                : expiryInfo.urgent 
-                                  ? "bg-amber-100 text-amber-700 animate-pulse-soft" 
+                          <Badge
+                            className={`border-0 gap-1 text-[10px] px-1.5 ${expiryInfo.expired
+                                ? "bg-destructive text-destructive-foreground"
+                                : expiryInfo.urgent
+                                  ? "bg-amber-100 text-amber-700 animate-pulse-soft"
                                   : "bg-secondary text-muted-foreground"
-                            }`}
+                              }`}
                           >
                             <Timer className="h-2.5 w-2.5" />
                             {expiryInfo.expired ? "Expirada" : expiryInfo.text}
                           </Badge>
                         )}
                         {order.requires_physical_cancel && (
-                          <Badge 
+                          <Badge
                             className="border-0 gap-1 text-[10px] px-1.5 bg-orange-100 text-orange-700 animate-pulse"
                           >
                             <AlertCircle className="h-2.5 w-2.5" />
@@ -994,20 +1056,20 @@ Qualquer dúvida estamos à disposição! 💕`;
                               e.stopPropagation();
                               const { error } = await supabase
                                 .from("orders")
-                                .update({ 
+                                .update({
                                   requires_physical_cancel: false,
                                   attention_reason: null,
                                   attention_at: null
                                 })
                                 .eq("id", order.id);
-                              
+
                               if (error) {
                                 toast.error("Erro ao resolver atenção");
                                 return;
                               }
-                              
-                              setOrders(prev => prev.map(o => 
-                                o.id === order.id 
+
+                              setOrders(prev => prev.map(o =>
+                                o.id === order.id
                                   ? { ...o, requires_physical_cancel: false, attention_reason: null, attention_at: null }
                                   : o
                               ));
@@ -1019,7 +1081,7 @@ Qualquer dúvida estamos à disposição! 💕`;
                         </AlertDescription>
                       </Alert>
                     )}
-                    
+
                     <div className="grid md:grid-cols-2 gap-6">
                       {/* Order Items */}
                       <div>
@@ -1056,10 +1118,10 @@ Qualquer dúvida estamos à disposição! 💕`;
                               </span>
                             </div>
                           )) || (
-                            <p className="text-sm text-muted-foreground">
-                              Carregando...
-                            </p>
-                          )}
+                              <p className="text-sm text-muted-foreground">
+                                Carregando...
+                              </p>
+                            )}
                         </div>
 
                         <Separator className="my-4" />
@@ -1153,7 +1215,7 @@ Qualquer dúvida estamos à disposição! 💕`;
                               })()}
                             </div>
                           )}
-                          
+
                           {/* Tracking Code - show for Correios orders with label */}
                           {order.delivery_method === 'shipping' && (order.tracking_code || order.me_label_url || order.status === 'etiqueta_gerada') && (
                             <div className="mt-2 pt-2 border-t border-dashed border-border">
@@ -1168,9 +1230,9 @@ Qualquer dúvida estamos à disposição! 💕`;
                                   const isNumeric = /^\d{8,20}$/.test(code);
                                   return isCorreios || isNumeric;
                                 };
-                                
+
                                 const hasValidTracking = isValidTracking(order.tracking_code);
-                                
+
                                 if (hasValidTracking) {
                                   return (
                                     <div className="flex flex-wrap items-center gap-2">
@@ -1226,7 +1288,7 @@ Qualquer dúvida estamos à disposição! 💕`;
                                     </div>
                                   );
                                 }
-                                
+
                                 // No valid tracking - show sync/edit options
                                 return (
                                   <div className="space-y-2">
@@ -1323,33 +1385,33 @@ Qualquer dúvida estamos à disposição! 💕`;
 
                         {/* Print Actions */}
                         <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-dashed border-border">
-                          <OrderPackingSlipPrint 
-                            order={order} 
-                            items={orderItems[order.id] || []} 
+                          <OrderPackingSlipPrint
+                            order={order}
+                            items={orderItems[order.id] || []}
                           />
-                          <OrderShippingLabelPrint 
-                            order={order} 
+                          <OrderShippingLabelPrint
+                            order={order}
                             onLabelGenerated={(labelUrl, trackingCode) => {
                               // Update local state with new label info
                               // IMPORTANT: Do NOT change orders.status - keep payment status intact
                               // Use shipping_status for shipping state
-                              setOrders(prev => prev.map(o => 
-                                o.id === order.id 
-                                  ? { 
-                                      ...o, 
-                                      me_label_url: labelUrl, 
-                                      tracking_code: trackingCode,
-                                      shipping_status: 'etiqueta_gerada',
-                                      shipping_label_generated_at: new Date().toISOString()
-                                      // Note: status remains unchanged (e.g., 'pago')
-                                    } 
+                              setOrders(prev => prev.map(o =>
+                                o.id === order.id
+                                  ? {
+                                    ...o,
+                                    me_label_url: labelUrl,
+                                    tracking_code: trackingCode,
+                                    shipping_status: 'etiqueta_gerada',
+                                    shipping_label_generated_at: new Date().toISOString()
+                                    // Note: status remains unchanged (e.g., 'pago')
+                                  }
                                   : o
                               ));
                             }}
                             onOrderUpdated={(updatedOrder) => {
                               // Update local state when CPF is added
-                              setOrders(prev => prev.map(o => 
-                                o.id === updatedOrder.id 
+                              setOrders(prev => prev.map(o =>
+                                o.id === updatedOrder.id
                                   ? { ...o, address_snapshot: updatedOrder.address_snapshot }
                                   : o
                               ));
@@ -1571,7 +1633,7 @@ Qualquer dúvida estamos à disposição! 💕`;
                             <MessageCircle className="h-4 w-4 text-green-600" />
                             Mensagem WhatsApp
                           </label>
-                          
+
                           {/* Alert when status changed and message pending */}
                           {whatsappPendingSend[order.id] && (
                             <Alert className="border-green-300 bg-green-50">
@@ -1581,15 +1643,15 @@ Qualquer dúvida estamos à disposição! 💕`;
                               </AlertDescription>
                             </Alert>
                           )}
-                          
+
                           {/* Last sent info */}
                           {order.last_whatsapp_sent_at && (
                             <p className="text-xs text-muted-foreground">
-                              Última notificação: {new Date(order.last_whatsapp_sent_at).toLocaleString('pt-BR')} 
+                              Última notificação: {new Date(order.last_whatsapp_sent_at).toLocaleString('pt-BR')}
                               {order.last_whatsapp_status && ` (${statusConfig[order.last_whatsapp_status]?.label || order.last_whatsapp_status})`}
                             </p>
                           )}
-                          
+
                           {/* Editable message textarea */}
                           {editingWhatsappMessage === order.id ? (
                             <div className="space-y-2">
@@ -1608,8 +1670,8 @@ Qualquer dúvida estamos à disposição! 💕`;
                                 <Button size="sm" variant="ghost" onClick={() => setEditingWhatsappMessage(null)}>
                                   Fechar editor
                                 </Button>
-                                <Button 
-                                  size="sm" 
+                                <Button
+                                  size="sm"
                                   variant="outline"
                                   onClick={() => {
                                     // Reset to template
@@ -1627,7 +1689,7 @@ Qualquer dúvida estamos à disposição! 💕`;
                               </div>
                             </div>
                           ) : (
-                            <div 
+                            <div
                               className="p-3 bg-muted/50 rounded-lg text-sm cursor-pointer hover:bg-muted transition-colors"
                               onClick={() => setEditingWhatsappMessage(order.id)}
                             >
@@ -1671,14 +1733,14 @@ Qualquer dúvida estamos à disposição! 💕`;
                                   trackingCode: order.tracking_code,
                                   total: formatPrice(order.total),
                                 });
-                                
+
                                 const cleanPhone = order.customer_phone.replace(/\D/g, "");
                                 const fullPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
                                 const waUrl = `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;
-                                
+
                                 // Open WhatsApp
                                 window.open(waUrl, '_blank', 'noopener,noreferrer');
-                                
+
                                 // Record the send in database
                                 await supabase
                                   .from("orders")
@@ -1688,17 +1750,17 @@ Qualquer dúvida estamos à disposição! 💕`;
                                     whatsapp_message_override: whatsappMessages[order.id] || null,
                                   })
                                   .eq("id", order.id);
-                                
+
                                 // Update local state
-                                setOrders(prev => prev.map(o => 
-                                  o.id === order.id 
+                                setOrders(prev => prev.map(o =>
+                                  o.id === order.id
                                     ? { ...o, last_whatsapp_status: order.status, last_whatsapp_sent_at: new Date().toISOString() }
                                     : o
                                 ));
-                                
+
                                 // Clear pending flag
                                 setWhatsappPendingSend(prev => ({ ...prev, [order.id]: false }));
-                                
+
                                 toast.success("WhatsApp aberto — notificação registrada!");
                               }}
                             >
