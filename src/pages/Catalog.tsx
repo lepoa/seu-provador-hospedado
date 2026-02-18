@@ -1,6 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
-import { Link } from "react-router-dom";
-import { Search, Filter, X, AlertCircle } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import {
+  Search, Filter, X, AlertCircle, ArrowRight,
+  RefreshCw, CreditCard, MessageCircle, Truck, Sparkles, Camera,
+  ChevronDown,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Header } from "@/components/Header";
@@ -8,25 +12,19 @@ import { BenefitsBar } from "@/components/BenefitsBar";
 import { ProductCard } from "@/components/ProductCard";
 import { Badge } from "@/components/ui/badge";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
 } from "@/components/ui/sheet";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
-import { getAvailableSizes, isLowStock } from "@/components/StockBySize";
-import { getTotalStock, isOutOfStock, getAvailableSizesSorted } from "@/lib/sizeUtils";
 import { useLiveHiddenProducts } from "@/hooks/useLiveStock";
 import { useProductAvailableStock } from "@/hooks/useProductAvailableStock";
 import { useEffectivePrices } from "@/hooks/useEffectivePrices";
+import { buildWhatsAppLink } from "@/lib/whatsappHelpers";
 
 interface Product {
   id: string;
@@ -41,48 +39,73 @@ interface Product {
   style: string | null;
   tags: string[];
   stock_by_size: Record<string, number> | null | unknown;
-  discount_type: 'percentage' | 'fixed' | null;
+  discount_type: "percentage" | "fixed" | null;
   discount_value: number | null;
 }
 
+// ─── Constants ──────────────────────────────────────────────────
 const CATEGORIES = ["Vestidos", "Blusas", "Calças", "Saias", "Conjuntos", "Acessórios", "Blazers"];
 const COLORS = ["Preto", "Branco", "Bege", "Rosa", "Azul", "Verde", "Vermelho", "Marrom", "Cinza", "Estampado"];
 const SIZES = ["PP", "P", "M", "G", "GG", "34", "36", "38", "40", "42", "44", "46"];
 
+const OCCASIONS = [
+  { label: "Trabalho", query: "trabalho" },
+  { label: "Jantar", query: "jantar" },
+  { label: "Evento", query: "evento" },
+  { label: "Igreja", query: "igreja" },
+  { label: "Viagem", query: "viagem" },
+  { label: "Dia a dia chic", query: "dia a dia" },
+  { label: "Todas as peças", query: "" },
+];
+
+const TRUST_ITEMS = [
+  { icon: RefreshCw, label: "Troca fácil", desc: "Sem burocracia" },
+  { icon: CreditCard, label: "3x sem juros", desc: "No cartão" },
+  { icon: MessageCircle, label: "Suporte WhatsApp", desc: "Resposta rápida" },
+  { icon: Truck, label: "Envio Brasil", desc: "Todo o país" },
+];
+
+// ─── Component ──────────────────────────────────────────────────
 const Catalog = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
-  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
+  const [selectedOccasion, setSelectedOccasion] = useState<string>("");
   const [sortBy, setSortBy] = useState("recent");
 
-  // Live Shop integration - hide exclusive products and track reserved stock
-  const { isProductHidden, isLoading: hiddenLoading } = useLiveHiddenProducts();
-  
-  // Centralized stock hook - uses view that calculates on_hand - committed - reserved
-  const productIds = useMemo(() => products.map(p => p.id), [products]);
-  const { 
-    getAvailable, 
-    getAvailableSizes: getAvailableSizesFromView, 
+  // Read occasion from URL on mount
+  useEffect(() => {
+    const occasion = searchParams.get("occasion") || "";
+    setSelectedOccasion(occasion);
+  }, [searchParams]);
+
+  // Live Shop integration
+  const { isProductHidden } = useLiveHiddenProducts();
+
+  // Centralized stock
+  const productIds = useMemo(() => products.map((p) => p.id), [products]);
+  const {
+    getAvailable,
+    getAvailableSizes: getAvailableSizesFromView,
     getTotalAvailable,
     isProductOutOfStock: checkProductOutOfStock,
     isSizeLowStock,
-    isLoading: stockLoading 
   } = useProductAvailableStock(productIds.length > 0 ? productIds : undefined);
 
-  // Promotional tables - get effective prices
-  const { 
-    getEffectivePrice, 
-    getOriginalPrice, 
+  // Promotional prices
+  const {
+    getEffectivePrice,
+    getOriginalPrice,
     hasDiscount: hasPromotionalDiscount,
     getDiscountPercent,
-    isLoading: pricesLoading 
-  } = useEffectivePrices({ 
-    channel: 'catalog', 
+  } = useEffectivePrices({
+    channel: "catalog",
     productIds: productIds.length > 0 ? productIds : undefined,
-    enabled: productIds.length > 0
+    enabled: productIds.length > 0,
   });
 
   useEffect(() => {
@@ -102,41 +125,52 @@ const Catalog = () => {
         setIsLoading(false);
       }
     }
-
     loadProducts();
   }, []);
 
   const filteredProducts = useMemo(() => {
     let result = products;
 
-    // Filter out products hidden by active lives (EXCLUSIVO_LIVE)
-    result = result.filter(p => !isProductHidden(p.id));
+    // Hide live-exclusive products
+    result = result.filter((p) => !isProductHidden(p.id));
 
     // Search filter
     if (search) {
       const searchLower = search.toLowerCase();
-      result = result.filter(p =>
-        p.name.toLowerCase().includes(searchLower) ||
-        p.category?.toLowerCase().includes(searchLower)
+      result = result.filter(
+        (p) =>
+          p.name.toLowerCase().includes(searchLower) ||
+          p.category?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Occasion filter (searches in tags, style, category, name)
+    if (selectedOccasion) {
+      const occLower = selectedOccasion.toLowerCase();
+      result = result.filter(
+        (p) =>
+          p.tags?.some((t) => t.toLowerCase().includes(occLower)) ||
+          p.style?.toLowerCase().includes(occLower) ||
+          p.category?.toLowerCase().includes(occLower) ||
+          p.name.toLowerCase().includes(occLower)
       );
     }
 
     // Category filter
     if (selectedCategory) {
-      result = result.filter(p => p.category === selectedCategory);
+      result = result.filter((p) => p.category === selectedCategory);
     }
 
     // Color filter
     if (selectedColor) {
-      result = result.filter(p => p.color === selectedColor);
+      result = result.filter((p) => p.color === selectedColor);
     }
 
-    // Size filter - filter by available stock from centralized view
-    if (selectedSize) {
-      result = result.filter(p => {
-        const availableStock = getAvailable(p.id, selectedSize);
-        return availableStock > 0;
-      });
+    // Size filter (multi-select: product must have stock in at least one selected size)
+    if (selectedSizes.length > 0) {
+      result = result.filter((p) =>
+        selectedSizes.some((size) => getAvailable(p.id, size) > 0)
+      );
     }
 
     // Sort
@@ -154,49 +188,48 @@ const Catalog = () => {
         break;
     }
 
-    // ALWAYS sort out-of-stock products to the end (after other sorting)
-    // Uses centralized view for accurate stock calculation
+    // Out-of-stock always last
     result = [...result].sort((a, b) => {
-      const aAvailable = getTotalAvailable(a.id);
-      const bAvailable = getTotalAvailable(b.id);
-      
-      const aOutOfStock = aAvailable <= 0;
-      const bOutOfStock = bAvailable <= 0;
-      
-      if (aOutOfStock && !bOutOfStock) return 1;
-      if (!aOutOfStock && bOutOfStock) return -1;
+      const aOut = getTotalAvailable(a.id) <= 0;
+      const bOut = getTotalAvailable(b.id) <= 0;
+      if (aOut && !bOut) return 1;
+      if (!aOut && bOut) return -1;
       return 0;
     });
 
     return result;
-  }, [products, search, selectedCategory, selectedColor, selectedSize, sortBy, isProductHidden, getAvailable, getTotalAvailable]);
+  }, [
+    products, search, selectedCategory, selectedColor, selectedSizes,
+    sortBy, selectedOccasion, isProductHidden, getAvailable, getTotalAvailable,
+  ]);
 
-  const activeFiltersCount = [selectedCategory, selectedColor, selectedSize].filter(Boolean).length;
+  const activeFiltersCount = [selectedCategory, selectedColor].filter(Boolean).length + (selectedSizes.length > 0 ? 1 : 0);
+
+  const toggleSize = (size: string) => {
+    setSelectedSizes((prev) =>
+      prev.includes(size) ? prev.filter((s) => s !== size) : [...prev, size]
+    );
+  };
 
   const clearFilters = () => {
     setSelectedCategory(null);
     setSelectedColor(null);
-    setSelectedSize(null);
+    setSelectedSizes([]);
     setSearch("");
+    setSelectedOccasion("");
   };
 
-  // Get available sizes for display on product card (from centralized view)
-  const getProductDisplaySizes = (product: Product): string[] => {
-    return getAvailableSizesFromView(product.id);
-  };
+  const getProductDisplaySizes = (product: Product): string[] =>
+    getAvailableSizesFromView(product.id);
 
-  // Check if product has any low stock sizes (from centralized view)
   const hasLowStock = (product: Product): boolean => {
-    const availableSizes = getAvailableSizesFromView(product.id);
-    return availableSizes.some(size => isSizeLowStock(product.id, size));
+    const sizes = getAvailableSizesFromView(product.id);
+    return sizes.some((s) => isSizeLowStock(product.id, s));
   };
 
-  // Check if product is out of stock (from centralized view)
-  const isProductOutOfStock = (product: Product): boolean => {
-    return checkProductOutOfStock(product.id);
-  };
+  const isProductOutOfStock = (product: Product): boolean =>
+    checkProductOutOfStock(product.id);
 
-  // Get main image
   const getMainImage = (product: Product): string | undefined => {
     if (product.images && product.images.length > 0) {
       const index = product.main_image_index || 0;
@@ -205,290 +238,518 @@ const Catalog = () => {
     return product.image_url || undefined;
   };
 
+  const handleOccasionClick = (query: string) => {
+    setSelectedOccasion(query);
+    if (query) {
+      setSearchParams({ occasion: query });
+    } else {
+      setSearchParams({});
+    }
+  };
+
+  // Split products into two halves for the mid-grid editorial section
+  const midPoint = Math.ceil(filteredProducts.length / 2);
+  const firstHalf = filteredProducts.slice(0, midPoint);
+  const secondHalf = filteredProducts.slice(midPoint);
+
+  // ─── Render a product card ─────────────────────────────────────
+  const renderProduct = (product: Product) => {
+    const outOfStock = isProductOutOfStock(product);
+    const lowStock = !outOfStock && hasLowStock(product);
+
+    return (
+      <Link key={product.id} to={`/produto/${product.id}`}>
+        <div className="relative group">
+          {outOfStock ? (
+            <Badge
+              variant="secondary"
+              className="absolute top-3 left-3 z-10 text-[10px] tracking-wider uppercase bg-muted/90 text-muted-foreground backdrop-blur-sm"
+            >
+              Esgotado
+            </Badge>
+          ) : lowStock ? (
+            <Badge
+              className="absolute top-3 left-3 z-10 text-[10px] tracking-wider uppercase bg-foreground/90 text-background backdrop-blur-sm"
+            >
+              Últimas unidades
+            </Badge>
+          ) : null}
+          <ProductCard
+            name={product.name}
+            price={getOriginalPrice(product.id, product.price)}
+            effectivePrice={getEffectivePrice(product.id, product.price)}
+            imageUrl={getMainImage(product)}
+            sizes={getProductDisplaySizes(product)}
+            isOutOfStock={outOfStock}
+            hasPromotionalDiscount={hasPromotionalDiscount(product.id)}
+            discountPercent={getDiscountPercent(product.id)}
+          />
+        </div>
+      </Link>
+    );
+  };
+
+  // ─── Filter select (reusable) ──────────────────────────────────
+  const FilterSelect = ({
+    value,
+    onChange,
+    placeholder,
+    options,
+    width = "w-[130px]",
+  }: {
+    value: string | null;
+    onChange: (v: string | null) => void;
+    placeholder: string;
+    options: string[];
+    width?: string;
+  }) => (
+    <Select
+      value={value || "_all"}
+      onValueChange={(v) => onChange(v === "_all" ? null : v)}
+    >
+      <SelectTrigger className={`${width} border-foreground/15 bg-transparent text-xs tracking-wide`}>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="_all">{placeholder}</SelectItem>
+        {options.map((opt) => (
+          <SelectItem key={opt} value={opt}>
+            {opt}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen flex flex-col bg-background">
       <BenefitsBar />
       <Header />
 
-      <main className="container mx-auto px-4 py-8">
-        {/* Page Header */}
-        <div className="text-center mb-8">
-          <h1 className="font-serif text-3xl md:text-4xl mb-2">
-            Nossas Peças
+      {/* ═══ 1. HERO BANNER ═══ */}
+      <section className="py-14 md:py-20 px-5 text-center">
+        <div className="max-w-2xl mx-auto">
+          <span className="text-xs tracking-[0.2em] uppercase text-accent font-medium">
+            Coleção completa
+          </span>
+          <h1 className="font-serif text-3xl md:text-4xl lg:text-5xl mt-3 mb-4 leading-[1.15]">
+            Curadoria pensada para{" "}
+            <span className="text-accent italic">mulheres que não{" "}
+              <br className="hidden sm:block" />têm tempo a perder.</span>
           </h1>
-          <p className="text-muted-foreground">
-            Explore nossa coleção e encontre seu estilo
+          <p className="text-muted-foreground font-light text-sm md:text-base max-w-lg mx-auto leading-relaxed">
+            Cada peça foi escolhida a dedo para valorizar seu corpo,
+            simplificar suas manhãs e fazer você se sentir incrível
+            do escritório ao jantar.
           </p>
         </div>
+      </section>
 
-        {/* Search and Filters */}
-        <div className="flex flex-col md:flex-row gap-4 mb-8">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nome..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10"
-            />
+      {/* ═══ 2. OCCASION CHIPS ═══ */}
+      <section className="px-5 pb-10 md:pb-14">
+        <div className="max-w-3xl mx-auto">
+          <p className="text-center text-xs tracking-[0.15em] uppercase text-muted-foreground mb-6 font-medium">
+            Para qual ocasião?
+          </p>
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-4 md:gap-x-8">
+            {OCCASIONS.map((occ) => (
+              <button
+                key={occ.query || "all"}
+                onClick={() => handleOccasionClick(occ.query)}
+                className="group relative"
+              >
+                <span
+                  className={`
+                    font-serif text-base md:text-lg transition-colors duration-300
+                    ${selectedOccasion === occ.query
+                      ? "text-foreground"
+                      : "text-foreground/50 hover:text-foreground/80"
+                    }
+                  `}
+                >
+                  {occ.label}
+                </span>
+                <span
+                  className={`
+                    absolute -bottom-1 left-0 h-px bg-accent transition-all duration-500
+                    ${selectedOccasion === occ.query ? "w-full" : "w-0 group-hover:w-full"}
+                  `}
+                />
+              </button>
+            ))}
           </div>
+        </div>
+      </section>
 
-          <div className="flex gap-2">
-            {/* Mobile Filters */}
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="outline" className="md:hidden gap-2">
-                  <Filter className="h-4 w-4" />
-                  Filtros
-                  {activeFiltersCount > 0 && (
-                    <span className="bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                      {activeFiltersCount}
-                    </span>
-                  )}
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="right">
-                <SheetHeader>
-                  <SheetTitle>Filtros</SheetTitle>
-                </SheetHeader>
-                <div className="space-y-6 mt-6">
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Categoria</label>
-                    <Select
-                      value={selectedCategory || "_all"}
-                      onValueChange={(v) => setSelectedCategory(v === "_all" ? null : v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Todas" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="_all">Todas</SelectItem>
-                        {CATEGORIES.map(cat => (
-                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+      {/* ═══ 3. FILTERS & SEARCH ═══ */}
+      <section className="border-y border-foreground/8 bg-secondary/20">
+        <div className="max-w-6xl mx-auto px-5 py-4">
+          <div className="flex flex-col md:flex-row gap-3 items-center">
+            {/* Search */}
+            <div className="relative flex-1 w-full md:w-auto">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10 border-foreground/15 bg-transparent text-sm"
+              />
+            </div>
+
+            <div className="flex gap-2 items-center">
+              {/* Mobile Filters */}
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="outline" size="sm" className="md:hidden gap-1.5 border-foreground/15 text-xs">
+                    <Filter className="h-3.5 w-3.5" />
+                    Filtros
+                    {activeFiltersCount > 0 && (
+                      <span className="bg-accent text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
+                        {activeFiltersCount}
+                      </span>
+                    )}
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right">
+                  <SheetHeader>
+                    <SheetTitle className="font-serif">Filtros</SheetTitle>
+                  </SheetHeader>
+                  <div className="space-y-6 mt-6">
+                    <div>
+                      <label className="text-[10px] tracking-[0.15em] uppercase text-muted-foreground font-medium mb-2 block">
+                        Categoria
+                      </label>
+                      <FilterSelect
+                        value={selectedCategory}
+                        onChange={setSelectedCategory}
+                        placeholder="Todas"
+                        options={CATEGORIES}
+                        width="w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] tracking-[0.15em] uppercase text-muted-foreground font-medium mb-2 block">
+                        Cor
+                      </label>
+                      <FilterSelect
+                        value={selectedColor}
+                        onChange={setSelectedColor}
+                        placeholder="Todas"
+                        options={COLORS}
+                        width="w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] tracking-[0.15em] uppercase text-muted-foreground font-medium mb-3 block">
+                        Tamanho
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {SIZES.map((size) => (
+                          <button
+                            key={size}
+                            onClick={() => toggleSize(size)}
+                            className={`
+                              px-3 py-1.5 text-xs tracking-wide border rounded-full transition-all duration-200
+                              ${selectedSizes.includes(size)
+                                ? "bg-foreground text-background border-foreground"
+                                : "border-foreground/20 text-foreground/70 hover:border-foreground/40"
+                              }
+                            `}
+                          >
+                            {size}
+                          </button>
                         ))}
-                      </SelectContent>
-                    </Select>
+                      </div>
+                    </div>
+                    {activeFiltersCount > 0 && (
+                      <Button variant="ghost" onClick={clearFilters} className="w-full text-xs tracking-wide">
+                        Limpar filtros
+                      </Button>
+                    )}
                   </div>
+                </SheetContent>
+              </Sheet>
 
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Cor</label>
-                    <Select
-                      value={selectedColor || "_all"}
-                      onValueChange={(v) => setSelectedColor(v === "_all" ? null : v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Todas" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="_all">Todas</SelectItem>
-                        {COLORS.map(color => (
-                          <SelectItem key={color} value={color}>{color}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+              {/* Desktop Filters */}
+              <div className="hidden md:flex gap-2">
+                <FilterSelect value={selectedCategory} onChange={setSelectedCategory} placeholder="Categoria" options={CATEGORIES} />
+                <FilterSelect value={selectedColor} onChange={setSelectedColor} placeholder="Cor" options={COLORS} width="w-[110px]" />
 
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Tamanho</label>
-                    <Select
-                      value={selectedSize || "_all"}
-                      onValueChange={(v) => setSelectedSize(v === "_all" ? null : v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Todos" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="_all">Todos</SelectItem>
-                        {SIZES.map(size => (
-                          <SelectItem key={size} value={size}>{size}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                {/* Size multi-select popover */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button className="inline-flex items-center gap-1.5 h-10 px-3 border border-foreground/15 bg-transparent text-xs tracking-wide rounded-md hover:bg-secondary/50 transition-colors">
+                      {selectedSizes.length > 0
+                        ? `${selectedSizes.length} tam.`
+                        : "Tamanho"
+                      }
+                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-auto p-3">
+                    <p className="text-[10px] tracking-[0.15em] uppercase text-muted-foreground font-medium mb-2">Tamanho</p>
+                    <div className="flex flex-wrap gap-1.5 max-w-[220px]">
+                      {SIZES.map((size) => (
+                        <button
+                          key={size}
+                          onClick={() => toggleSize(size)}
+                          className={`
+                            px-2.5 py-1 text-xs tracking-wide border rounded-full transition-all duration-200
+                            ${selectedSizes.includes(size)
+                              ? "bg-foreground text-background border-foreground"
+                              : "border-foreground/20 text-foreground/70 hover:border-foreground/40"
+                            }
+                          `}
+                        >
+                          {size}
+                        </button>
+                      ))}
+                    </div>
+                    {selectedSizes.length > 0 && (
+                      <button
+                        onClick={() => setSelectedSizes([])}
+                        className="mt-2 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Limpar tamanhos
+                      </button>
+                    )}
+                  </PopoverContent>
+                </Popover>
+              </div>
 
-                  {activeFiltersCount > 0 && (
-                    <Button variant="ghost" onClick={clearFilters} className="w-full">
-                      Limpar filtros
-                    </Button>
-                  )}
-                </div>
-              </SheetContent>
-            </Sheet>
-
-            {/* Desktop Filters */}
-            <div className="hidden md:flex gap-2">
-              <Select
-                value={selectedCategory || "_all"}
-                onValueChange={(v) => setSelectedCategory(v === "_all" ? null : v)}
-              >
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="Categoria" />
+              {/* Sort */}
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-[130px] border-foreground/15 bg-transparent text-xs tracking-wide">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="_all">Todas</SelectItem>
-                  {CATEGORIES.map(cat => (
-                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select
-                value={selectedColor || "_all"}
-                onValueChange={(v) => setSelectedColor(v === "_all" ? null : v)}
-              >
-                <SelectTrigger className="w-[120px]">
-                  <SelectValue placeholder="Cor" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_all">Todas</SelectItem>
-                  {COLORS.map(color => (
-                    <SelectItem key={color} value={color}>{color}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select
-                value={selectedSize || "_all"}
-                onValueChange={(v) => setSelectedSize(v === "_all" ? null : v)}
-              >
-                <SelectTrigger className="w-[110px]">
-                  <SelectValue placeholder="Tamanho" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_all">Todos</SelectItem>
-                  {SIZES.map(size => (
-                    <SelectItem key={size} value={size}>{size}</SelectItem>
-                  ))}
+                  <SelectItem value="recent">Mais recentes</SelectItem>
+                  <SelectItem value="price_asc">Menor preço</SelectItem>
+                  <SelectItem value="price_desc">Maior preço</SelectItem>
+                  <SelectItem value="name">A-Z</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-
-            {/* Sort */}
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="recent">Mais recentes</SelectItem>
-                <SelectItem value="price_asc">Menor preço</SelectItem>
-                <SelectItem value="price_desc">Maior preço</SelectItem>
-                <SelectItem value="name">A-Z</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
+
+          {/* Active Filters Tags */}
+          {(activeFiltersCount > 0 || selectedOccasion) && (
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-foreground/5">
+              {selectedOccasion && (
+                <button
+                  onClick={() => handleOccasionClick("")}
+                  className="inline-flex items-center gap-1 px-3 py-1 text-[11px] tracking-wide border border-accent/30 text-accent rounded-full hover:bg-accent/5 transition-colors"
+                >
+                  {selectedOccasion}
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+              {selectedCategory && (
+                <button
+                  onClick={() => setSelectedCategory(null)}
+                  className="inline-flex items-center gap-1 px-3 py-1 text-[11px] tracking-wide border border-foreground/15 rounded-full hover:bg-secondary transition-colors"
+                >
+                  {selectedCategory}
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+              {selectedColor && (
+                <button
+                  onClick={() => setSelectedColor(null)}
+                  className="inline-flex items-center gap-1 px-3 py-1 text-[11px] tracking-wide border border-foreground/15 rounded-full hover:bg-secondary transition-colors"
+                >
+                  {selectedColor}
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+              {selectedSizes.map((size) => (
+                <button
+                  key={size}
+                  onClick={() => toggleSize(size)}
+                  className="inline-flex items-center gap-1 px-3 py-1 text-[11px] tracking-wide border border-foreground/15 rounded-full hover:bg-secondary transition-colors"
+                >
+                  Tam {size}
+                  <X className="h-3 w-3" />
+                </button>
+              ))}
+              <button
+                onClick={clearFilters}
+                className="text-[11px] tracking-wide text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Limpar todos
+              </button>
+            </div>
+          )}
         </div>
+      </section>
 
-        {/* Active Filters Tags */}
-        {activeFiltersCount > 0 && (
-          <div className="flex flex-wrap gap-2 mb-6">
-            {selectedCategory && (
-              <button
-                onClick={() => setSelectedCategory(null)}
-                className="inline-flex items-center gap-1 px-3 py-1 bg-secondary text-sm rounded-full hover:bg-secondary/80"
-              >
-                {selectedCategory}
-                <X className="h-3 w-3" />
-              </button>
-            )}
-            {selectedColor && (
-              <button
-                onClick={() => setSelectedColor(null)}
-                className="inline-flex items-center gap-1 px-3 py-1 bg-secondary text-sm rounded-full hover:bg-secondary/80"
-              >
-                {selectedColor}
-                <X className="h-3 w-3" />
-              </button>
-            )}
-            {selectedSize && (
-              <button
-                onClick={() => setSelectedSize(null)}
-                className="inline-flex items-center gap-1 px-3 py-1 bg-secondary text-sm rounded-full hover:bg-secondary/80"
-              >
-                Tam {selectedSize}
-                <X className="h-3 w-3" />
-              </button>
-            )}
-            <button
-              onClick={clearFilters}
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              Limpar todos
-            </button>
-          </div>
-        )}
-
-        {/* Results Count */}
-        <p className="text-sm text-muted-foreground mb-6">
-          {filteredProducts.length} {filteredProducts.length === 1 ? "produto" : "produtos"}
+      {/* ═══ Results Count ═══ */}
+      <div className="max-w-6xl mx-auto px-5 pt-6 pb-2">
+        <p className="text-[11px] tracking-[0.15em] uppercase text-muted-foreground font-medium">
+          {filteredProducts.length} {filteredProducts.length === 1 ? "peça" : "peças"}
+          {selectedOccasion ? ` para ${selectedOccasion}` : ""}
         </p>
+      </div>
 
-        {/* Products Grid */}
+      {/* ═══ 4. PRODUCT GRID — FIRST HALF ═══ */}
+      <main className="max-w-6xl mx-auto px-5 py-6">
         {isLoading ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
             {[...Array(8)].map((_, i) => (
               <div key={i} className="animate-pulse">
-                <div className="aspect-[3/4] bg-secondary rounded-xl mb-3" />
-                <div className="h-4 bg-secondary rounded w-3/4 mb-2" />
-                <div className="h-4 bg-secondary rounded w-1/2" />
+                <div className="aspect-[3/4] bg-secondary mb-3" />
+                <div className="h-3 bg-secondary w-3/4 mb-2" />
+                <div className="h-3 bg-secondary w-1/2" />
               </div>
             ))}
           </div>
         ) : filteredProducts.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="text-muted-foreground mb-4">
-              Nenhum produto encontrado com esses filtros.
+          <div className="text-center py-20">
+            <p className="font-serif text-xl mb-2">Nenhuma peça encontrada</p>
+            <p className="text-sm text-muted-foreground mb-6">
+              Tente remover alguns filtros ou explorar outra ocasião.
             </p>
-            <Button variant="outline" onClick={clearFilters}>
+            <Button variant="outline" onClick={clearFilters} className="text-xs tracking-wide">
               Limpar filtros
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-            {filteredProducts.map((product) => {
-              const productOutOfStock = isProductOutOfStock(product);
-              const productHasLowStock = !productOutOfStock && hasLowStock(product);
-              
-              return (
-                <Link key={product.id} to={`/produto/${product.id}`}>
-                  <div className="relative">
-                    {productOutOfStock ? (
-                      <Badge 
-                        variant="secondary" 
-                        className="absolute top-2 left-2 z-10 text-[10px] bg-muted text-muted-foreground"
-                      >
-                        Esgotado
-                      </Badge>
-                    ) : productHasLowStock && (
-                      <Badge 
-                        variant="destructive" 
-                        className="absolute top-2 left-2 z-10 text-[10px]"
-                      >
-                        <AlertCircle className="h-3 w-3 mr-1" />
-                        Últimas unidades
-                      </Badge>
-                    )}
-                    <ProductCard
-                      name={product.name}
-                      price={getOriginalPrice(product.id, product.price)}
-                      effectivePrice={getEffectivePrice(product.id, product.price)}
-                      imageUrl={getMainImage(product)}
-                      sizes={getProductDisplaySizes(product)}
-                      isOutOfStock={productOutOfStock}
-                      hasPromotionalDiscount={hasPromotionalDiscount(product.id)}
-                      discountPercent={getDiscountPercent(product.id)}
-                    />
+          <>
+            {/* First half */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+              {firstHalf.map(renderProduct)}
+            </div>
+
+            {/* ═══ 5. EDITORIAL MID-SECTION ═══ */}
+            {filteredProducts.length > 3 && (
+              <section className="my-12 md:my-16 py-12 md:py-16 border-y border-foreground/8">
+                <div className="max-w-2xl mx-auto text-center">
+                  <div className="w-px h-10 bg-accent/40 mx-auto mb-6" />
+                  <span className="text-xs tracking-[0.2em] uppercase text-accent font-medium">
+                    Precisa de ajuda?
+                  </span>
+                  <h2 className="font-serif text-2xl md:text-3xl mt-2 mb-3 italic">
+                    Não sabe o que vestir?{" "}
+                    <br className="hidden sm:block" />
+                    A gente resolve.
+                  </h2>
+                  <p className="text-muted-foreground font-light text-sm mb-8 max-w-md mx-auto leading-relaxed">
+                    Responda 5 perguntas sobre seu estilo e tamanho. Em 2
+                    minutos a gente monta um provador personalizado e envia
+                    sugestões direto no seu WhatsApp.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <Link to="/meu-estilo">
+                      <button className="px-10 py-3.5 bg-foreground text-background text-xs tracking-[0.25em] uppercase font-medium transition-all duration-500 hover:bg-accent hover:text-white">
+                        Fazer meu provador VIP
+                      </button>
+                    </Link>
+                    <Link to="/enviar-print">
+                      <button className="px-10 py-3.5 border border-foreground/30 text-foreground text-xs tracking-[0.25em] uppercase font-medium transition-all duration-500 hover:border-accent hover:text-accent">
+                        Buscar look por foto
+                      </button>
+                    </Link>
                   </div>
-                </Link>
-              );
-            })}
-          </div>
+                </div>
+              </section>
+            )}
+
+            {/* Second half */}
+            {secondHalf.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+                {secondHalf.map(renderProduct)}
+              </div>
+            )}
+          </>
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="py-8 border-t border-border mt-12">
-        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>© 2024 Provador VIP. Feito com ❤️ para lojistas de moda.</p>
+      {/* ═══ 6. TRUST BADGES ═══ */}
+      <section className="py-14 md:py-20 px-5 bg-[hsl(35,30%,94%)]/60">
+        <div className="max-w-4xl mx-auto text-center">
+          <span className="text-xs tracking-[0.2em] uppercase text-accent font-medium">
+            Por que escolher a LE.POÁ
+          </span>
+          <h2 className="font-serif text-2xl md:text-3xl mt-2 mb-3">
+            Mais de 8 anos vestindo mulheres reais.
+          </h2>
+          <p className="text-muted-foreground text-sm font-light mb-10 max-w-md mx-auto">
+            Não somos só uma loja. Somos sua parceira de estilo para cada momento da sua vida.
+          </p>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
+            {TRUST_ITEMS.map((item) => (
+              <div key={item.label} className="flex flex-col items-center gap-3 group">
+                <div className="w-14 h-14 rounded-full bg-card border border-border flex items-center justify-center shadow-sm group-hover:shadow-md group-hover:border-accent/40 transition-all duration-300">
+                  <item.icon className="h-6 w-6 text-accent" />
+                </div>
+                <div>
+                  <p className="font-medium text-sm">{item.label}</p>
+                  <p className="text-xs text-muted-foreground">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ 7. FINAL CTA ═══ */}
+      <section className="py-16 md:py-24 px-5">
+        <div className="max-w-2xl mx-auto text-center">
+          <div className="w-px h-12 bg-accent/40 mx-auto mb-6" />
+          <h2 className="font-serif text-3xl md:text-4xl mb-4 italic">
+            Pronta para se sentir incrível?
+          </h2>
+          <p className="text-muted-foreground font-light mb-8 max-w-md mx-auto">
+            Monte seu provador VIP em 2 minutos e receba sugestões
+            personalizadas direto no seu WhatsApp.
+          </p>
+          <Link to="/meu-estilo">
+            <button className="px-12 py-4 bg-foreground text-background text-xs tracking-[0.25em] uppercase font-medium transition-all duration-500 hover:bg-accent hover:text-white">
+              Quero meu provador VIP
+            </button>
+          </Link>
+          <p className="text-[11px] text-muted-foreground mt-6 tracking-wide">
+            Gratuito · Leva menos de 2 minutos
+          </p>
+        </div>
+      </section>
+
+      {/* ═══ FOOTER ═══ */}
+      <footer className="border-t border-border py-10 px-5">
+        <div className="max-w-5xl mx-auto">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="text-center md:text-left">
+              <p className="font-serif text-lg mb-1">LE.POÁ</p>
+              <p className="text-xs text-muted-foreground">Curadoria de moda feminina • Anápolis, GO</p>
+            </div>
+
+            <div className="flex items-center gap-5 text-sm text-muted-foreground">
+              <Link to="/catalogo" className="hover:text-foreground transition-colors">Catálogo</Link>
+              <Link to="/meu-estilo" className="hover:text-foreground transition-colors">Provador VIP</Link>
+              <Link to="/enviar-print" className="hover:text-foreground transition-colors">Buscar por foto</Link>
+              <a
+                href={buildWhatsAppLink("Olá! Gostaria de saber mais sobre a LE.POÁ 🌸")}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground transition-colors"
+              >
+                WhatsApp
+              </a>
+            </div>
+          </div>
+
+          <div className="border-t border-border mt-6 pt-6 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              © {new Date().getFullYear()} LE.POÁ. Todos os direitos reservados.
+            </p>
+            <Link
+              to="/area-lojista"
+              className="text-[10px] text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+            >
+              Área do Lojista
+            </Link>
+          </div>
         </div>
       </footer>
     </div>

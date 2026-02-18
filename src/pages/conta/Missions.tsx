@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
-import { Star, Target, Loader2 } from "lucide-react";
+import { Loader2, ArrowRight, CheckCircle2 } from "lucide-react";
 import { AccountLayout } from "@/components/account/AccountLayout";
-import { MissionCard } from "@/components/account/MissionCard";
-import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/hooks/useAuth";
 import { useLoyalty } from "@/hooks/useLoyalty";
 import { supabase } from "@/integrations/supabase/client";
 import { getAvailableMissions, getMissionById } from "@/lib/missionsData";
+import { Link } from "react-router-dom";
+import { cn } from "@/lib/utils";
+import { getLevelFromPoints } from "@/lib/quizDataV2";
 
 interface MissionAttempt {
   mission_id: string;
@@ -45,18 +46,18 @@ export default function Missions() {
 
   if (loading) {
     return (
-      <AccountLayout title="Missões">
+      <AccountLayout title="Módulos de Estilo" showBackButton>
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Loader2 className="h-8 w-8 animate-spin text-foreground/20" />
         </div>
       </AccountLayout>
     );
   }
 
   const availableMissions = getAvailableMissions(completedMissions);
-  const monthlyPoints = loyalty?.weeklyMissionPoints || 0; // reusing field for monthly
+  const totalPoints = loyalty?.currentPoints || 0;
+  const monthlyPoints = loyalty?.weeklyMissionPoints || 0;
   const monthlyRemaining = getMissionPointsRemaining(monthlyPoints);
-  const monthlyProgress = (monthlyPoints / monthlyMissionLimit) * 100;
 
   // Group missions by status
   const inProgress = attempts.filter((a) => a.status === "in_progress");
@@ -66,39 +67,64 @@ export default function Missions() {
   });
 
   return (
-    <AccountLayout title="Missões" showBackButton>
-      {/* Monthly Progress Card */}
-      <div className="bg-gradient-to-br from-accent/5 to-card border border-accent/20 rounded-xl p-4 mb-6">
-        <div className="flex items-center gap-3 mb-3">
-          <Target className="h-5 w-5 text-accent" />
-          <span className="font-medium text-sm">Progresso Mensal</span>
-        </div>
-        <div className="flex items-center justify-between text-sm mb-2">
-          <div className="flex items-center gap-1">
-            <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
-            <span className="font-semibold text-amber-700">{monthlyPoints}</span>
-            <span className="text-muted-foreground">/ {monthlyMissionLimit} Poás</span>
+    <AccountLayout title="Módulos de Estilo" showBackButton>
+      {/* Total Points Display */}
+      <div className="border border-foreground/10 p-5 mb-6">
+        <div className="flex items-end justify-between">
+          <div>
+            <p className="text-[10px] tracking-[0.3em] uppercase text-foreground/40 font-medium mb-1">
+              Seus pontos no Le.Poá Club
+            </p>
+            <p className="text-3xl font-light text-foreground">{totalPoints.toLocaleString()}</p>
           </div>
-          <span className="text-xs text-muted-foreground">{monthlyRemaining} restantes</span>
+          <div className="text-right">
+            <p className="text-[11px] text-foreground/40 tracking-wide">
+              {loyalty?.currentTier === "poa" ? "Poá" :
+                loyalty?.currentTier === "poa_gold" ? "Poá Gold" :
+                  loyalty?.currentTier === "poa_platinum" ? "Poá Platinum" :
+                    loyalty?.currentTier === "poa_black" ? "Poá Black" : "Poá"}
+            </p>
+          </div>
         </div>
-        <Progress value={monthlyProgress} className="h-2" />
+      </div>
+
+      {/* Monthly Mission Progress */}
+      <div className="border border-foreground/10 p-4 mb-8">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[11px] tracking-[0.15em] uppercase text-foreground/40 font-medium">
+            Progresso mensal de módulos
+          </p>
+          <span className="text-[11px] text-foreground/40">
+            {monthlyRemaining} pts restantes
+          </span>
+        </div>
+        <div className="h-px bg-border relative">
+          <div
+            className="h-px bg-foreground transition-all duration-700"
+            style={{ width: `${(monthlyPoints / monthlyMissionLimit) * 100}%` }}
+          />
+        </div>
+        <p className="text-[11px] text-foreground/30 mt-2">
+          {monthlyPoints} / {monthlyMissionLimit} Poás este mês
+        </p>
       </div>
 
       {/* In Progress */}
       {inProgress.length > 0 && (
-        <div className="mb-6">
-          <h2 className="font-medium text-sm mb-3 text-amber-700">Em andamento</h2>
+        <div className="mb-8">
+          <h2 className="text-[11px] tracking-[0.2em] uppercase text-foreground/40 font-medium mb-4">
+            Em andamento
+          </h2>
           <div className="space-y-3">
             {inProgress.map((attempt) => {
               const mission = getMissionById(attempt.mission_id);
               if (!mission) return null;
               return (
-                <MissionCard
+                <EditorialMissionCard
                   key={attempt.mission_id}
                   id={mission.id}
                   title={mission.title}
                   description={mission.subtitle}
-                  points={mission.pointsReward}
                   questionCount={mission.questions?.length}
                   status="in_progress"
                 />
@@ -110,16 +136,17 @@ export default function Missions() {
 
       {/* Available */}
       {availableMissions.length > 0 && (
-        <div className="mb-6">
-          <h2 className="font-medium text-sm mb-3">Disponíveis</h2>
+        <div className="mb-8">
+          <h2 className="text-[11px] tracking-[0.2em] uppercase text-foreground/40 font-medium mb-4">
+            Disponíveis
+          </h2>
           <div className="space-y-3">
             {availableMissions.map((mission) => (
-              <MissionCard
+              <EditorialMissionCard
                 key={mission.id}
                 id={mission.id}
                 title={mission.title}
                 description={mission.subtitle}
-                points={mission.pointsReward}
                 questionCount={mission.questions?.length}
                 status="available"
               />
@@ -131,18 +158,19 @@ export default function Missions() {
       {/* Completed */}
       {completed.length > 0 && (
         <div>
-          <h2 className="font-medium text-sm mb-3 text-muted-foreground">Concluídas</h2>
+          <h2 className="text-[11px] tracking-[0.2em] uppercase text-foreground/40 font-medium mb-4">
+            Concluídos
+          </h2>
           <div className="space-y-3">
             {completed.map(({ id, completedAt }) => {
               const mission = getMissionById(id);
               if (!mission) return null;
               return (
-                <MissionCard
+                <EditorialMissionCard
                   key={id}
                   id={mission.id}
                   title={mission.title}
                   description={mission.subtitle}
-                  points={mission.pointsReward}
                   status="completed"
                   completedAt={completedAt || undefined}
                 />
@@ -154,11 +182,88 @@ export default function Missions() {
 
       {/* Empty state */}
       {availableMissions.length === 0 && inProgress.length === 0 && completed.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground">
-          <Target className="h-12 w-12 mx-auto mb-3 opacity-30" />
-          <p>Faça o quiz de estilo primeiro para desbloquear missões!</p>
+        <div className="text-center py-16">
+          <p className="text-foreground/40 text-sm font-light">
+            Faça o quiz de estilo primeiro para desbloquear módulos
+          </p>
         </div>
       )}
     </AccountLayout>
+  );
+}
+
+// Editorial-style mission card (replaces MissionCard import)
+function EditorialMissionCard({
+  id,
+  title,
+  description,
+  questionCount,
+  status,
+  completedAt,
+}: {
+  id: string;
+  title: string;
+  description: string;
+  questionCount?: number;
+  status: "available" | "in_progress" | "completed";
+  completedAt?: string;
+}) {
+  const isCompleted = status === "completed";
+
+  return (
+    <div
+      className={cn(
+        "border p-5 transition-all duration-300",
+        isCompleted
+          ? "border-foreground/10 bg-foreground/[0.02]"
+          : "border-border hover:border-foreground/30"
+      )}
+    >
+      <div className="flex items-center gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <h3
+              className={cn(
+                "text-sm tracking-wide",
+                isCompleted ? "text-foreground/50" : "font-medium"
+              )}
+            >
+              {title}
+            </h3>
+            {isCompleted && (
+              <CheckCircle2 className="h-3.5 w-3.5 text-foreground/30 shrink-0" />
+            )}
+          </div>
+          <p className="text-[12px] text-foreground/40 font-light">{description}</p>
+          <div className="flex items-center gap-3 mt-1.5">
+            {questionCount && (
+              <span className="text-[11px] text-foreground/30 tracking-wide">
+                {questionCount} perguntas
+              </span>
+            )}
+            {isCompleted && completedAt && (
+              <span className="text-[11px] text-foreground/30">
+                Concluído em {new Date(completedAt).toLocaleDateString("pt-BR")}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="shrink-0">
+          {isCompleted ? (
+            <span className="text-[11px] tracking-[0.15em] uppercase text-foreground/30 font-medium">
+              Concluído
+            </span>
+          ) : (
+            <Link to={`/missao/${id}`}>
+              <button className="px-5 py-2.5 border border-foreground/20 text-[11px] tracking-[0.15em] uppercase font-medium text-foreground/60 transition-all duration-300 hover:border-foreground hover:text-foreground flex items-center gap-2">
+                {status === "in_progress" ? "Continuar" : "Iniciar"}
+                <ArrowRight className="h-3 w-3" />
+              </button>
+            </Link>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

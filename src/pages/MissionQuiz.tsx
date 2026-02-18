@@ -392,29 +392,28 @@ const MissionQuiz = () => {
 
       <main className="flex-1 container mx-auto px-4 py-6 max-w-2xl">
         {/* Mission Header */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 bg-accent/10 px-4 py-2 rounded-full mb-3">
-            <span className="text-2xl">{mission.emoji}</span>
-            <span className="font-medium text-accent">{mission.title}</span>
-          </div>
-          <p className="text-sm text-muted-foreground">{mission.subtitle}</p>
+        <div className="text-center mb-8">
+          <p className="text-[10px] tracking-[0.3em] uppercase text-foreground/40 font-medium mb-3">
+            {mission.title}
+          </p>
+          <p className="text-sm text-foreground/50 font-light">{mission.subtitle}</p>
         </div>
 
         {/* Progress */}
         <div className="mb-8">
-          <div className="flex items-center justify-between text-sm mb-2">
-            <span className="text-muted-foreground">
-              {isPhotoStep ? "Etapa bônus: Fotos" : `Pergunta ${currentStep + 1}/${totalQuestions}`}
-            </span>
-            <span className="text-amber-600 font-medium">
-              +{MISSION_POINTS.perQuestion * totalQuestions + MISSION_POINTS.completionBonus} pts base
-            </span>
-          </div>
-          <div className="h-2 bg-secondary rounded-full overflow-hidden">
+          <div className="h-px bg-border relative">
             <div
-              className="h-full bg-gradient-to-r from-accent to-primary transition-all duration-500"
+              className="h-px bg-foreground transition-all duration-700 ease-out"
               style={{ width: `${((currentStep + 1) / (totalQuestions + 1)) * 100}%` }}
             />
+          </div>
+          <div className="flex justify-between mt-2.5">
+            <span className="text-[11px] text-foreground/40 tracking-wide">
+              {isPhotoStep ? "Referências visuais" : `${currentStep + 1} de ${totalQuestions}`}
+            </span>
+            <span className="text-[11px] text-foreground/40 tracking-wide">
+              {Math.round(((currentStep + 1) / (totalQuestions + 1)) * 100)}%
+            </span>
           </div>
         </div>
 
@@ -439,12 +438,12 @@ const MissionQuiz = () => {
           ) : question && (
             <>
               {question.subtext && (
-                <p className="text-accent text-sm mb-2 font-medium animate-slide-in-up">
+                <p className="text-[11px] tracking-[0.2em] uppercase text-foreground/40 font-medium mb-4 animate-slide-in-up">
                   {question.subtext}
                 </p>
               )}
 
-              <h2 className="font-serif text-2xl md:text-3xl mb-6 animate-slide-in-up" style={{ animationDelay: "50ms" }}>
+              <h2 className="font-serif text-2xl md:text-3xl mb-8 animate-slide-in-up" style={{ animationDelay: "50ms" }}>
                 {question.question}
               </h2>
 
@@ -469,70 +468,58 @@ const MissionQuiz = () => {
         </div>
 
         {/* Navigation */}
-        <div className="mt-8 flex gap-4">
+        <div className="mt-10 flex gap-4">
           {currentStep > 0 && (
-            <Button
-              variant="outline"
+            <button
               onClick={handlePrevious}
-              className="gap-2"
               disabled={isSubmitting || isTransitioning}
+              className="px-6 py-3.5 border border-foreground/20 text-xs tracking-[0.2em] uppercase font-medium text-foreground/60 transition-all duration-300 hover:border-foreground/40 hover:text-foreground disabled:opacity-40"
             >
-              <ArrowLeft className="h-4 w-4" />
               Voltar
-            </Button>
+            </button>
           )}
 
           {isPhotoStep ? (
-            <div className="flex-1 flex gap-2">
-              <Button
-                variant="outline"
+            <div className="flex-1 flex gap-3">
+              <button
                 onClick={handleSkipPhotos}
                 disabled={isSubmitting}
-                className="flex-1"
+                className="flex-1 py-3.5 border border-foreground/20 text-xs tracking-[0.2em] uppercase font-medium text-foreground/60 transition-all duration-300 hover:border-foreground/40 hover:text-foreground disabled:opacity-40"
               >
-                Pular fotos
-              </Button>
-              <Button
+                Pular esta etapa
+              </button>
+              <button
                 onClick={handleNext}
                 disabled={isSubmitting}
-                className="flex-1 gap-2"
+                className="flex-1 py-3.5 bg-foreground text-background text-xs tracking-[0.2em] uppercase font-medium transition-all duration-500 hover:bg-accent disabled:opacity-30 flex items-center justify-center gap-2"
               >
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Salvando...
+                    Salvando
                   </>
                 ) : (
-                  <>
-                    <Sparkles className="h-4 w-4" />
-                    Completar {photos.length > 0 && `(+${photoPoints} pts)`}
-                  </>
+                  "Concluir"
                 )}
-              </Button>
+              </button>
             </div>
           ) : (
-            <Button
+            <button
               onClick={handleNext}
               disabled={selectedOption === null || isSubmitting || isTransitioning}
-              className="flex-1 gap-2"
+              className="flex-1 py-3.5 bg-foreground text-background text-xs tracking-[0.2em] uppercase font-medium transition-all duration-500 hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Salvando...
+                  Salvando
                 </>
               ) : isLastQuestionStep ? (
-                <>
-                  <Camera className="h-4 w-4" />
-                  Próximo: Fotos
-                </>
+                "Próximo: Referências visuais"
               ) : (
-                <>
-                  Próxima
-                  <ArrowRight className="h-4 w-4" />
-                </>
+                "Próxima"
               )}
-            </Button>
+            </button>
           )}
         </div>
       </main>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { 
+import {
   Star, Trophy, Gift, Target, ChevronRight, Sparkles,
   Clock, CheckCircle2, ArrowRight, Crown, TrendingUp
 } from "lucide-react";
@@ -16,9 +16,9 @@ import { useAuth } from "@/hooks/useAuth";
 export default function ClubHub() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { 
-    loyalty, 
-    rewards, 
+  const {
+    loyalty,
+    rewards,
     redemptions,
     transactions,
     isLoading,
@@ -64,7 +64,7 @@ export default function ClubHub() {
 
   const tierInfo = getTierInfo(loyalty.currentTier);
   const { progress, pointsNeeded, nextTierName } = getProgressToNextTier(
-    loyalty.annualPoints, 
+    loyalty.annualPoints,
     loyalty.currentTier
   );
   const expiringPoints = getExpiringPoints();
@@ -160,7 +160,7 @@ export default function ClubHub() {
                 <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center mb-2">
                   <Target className="h-5 w-5 text-accent" />
                 </div>
-                <div className="font-medium text-sm">Missões</div>
+                <div className="font-medium text-sm">Módulos de Estilo</div>
                 <div className="text-xs text-muted-foreground">
                   +{missionPointsRemaining} pts disponíveis
                 </div>
@@ -236,7 +236,7 @@ export default function ClubHub() {
                     <Target className="h-6 w-6 text-accent" />
                   </div>
                   <div className="flex-1">
-                    <div className="font-medium">Complete missões</div>
+                    <div className="font-medium">Aprofunde seu perfil</div>
                     <div className="text-sm text-muted-foreground">
                       Ganhe até {monthlyMissionLimit} Poás por mês
                     </div>
@@ -320,14 +320,13 @@ export default function ClubHub() {
             ) : (
               <div className="space-y-2">
                 {transactions.slice(0, 20).map(tx => (
-                  <div 
-                    key={tx.id} 
+                  <div
+                    key={tx.id}
                     className="flex items-center justify-between py-3 border-b border-border last:border-0"
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                        tx.points > 0 ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"
-                      }`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${tx.points > 0 ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"
+                        }`}>
                         {tx.points > 0 ? "+" : "-"}
                       </div>
                       <div>

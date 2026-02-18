@@ -1,6 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { CheckCircle, Star, Trophy, Sparkles, ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { CheckCircle, ArrowRight } from "lucide-react";
 import { getLevelFromPoints } from "@/lib/quizDataV2";
 import { Mission } from "@/lib/missionsData";
 
@@ -28,89 +27,73 @@ export function MissionCompletionScreen({
   const leveledUp = newLevel > previousLevel;
 
   return (
-    <div className="text-center animate-bounce-in">
+    <div className="text-center animate-fade-in">
       {/* Success Icon */}
-      <div className="relative w-24 h-24 mx-auto mb-6">
-        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-accent/20 to-primary/20 flex items-center justify-center">
-          <CheckCircle className="h-12 w-12 text-accent" />
-        </div>
-        {leveledUp && (
-          <div className="absolute -top-2 -right-2 w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center animate-bounce">
-            <Trophy className="h-5 w-5 text-white" />
-          </div>
-        )}
+      <div className="w-16 h-16 mx-auto mb-8 border border-foreground/10 rounded-full flex items-center justify-center">
+        <CheckCircle className="h-7 w-7 text-foreground/40" />
       </div>
 
       {/* Title */}
-      <h1 className="font-serif text-3xl mb-2">Missão Completa! 🎉</h1>
-      <p className="text-muted-foreground mb-2">{mission.title}</p>
-      
+      <h1 className="font-serif text-3xl mb-2">Módulo concluído</h1>
+      <p className="text-foreground/50 font-light mb-8">{mission.title}</p>
+
       {/* Message */}
-      <div className="bg-accent/10 rounded-2xl p-4 mb-6 max-w-sm mx-auto">
-        <p className="text-sm text-accent font-medium flex items-center justify-center gap-2">
-          <Sparkles className="h-4 w-4" />
-          Você desbloqueou sugestões mais certeiras ✨
+      <div className="border border-foreground/10 p-5 mb-8 max-w-sm mx-auto">
+        <p className="text-sm text-foreground/60 font-light">
+          Suas sugestões de estilo foram refinadas com base nas suas respostas.
         </p>
       </div>
 
-      {/* Points Earned */}
-      <div className="bg-card border border-border rounded-2xl p-6 mb-6 max-w-sm mx-auto">
-        <div className="flex items-center justify-center gap-3 mb-4">
-          <Star className="h-6 w-6 text-amber-500 fill-amber-500" />
-          <span className="text-2xl font-bold text-amber-700">+{earnedPoints} pts</span>
-        </div>
-        
+      {/* Points Info */}
+      <div className="border border-foreground/10 p-6 mb-8 max-w-sm mx-auto">
+        <p className="text-[11px] tracking-[0.2em] uppercase text-foreground/40 mb-3">Pontos conquistados</p>
+        <p className="text-2xl font-light text-foreground">+{earnedPoints}</p>
+
         {leveledUp && (
-          <div className="bg-amber-50 rounded-xl p-3 mb-4 border border-amber-200">
-            <div className="flex items-center justify-center gap-2 text-amber-700">
-              <Trophy className="h-5 w-5" />
-              <span className="font-medium">Subiu para Nível {newLevel}!</span>
-            </div>
+          <div className="border-t border-foreground/10 mt-4 pt-4">
+            <p className="text-sm text-foreground/60">
+              Você subiu para <span className="font-medium text-foreground">{levelTitle}</span>
+            </p>
           </div>
         )}
-        
-        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-          <Trophy className="h-4 w-4 text-accent" />
-          <span>Nível {newLevel}: {levelTitle}</span>
-          <span className="text-xs">({totalPoints} pts total)</span>
-        </div>
+
+        <p className="text-[11px] text-foreground/30 mt-3 tracking-wide">
+          {levelTitle} — {totalPoints} pontos acumulados
+        </p>
       </div>
 
       {/* Action Buttons */}
       <div className="space-y-3 max-w-sm mx-auto">
-        <Button 
-          onClick={() => navigate("/minhas-sugestoes")} 
-          className="w-full gap-2"
+        <button
+          onClick={() => navigate("/minhas-sugestoes")}
+          className="w-full py-3.5 bg-foreground text-background text-xs tracking-[0.2em] uppercase font-medium transition-all duration-300 hover:bg-accent"
         >
-          <Sparkles className="h-4 w-4" />
           Ver minhas sugestões atualizadas
-        </Button>
-        
+        </button>
+
         {nextMissionId && (
-          <Button 
-            variant="outline" 
-            onClick={() => navigate(`/missao/${nextMissionId}`)} 
-            className="w-full gap-2"
+          <button
+            onClick={() => navigate(`/missao/${nextMissionId}`)}
+            className="w-full py-3.5 border border-foreground/20 text-xs tracking-[0.2em] uppercase font-medium text-foreground/60 transition-all duration-300 hover:border-foreground hover:text-foreground flex items-center justify-center gap-2"
           >
-            Fazer próxima missão
-            <ArrowRight className="h-4 w-4" />
-          </Button>
+            Próximo módulo
+            <ArrowRight className="h-3.5 w-3.5" />
+          </button>
         )}
-        
-        <Button 
-          variant="ghost" 
-          onClick={() => navigate("/minha-conta")} 
-          className="w-full"
+
+        <button
+          onClick={() => navigate("/minha-conta")}
+          className="w-full py-3 text-xs tracking-[0.15em] uppercase text-foreground/40 hover:text-foreground/60 transition-colors"
         >
-          Voltar para Minha Conta
-        </Button>
+          Voltar para minha conta
+        </button>
       </div>
 
       {/* Next Mission Preview */}
       {nextMissionId && nextMissionName && (
-        <div className="mt-6 text-sm text-muted-foreground">
-          <p>Próxima missão recomendada:</p>
-          <p className="font-medium text-foreground">{nextMissionName}</p>
+        <div className="mt-8 text-[11px] text-foreground/30 tracking-wide">
+          <p>Próximo módulo recomendado:</p>
+          <p className="font-medium text-foreground/50 mt-0.5">{nextMissionName}</p>
         </div>
       )}
     </div>

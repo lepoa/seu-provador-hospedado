@@ -487,10 +487,10 @@ const QuizV2 = () => {
       <main className="flex-1 container mx-auto px-4 py-6 max-w-2xl">
         {/* Redo Mode Banner */}
         {isRedoMode && (
-          <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-2 text-sm text-amber-800">
+          <div className="mb-6 border border-foreground/10 p-4 flex items-center gap-2 text-sm text-foreground/60">
             <RotateCcw className="h-4 w-4 flex-shrink-0" />
             <span>
-              Você está refazendo o quiz. <strong>Seus pontos serão mantidos</strong> — apenas seu perfil de estilo será atualizado.
+              Você está atualizando seu perfil de estilo. <strong className="text-foreground/80">Seus pontos serão mantidos.</strong>
             </span>
           </div>
         )}
@@ -510,10 +510,10 @@ const QuizV2 = () => {
           key={currentQuestion}
         >
           {question.subtext && (
-            <p className="text-accent text-sm mb-2 font-medium animate-slide-in-up">{question.subtext}</p>
+            <p className="text-[11px] tracking-[0.2em] uppercase text-foreground/40 font-medium mb-4 animate-slide-in-up">{question.subtext}</p>
           )}
 
-          <h2 className="font-serif text-2xl md:text-3xl mb-6 animate-slide-in-up" style={{ animationDelay: "50ms" }}>
+          <h2 className="font-serif text-2xl md:text-3xl mb-8 animate-slide-in-up" style={{ animationDelay: "50ms" }}>
             {question.question}
           </h2>
 
@@ -532,21 +532,20 @@ const QuizV2 = () => {
           {/* Open Question */}
           {isOpenQuestion && (
             <div className="animate-slide-in-up" style={{ animationDelay: "100ms" }}>
-              <p className="text-muted-foreground mb-4">
-                Cores favoritas, ocasiões especiais, peças que ama ou evita...
+              <p className="text-foreground/50 text-sm font-light mb-5 leading-relaxed">
+                Cores favoritas, ocasiões especiais, peças que ama ou evita — tudo conta.
               </p>
 
               <Textarea
                 value={additionalNotes}
                 onChange={(e) => setAdditionalNotes(e.target.value)}
                 placeholder="Ex: Adoro peças confortáveis pra trabalhar de casa, gosto muito de azul e verde, evito estampas muito grandes..."
-                className="min-h-[120px] focus:ring-2 focus:ring-accent transition-all"
+                className="min-h-[140px] border-border bg-transparent focus:ring-1 focus:ring-foreground/20 focus:border-foreground/30 transition-all font-light text-sm placeholder:text-foreground/25 resize-none"
               />
 
               {additionalNotes.trim() && (
-                <p className="text-sm text-amber-600 mt-2 flex items-center gap-1.5">
-                  <Star className="h-4 w-4 fill-amber-500 text-amber-500" />
-                  Você vai ganhar +{OPEN_FIELD_BONUS} pontos bônus!
+                <p className="text-[11px] text-foreground/40 mt-3 tracking-wide">
+                  Quanto mais detalhes, mais precisa será a sua curadoria.
                 </p>
               )}
             </div>
@@ -586,71 +585,38 @@ const QuizV2 = () => {
           )}
         </div>
 
-        <div className="mt-8 flex gap-4">
+        <div className="mt-10 flex gap-4">
           {currentQuestion > 0 && (
-            <Button
-              variant="outline"
+            <button
               onClick={handlePrevious}
-              className="gap-2 transition-all hover:scale-105"
               disabled={isSubmitting || isTransitioning}
+              className="px-6 py-3.5 border border-foreground/20 text-xs tracking-[0.2em] uppercase font-medium text-foreground/60 transition-all duration-300 hover:border-foreground/40 hover:text-foreground disabled:opacity-40"
             >
-              <ArrowLeft className="h-4 w-4" />
               Voltar
-            </Button>
+            </button>
           )}
 
-          <Button
+          <button
             onClick={handleNext}
             disabled={!canProceed || isSubmitting || isTransitioning}
-            className="flex-1 gap-2 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            className="flex-1 py-3.5 bg-foreground text-background text-xs tracking-[0.2em] uppercase font-medium transition-all duration-500 hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isSubmitting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Preparando seu resultado...
+                Preparando seu resultado
               </>
             ) : isLastQuestion ? (
-              <>
-                <Sparkles className="h-4 w-4 animate-pulse" />
-                Descobrir meu estilo
-              </>
+              "Descobrir meu estilo"
             ) : isPhotosQuestion ? (
-              <>
-                {inspirationPhotos.length > 0 ? "Continuar" : "Pular"}
-                <ArrowRight className="h-4 w-4" />
-              </>
+              inspirationPhotos.length > 0 ? "Continuar" : "Pular esta etapa"
             ) : isOpenQuestion ? (
-              <>
-                {additionalNotes.trim() ? "Continuar" : "Pular"}
-                <ArrowRight className="h-4 w-4" />
-              </>
+              additionalNotes.trim() ? "Continuar" : "Pular esta etapa"
             ) : (
-              <>
-                Próxima
-                <ArrowRight className="h-4 w-4" />
-              </>
+              "Próxima"
             )}
-          </Button>
+          </button>
         </div>
-
-        {/* Points hint */}
-        {question && question.type === "single" && (
-          <p className="text-center text-xs text-muted-foreground mt-4 animate-fade-in">
-            Esta pergunta vale <span className="font-medium text-amber-600">+{currentQuestionPoints} pontos</span>
-          </p>
-        )}
-
-        {question && question.type === "photos" && (
-          <p className="text-center text-xs text-muted-foreground mt-4 animate-fade-in">
-            Cada foto vale <span className="font-medium text-amber-600">+{PHOTO_UPLOAD_BONUS} pontos</span>
-          </p>
-        )}
-
-        {question && question.type === "open" && (
-          <p className="text-center text-xs text-muted-foreground mt-4 animate-fade-in">
-            Este campo vale <span className="font-medium text-amber-600">+{OPEN_FIELD_BONUS} pontos</span> se preenchido
-          </p>
-        )}
       </main>
     </div>
   );

@@ -18,6 +18,7 @@ interface Profile {
   name: string;
   whatsapp: string;
   instagram_handle: string;
+  birth_date: string;
   preferred_sizes: string[];
   style_preferences: string;
   addressData: AddressData;
@@ -47,6 +48,7 @@ export default function MeuPerfil() {
     name: "",
     whatsapp: "",
     instagram_handle: "",
+    birth_date: "",
     preferred_sizes: [],
     style_preferences: "",
     addressData: emptyAddress,
@@ -69,7 +71,7 @@ export default function MeuPerfil() {
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("name, whatsapp, instagram_handle, preferred_sizes, style_preferences, address_line, city, state, zip_code, address_reference")
+      .select("name, whatsapp, instagram_handle, birth_date, preferred_sizes, style_preferences, address_line, city, state, zip_code, address_reference")
       .eq("user_id", user.id)
       .single();
 
@@ -100,6 +102,7 @@ export default function MeuPerfil() {
         name: data.name || "",
         whatsapp: data.whatsapp || "",
         instagram_handle: data.instagram_handle || "",
+        birth_date: data.birth_date || "",
         preferred_sizes: data.preferred_sizes || [],
         style_preferences: data.style_preferences || "",
         addressData: {
@@ -147,6 +150,7 @@ export default function MeuPerfil() {
         name: profile.name,
         whatsapp: profile.whatsapp,
         instagram_handle: normalizedInstagram,
+        birth_date: profile.birth_date || null,
         preferred_sizes: profile.preferred_sizes,
         style_preferences: profile.style_preferences,
         address_line: addressLine,
@@ -253,6 +257,18 @@ export default function MeuPerfil() {
                   Preencha para ver seus pedidos de live aqui na sua conta
                 </p>
               </div>
+              <div>
+                <Label htmlFor="birth_date">Data de nascimento</Label>
+                <Input
+                  id="birth_date"
+                  type="date"
+                  value={profile.birth_date}
+                  onChange={(e) => setProfile((p) => ({ ...p, birth_date: e.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Usada para sua ação exclusiva de aniversário no Le.Poá Club
+                </p>
+              </div>
             </CardContent>
           </Card>
 
@@ -328,8 +344,8 @@ export default function MeuPerfil() {
                       key={size}
                       onClick={() => toggleSize(size)}
                       className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${profile.preferred_sizes.includes(size)
-                          ? "bg-accent text-accent-foreground border-accent"
-                          : "border-border hover:border-accent/50"
+                        ? "bg-accent text-accent-foreground border-accent"
+                        : "border-border hover:border-accent/50"
                         }`}
                     >
                       {size}

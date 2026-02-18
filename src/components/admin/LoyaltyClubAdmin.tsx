@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  Settings, Award, Megaphone, Gift, Target, BarChart3,
+  Settings, Award, Megaphone, Gift, Target, BarChart3, Cake,
   Plus, Pencil, Trash2, Check, X, Loader2, ToggleLeft, ToggleRight
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { useLoyaltyAdmin, LoyaltyTier, LoyaltyCampaign, LoyaltyMission } from "@/hooks/useLoyaltyAdmin";
 import { ClubRewardsManager } from "./ClubRewardsManager";
 import { ClubAutoGiftRulesManager } from "./ClubAutoGiftRulesManager";
+import { BirthdayManager } from "./BirthdayManager";
 
 export function LoyaltyClubAdmin() {
   const {
@@ -66,7 +67,7 @@ export function LoyaltyClubAdmin() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         {/* Mobile: Horizontal scrollable tabs */}
         <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-          <TabsList className="inline-flex w-max sm:grid sm:grid-cols-6 sm:w-full bg-muted/50 p-1">
+          <TabsList className="inline-flex w-max sm:grid sm:grid-cols-7 sm:w-full bg-muted/50 p-1">
             <TabsTrigger value="config" className="gap-1.5 sm:gap-2 px-3 sm:px-4 min-h-[40px]">
               <Settings className="h-4 w-4" />
               <span className="text-xs sm:text-sm">Config</span>
@@ -86,6 +87,10 @@ export function LoyaltyClubAdmin() {
             <TabsTrigger value="missions" className="gap-1.5 sm:gap-2 px-3 sm:px-4 min-h-[40px]">
               <Target className="h-4 w-4" />
               <span className="text-xs sm:text-sm">Missões</span>
+            </TabsTrigger>
+            <TabsTrigger value="birthdays" className="gap-1.5 sm:gap-2 px-3 sm:px-4 min-h-[40px]">
+              <Cake className="h-4 w-4" />
+              <span className="text-xs sm:text-sm">Aniversários</span>
             </TabsTrigger>
             <TabsTrigger value="reports" className="gap-1.5 sm:gap-2 px-3 sm:px-4 min-h-[40px]">
               <BarChart3 className="h-4 w-4" />
@@ -122,6 +127,11 @@ export function LoyaltyClubAdmin() {
         {/* Reports Tab */}
         <TabsContent value="reports" className="space-y-4 sm:space-y-6">
           <ReportsTab data={reportData} tiers={tiers} />
+        </TabsContent>
+
+        {/* Birthdays Tab */}
+        <TabsContent value="birthdays" className="space-y-4 sm:space-y-6">
+          <BirthdayManager />
         </TabsContent>
       </Tabs>
     </div>

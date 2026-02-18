@@ -568,7 +568,7 @@ const Checkout = () => {
           shipping_service: selectedShipping?.service || null,
           shipping_deadline_days: selectedShipping?.deliveryDays || null,
           address_snapshot: addressSnapshot,
-          coupon_id: couponHook.coupon?.id || null,
+          coupon_id: (couponHook.coupon && !couponHook.coupon.isBirthdayCoupon) ? couponHook.coupon.id : null,
           coupon_discount: discountAmount,
           delivery_period: deliveryMethod === "motoboy" ? deliveryPeriod : null,
           delivery_notes: deliveryNotes?.trim() || null,
@@ -630,7 +630,13 @@ const Checkout = () => {
 
       // Record coupon use if applied
       if (couponHook.coupon) {
-        await recordCouponUse(couponHook.coupon.id, order.id, null, discountAmount);
+        await recordCouponUse(
+          couponHook.coupon.id,
+          order.id,
+          null,
+          discountAmount,
+          couponHook.coupon.isBirthdayCoupon
+        );
       }
 
       // Persist CPF to customer record and customer_addresses if provided

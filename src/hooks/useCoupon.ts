@@ -13,6 +13,9 @@ interface Coupon {
   times_used: number;
   min_order_value: number | null;
   is_active: boolean;
+  // Birthday coupon fields
+  isBirthdayCoupon?: boolean;
+  birthdayDiscountId?: string;
 }
 
 interface UseCouponResult {
@@ -51,16 +54,23 @@ export function useCoupon(): UseCouponResult {
     setError(null);
 
     try {
+      const normalizedCode = code.toUpperCase().trim();
+
+      // First, try regular coupons table
       const { data, error: fetchError } = await supabase
         .from("coupons")
         .select("*")
-        .eq("code", code.toUpperCase().trim())
+        .eq("code", normalizedCode)
         .eq("is_active", true)
         .maybeSingle();
 
       if (fetchError) throw fetchError;
 
+      // If not found in regular coupons, check birthday discounts
       if (!data) {
+        const birthdayResult = await tryBirthdayCoupon(normalizedCode, orderTotal);
+        if (birthdayResult) return true;
+
         setError("Cupom não encontrado ou inativo");
         setCoupon(null);
         setDiscountAmount(0);
@@ -100,7 +110,7 @@ export function useCoupon(): UseCouponResult {
         couponData.discount_type === "percentage"
           ? orderTotal * (couponData.discount_value / 100)
           : Math.min(couponData.discount_value, orderTotal);
-      
+
       setDiscountAmount(discount);
       toast.success(`Cupom aplicado! Desconto de R$ ${discount.toFixed(2)}`);
       return true;
@@ -110,6 +120,65 @@ export function useCoupon(): UseCouponResult {
       return false;
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Check birthday_discounts table for ANIVER- coupons
+  const tryBirthdayCoupon = async (code: string, orderTotal: number): Promise<boolean> => {
+    try {
+      const { data: bd, error: bdError } = await supabase
+        .from("birthday_discounts")
+        .select("id, coupon_code, discount_percent, used_at, expires_at, user_id")
+        .eq("coupon_code", code)
+        .maybeSingle();
+
+      if (bdError || !bd) return false;
+
+      // Already used
+      if (bd.used_at) {
+        setError("Este cupom de aniversário já foi utilizado");
+        return false;
+      }
+
+      // Expired
+      if (bd.expires_at && new Date(bd.expires_at) < new Date()) {
+        setError("Este cupom de aniversário expirou");
+        return false;
+      }
+
+      // Check that the coupon belongs to the logged-in user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || user.id !== bd.user_id) {
+        setError("Este cupom pertence a outra conta");
+        return false;
+      }
+
+      const discount = orderTotal * (bd.discount_percent / 100);
+
+      const birthdayCoupon: Coupon = {
+        id: bd.id,
+        code: bd.coupon_code,
+        discount_type: "percentage",
+        discount_value: bd.discount_percent,
+        starts_at: null,
+        ends_at: bd.expires_at,
+        max_uses: 1,
+        times_used: 0,
+        min_order_value: null,
+        is_active: true,
+        isBirthdayCoupon: true,
+        birthdayDiscountId: bd.id,
+      };
+
+      setCoupon(birthdayCoupon);
+      setDiscountAmount(discount);
+      toast.success(
+        `🎂 Cupom de aniversário aplicado! ${bd.discount_percent}% de desconto (R$ ${discount.toFixed(2)})`
+      );
+      return true;
+    } catch (err) {
+      console.error("Error checking birthday coupon:", err);
+      return false;
     }
   };
 
@@ -134,10 +203,20 @@ export async function recordCouponUse(
   couponId: string,
   orderId: string | null,
   liveCartId: string | null,
-  discountApplied: number
+  discountApplied: number,
+  isBirthdayCoupon?: boolean
 ): Promise<void> {
   try {
-    // Insert usage record
+    if (isBirthdayCoupon) {
+      // Mark birthday discount as used
+      await supabase
+        .from("birthday_discounts")
+        .update({ used_at: new Date().toISOString(), order_id: orderId })
+        .eq("id", couponId);
+      return;
+    }
+
+    // Regular coupon: insert usage record
     await supabase.from("coupon_uses").insert({
       coupon_id: couponId,
       order_id: orderId,
@@ -151,7 +230,7 @@ export async function recordCouponUse(
       .select("times_used")
       .eq("id", couponId)
       .single();
-    
+
     if (currentCoupon) {
       await supabase
         .from("coupons")

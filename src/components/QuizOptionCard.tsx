@@ -1,4 +1,4 @@
-import { Check, Sparkles } from "lucide-react";
+import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface QuizOptionCardProps {
@@ -9,58 +9,46 @@ interface QuizOptionCardProps {
   onClick: () => void;
 }
 
-export function QuizOptionCard({ text, emoji, imageUrl, isSelected, onClick }: QuizOptionCardProps) {
+export function QuizOptionCard({ text, imageUrl, isSelected, onClick }: QuizOptionCardProps) {
   return (
     <button
       onClick={onClick}
       className={cn(
-        "relative w-full p-4 rounded-xl border-2 transition-all duration-300 text-left group",
-        "hover:border-accent/50 hover:bg-accent/5 hover:scale-[1.02] hover:shadow-md",
-        "active:scale-[0.98]",
-        isSelected 
-          ? "border-accent bg-accent/10 shadow-lg ring-2 ring-accent/20" 
-          : "border-border bg-card"
+        "relative w-full py-5 px-6 border transition-all duration-500 text-left group",
+        "hover:border-foreground/40",
+        "active:scale-[0.99]",
+        isSelected
+          ? "border-foreground bg-foreground/[0.03]"
+          : "border-border bg-transparent"
       )}
     >
-      <div className="flex items-center gap-3">
-        {emoji && (
-          <span className={cn(
-            "text-2xl flex-shrink-0 transition-transform duration-300",
-            isSelected && "scale-110"
-          )}>
-            {emoji}
-          </span>
-        )}
+      <div className="flex items-center gap-4">
         {imageUrl && (
-          <img 
-            src={imageUrl} 
+          <img
+            src={imageUrl}
             alt={text}
             className={cn(
-              "w-12 h-12 object-cover rounded-lg flex-shrink-0 transition-all duration-300",
-              isSelected && "ring-2 ring-accent"
+              "w-12 h-12 object-cover flex-shrink-0 transition-all duration-300",
+              isSelected && "ring-1 ring-foreground"
             )}
           />
         )}
+
         <span className={cn(
-          "font-medium flex-1 transition-colors duration-200",
-          isSelected && "text-accent"
+          "font-light text-base flex-1 transition-colors duration-300 tracking-wide",
+          isSelected ? "text-foreground font-normal" : "text-foreground/70"
         )}>
           {text}
         </span>
-        
+
         {isSelected ? (
-          <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-accent to-primary flex items-center justify-center shadow-md animate-bounce-in">
-            <Check className="h-4 w-4 text-accent-foreground" />
+          <div className="flex-shrink-0 w-6 h-6 rounded-full bg-foreground flex items-center justify-center">
+            <Check className="h-3.5 w-3.5 text-background" strokeWidth={2.5} />
           </div>
         ) : (
-          <div className="flex-shrink-0 w-7 h-7 rounded-full border-2 border-muted-foreground/20 group-hover:border-accent/50 transition-colors" />
+          <div className="flex-shrink-0 w-6 h-6 rounded-full border border-foreground/20 group-hover:border-foreground/40 transition-colors duration-300" />
         )}
       </div>
-      
-      {/* Selection sparkle effect */}
-      {isSelected && (
-        <Sparkles className="absolute top-2 right-2 h-3 w-3 text-amber-500 animate-pulse" />
-      )}
     </button>
   );
 }

@@ -51,10 +51,10 @@ const accountNavItems: NavItem[] = [
     highlight: true,
   },
   {
-    label: "Missões",
+    label: "Módulos de Estilo",
     href: "/minha-conta/missoes",
     icon: Target,
-    description: "Ganhe pontos",
+    description: "Refine seu perfil",
   },
   {
     label: "Meu Estilo",
@@ -113,7 +113,7 @@ export function AccountLayout({ children, title, showBackButton }: AccountLayout
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        
+
         <div className="container mx-auto px-4 py-8">
           <div className="flex gap-8 max-w-6xl mx-auto">
             {/* Sidebar */}
@@ -188,7 +188,7 @@ export function AccountLayout({ children, title, showBackButton }: AccountLayout
   return (
     <div className="min-h-screen bg-background pb-20">
       <Header />
-      
+
       <main className="container mx-auto px-4 py-6">
         {showBackButton && (
           <button
@@ -209,7 +209,7 @@ export function AccountLayout({ children, title, showBackButton }: AccountLayout
       <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border z-50">
         <div className="flex items-center justify-around h-16">
           {bottomNavItems.map((item) => {
-            const isActive = location.pathname === item.href || 
+            const isActive = location.pathname === item.href ||
               (item.href !== "/" && location.pathname.startsWith(item.href));
             const Icon = item.icon;
 

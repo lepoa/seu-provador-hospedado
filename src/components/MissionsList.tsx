@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
-import { Star, Trophy, ArrowRight, CheckCircle2, Clock } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Mission, getAvailableMissions, MISSION_POINTS, getMissionTotalPoints } from "@/lib/missionsData";
+import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { Mission, getAvailableMissions, getMissionTotalPoints } from "@/lib/missionsData";
 import { cn } from "@/lib/utils";
 
 interface MissionsListProps {
@@ -12,33 +11,29 @@ interface MissionsListProps {
 
 export function MissionsList({ completedMissions, currentPoints, currentLevel }: MissionsListProps) {
   const availableMissions = getAvailableMissions(completedMissions);
-  const allMissions = [...getAvailableMissions([])]; // Get all missions for display
-  
+  const allMissions = [...getAvailableMissions([])];
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-serif text-xl">Missões Disponíveis</h3>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Trophy className="h-4 w-4 text-accent" />
-          <span>Nível {currentLevel}</span>
-          <span>•</span>
-          <Star className="h-4 w-4 text-amber-500" />
-          <span>{currentPoints} pts</span>
-        </div>
+    <div className="space-y-6">
+      <div className="flex items-end justify-between">
+        <h3 className="font-serif text-xl">Aprofunde seu perfil</h3>
+        <span className="text-[11px] tracking-[0.15em] uppercase text-foreground/40">
+          {completedMissions.length} de {allMissions.length} concluídas
+        </span>
       </div>
-      
-      <p className="text-sm text-muted-foreground">
-        Complete missões para ganhar mais pontos e refinar suas sugestões de estilo.
+
+      <p className="text-sm text-foreground/50 font-light leading-relaxed">
+        Cada módulo refina sua curadoria em uma área específica — quanto mais eu te conhecer, melhores serão as sugestões.
       </p>
 
-      <div className="grid gap-4">
+      <div className="grid gap-3">
         {allMissions.map((mission) => {
           const isCompleted = completedMissions.includes(mission.id);
-          
+
           return (
-            <MissionCard 
-              key={mission.id} 
-              mission={mission} 
+            <MissionCard
+              key={mission.id}
+              mission={mission}
               isCompleted={isCompleted}
             />
           );
@@ -46,11 +41,11 @@ export function MissionsList({ completedMissions, currentPoints, currentLevel }:
       </div>
 
       {availableMissions.length === 0 && (
-        <div className="text-center py-8 bg-card border border-border rounded-xl">
-          <CheckCircle2 className="h-12 w-12 text-accent mx-auto mb-3" />
-          <p className="font-medium">Todas as missões completadas! 🎉</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            Novas missões em breve...
+        <div className="text-center py-10 border border-border">
+          <CheckCircle2 className="h-8 w-8 text-foreground/30 mx-auto mb-3" />
+          <p className="text-sm font-light text-foreground/60">Todos os módulos concluídos</p>
+          <p className="text-[11px] text-foreground/40 mt-1 tracking-wide">
+            Novos módulos em breve
           </p>
         </div>
       )}
@@ -64,59 +59,47 @@ interface MissionCardProps {
 }
 
 function MissionCard({ mission, isCompleted }: MissionCardProps) {
-  const totalPossiblePoints = getMissionTotalPoints(mission);
   const questionCount = mission.questions.length;
 
   return (
-    <div 
+    <div
       className={cn(
-        "bg-card border rounded-xl p-4 transition-all",
-        isCompleted 
-          ? "border-accent/30 bg-accent/5" 
-          : "border-border hover:border-accent/50 hover:shadow-md"
+        "border p-5 transition-all duration-300",
+        isCompleted
+          ? "border-foreground/10 bg-foreground/[0.02]"
+          : "border-border hover:border-foreground/30"
       )}
     >
-      <div className="flex items-start gap-4">
-        <div className={cn(
-          "w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0",
-          isCompleted ? "bg-accent/10" : "bg-secondary"
-        )}>
-          {mission.emoji}
-        </div>
-        
+      <div className="flex items-center gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <h4 className="font-medium">{mission.title}</h4>
+            <h4 className={cn(
+              "text-sm tracking-wide",
+              isCompleted ? "text-foreground/50" : "font-medium"
+            )}>{mission.title}</h4>
             {isCompleted && (
-              <CheckCircle2 className="h-4 w-4 text-accent shrink-0" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-foreground/30 shrink-0" />
             )}
           </div>
-          <p className="text-sm text-muted-foreground line-clamp-1">
+          <p className="text-[12px] text-foreground/40 font-light">
             {mission.subtitle}
           </p>
-          <div className="flex items-center gap-3 mt-2 text-xs flex-wrap">
-            <span className="flex items-center gap-1 text-amber-600 font-medium">
-              <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-              até +{totalPossiblePoints} pts
-            </span>
-            <span className="text-muted-foreground flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {questionCount} perguntas + fotos
-            </span>
-          </div>
+          <p className="text-[11px] text-foreground/30 mt-1.5 tracking-wide">
+            {questionCount} perguntas + referências visuais
+          </p>
         </div>
 
         <div className="shrink-0">
           {isCompleted ? (
-            <div className="text-xs text-accent font-medium px-3 py-1.5 bg-accent/10 rounded-full">
+            <span className="text-[11px] tracking-[0.15em] uppercase text-foreground/30 font-medium">
               Concluída
-            </div>
+            </span>
           ) : (
             <Link to={`/missao/${mission.id}`}>
-              <Button size="sm" variant="outline" className="gap-1">
+              <button className="px-5 py-2.5 border border-foreground/20 text-[11px] tracking-[0.15em] uppercase font-medium text-foreground/60 transition-all duration-300 hover:border-foreground hover:text-foreground flex items-center gap-2">
                 Iniciar
                 <ArrowRight className="h-3 w-3" />
-              </Button>
+              </button>
             </Link>
           )}
         </div>

@@ -220,6 +220,15 @@
     }
   }
 
+  .animate-pulse-soft {
+    animation: pulseSoft 2.5s ease-in-out infinite;
+  }
+
+  @keyframes pulseSoft {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.08); }
+  }
+
   /* ================================================
      MOBILE RESPONSIVENESS UTILITY CLASSES
      ================================================ */
