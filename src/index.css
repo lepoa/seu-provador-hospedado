@@ -33,7 +33,7 @@
 
     /* Muted warm gray */
     --muted: 35 15% 93%;
-    --muted-foreground: 0 0% 45%;
+    --muted-foreground: 0 0% 30%;
 
     /* Rose gold accent */
     --accent: 15 45% 65%;
@@ -90,7 +90,7 @@
     --secondary-foreground: 35 25% 95%;
 
     --muted: 0 0% 15%;
-    --muted-foreground: 35 15% 60%;
+    --muted-foreground: 35 15% 75%;
 
     --accent: 15 45% 55%;
     --accent-foreground: 0 0% 100%;
@@ -114,8 +114,11 @@
 }
 
 @layer base {
+
   /* CRITICAL: Prevent any horizontal overflow globally */
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     box-sizing: border-box;
   }
 
@@ -137,7 +140,12 @@
     @apply border-border;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-serif;
   }
 }
@@ -148,7 +156,7 @@
   }
 
   .btn-whatsapp {
-    @apply bg-[hsl(var(--whatsapp))] text-white hover:bg-[hsl(142,70%,40%)] transition-colors;
+    @apply bg-[hsl(var(--whatsapp))] text-white hover:brightness-90 transition-all;
   }
 
   .card-product {
@@ -194,27 +202,34 @@
   }
 
   @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
   }
 
   @keyframes slideUp {
-    from { 
+    from {
       opacity: 0;
       transform: translateY(20px);
     }
-    to { 
+
+    to {
       opacity: 1;
       transform: translateY(0);
     }
   }
 
   @keyframes scaleIn {
-    from { 
+    from {
       opacity: 0;
       transform: scale(0.95);
     }
-    to { 
+
+    to {
       opacity: 1;
       transform: scale(1);
     }
@@ -225,14 +240,23 @@
   }
 
   @keyframes pulseSoft {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.7; transform: scale(1.08); }
+
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    50% {
+      opacity: 0.7;
+      transform: scale(1.08);
+    }
   }
 
   /* ================================================
      MOBILE RESPONSIVENESS UTILITY CLASSES
      ================================================ */
-  
+
   /* Page container - prevents overflow */
   .page-container {
     @apply w-full max-w-full overflow-x-hidden min-h-screen;
@@ -263,6 +287,7 @@
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
+
   .scroll-container-x::-webkit-scrollbar {
     display: none;
   }
@@ -287,8 +312,8 @@
     @apply flex flex-col sm:flex-row gap-2 sm:gap-3;
   }
 
-  .button-stack > button,
-  .button-stack > a {
+  .button-stack>button,
+  .button-stack>a {
     @apply w-full sm:w-auto;
   }
 
@@ -309,8 +334,8 @@
     @apply flex flex-col sm:flex-row gap-2;
   }
 
-  .input-group-mobile > input,
-  .input-group-mobile > button {
+  .input-group-mobile>input,
+  .input-group-mobile>button {
     @apply w-full sm:w-auto;
   }
 

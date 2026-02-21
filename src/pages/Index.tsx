@@ -6,13 +6,16 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/Header";
+import { BenefitsBar } from "@/components/BenefitsBar";
 import { supabase } from "@/integrations/supabase/client";
 import { ProductCard } from "@/components/ProductCard";
 import { useEffectivePrices } from "@/hooks/useEffectivePrices";
 import { useProductAvailableStock } from "@/hooks/useProductAvailableStock";
 import { buildWhatsAppLink } from "@/lib/whatsappHelpers";
+import { TrendingSection } from "@/components/home/TrendingSection";
+import { AILookConsultant } from "@/components/home/AILookConsultant";
 
-// ─── Hero editorial photo (replace with a real editorial shot) ──────────
+// ─── Hero editorial photo ──────────
 const HERO_IMAGE = "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=900&q=80";
 
 // ─── Occasion tags ──────────────────────────────────────────────
@@ -94,40 +97,36 @@ const Index = () => {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* ═══ Top Benefits Strip ═══ */}
-      <div className="bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] py-2 text-center">
-        <p className="text-xs tracking-[0.15em] uppercase font-light">
-          3x sem juros &nbsp;•&nbsp; Atendimento no WhatsApp &nbsp;•&nbsp; Envio para todo Brasil
-        </p>
-      </div>
+      <BenefitsBar />
 
       <Header />
 
       {/* ═══ 1. HERO SECTION ═══ */}
       <section className="relative overflow-hidden">
         {/* Background image */}
-        <div className="absolute inset-0 z-0">
+        <div className="absolute inset-0 z-0 text-safe">
           <img
             src={HERO_IMAGE}
             alt="LE.POÁ Editorial"
             className="w-full h-full object-cover object-top"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-[hsl(40,33%,98%)]/90 via-[hsl(40,33%,98%)]/70 to-transparent md:from-[hsl(40,33%,98%)]/85 md:via-[hsl(40,33%,98%)]/50" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[hsl(40,33%,98%)]/95 via-[hsl(40,33%,98%)]/80 to-transparent md:from-[hsl(40,33%,98%)]/90 md:via-[hsl(40,33%,98%)]/60" />
         </div>
 
         <div className="relative z-10 max-w-6xl mx-auto px-5 py-16 md:py-28 lg:py-36">
           <div className="max-w-xl animate-fade-in">
-            <span className="inline-flex items-center gap-2 text-accent text-xs tracking-[0.2em] uppercase font-medium mb-6">
+            <span className="inline-flex items-center gap-2 text-accent text-xs tracking-[0.2em] uppercase font-bold mb-6">
               <Sparkles className="h-3.5 w-3.5" />
               Curadoria de moda feminina
             </span>
 
-            <h1 className="font-serif text-4xl md:text-5xl lg:text-6xl font-semibold leading-[1.1] mb-5 text-foreground">
+            <h1 className="font-serif text-4xl md:text-5xl lg:text-6xl font-bold leading-[1.1] mb-5 text-foreground">
               Nunca mais fique<br />
               sem saber<br />
-              <span className="text-accent italic">o que vestir.</span>
+              <span className="text-accent italic font-black">o que vestir.</span>
             </h1>
 
-            <p className="text-base md:text-lg text-muted-foreground leading-relaxed mb-8 max-w-md font-light">
+            <p className="text-base md:text-lg text-foreground/90 leading-relaxed mb-8 max-w-md font-medium">
               Curadoria estratégica para o trabalho, jantares e
               ocasiões especiais. Peças escolhidas a dedo para
               mulheres que não têm tempo a perder.
@@ -140,7 +139,7 @@ const Index = () => {
                 </button>
               </Link>
               <Link to="/enviar-print">
-                <button className="w-full sm:w-auto px-10 py-4 border border-foreground/30 text-foreground text-xs tracking-[0.25em] uppercase font-medium transition-all duration-500 hover:border-accent hover:text-accent">
+                <button className="w-full sm:w-auto px-10 py-4 border border-foreground/30 text-foreground text-xs tracking-[0.25em] uppercase font-medium transition-all duration-500 hover:border-accent hover:text-accent font-medium">
                   Buscar look por foto
                 </button>
               </Link>
@@ -154,7 +153,7 @@ const Index = () => {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-10 md:mb-14">
             <h2 className="font-serif text-2xl md:text-3xl mb-3">Como podemos te ajudar?</h2>
-            <p className="text-muted-foreground text-sm md:text-base font-light max-w-lg mx-auto">
+            <p className="text-muted-foreground text-sm md:text-base max-w-lg mx-auto font-medium">
               Escolha como quer começar. Em poucos minutos a gente te
               ajuda a encontrar o look perfeito.
             </p>
@@ -187,16 +186,22 @@ const Index = () => {
         </div>
       </section>
 
-      {/* ═══ 3. BEST SELLERS ═══ */}
+      {/* ═══ 3. TRENDING SECTION (DYNAMIC) ═══ */}
+      <TrendingSection />
+
+      {/* ═══ 4. AI LOOK CONSULTANT ═══ */}
+      <AILookConsultant />
+
+      {/* ═══ 5. BEST SELLERS placeholder (optional) ═══ */}
       <section className="py-14 md:py-20 px-5 bg-secondary/30">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-end justify-between mb-8 md:mb-10">
             <div>
-              <span className="text-xs tracking-[0.2em] uppercase text-accent font-medium">Destaques</span>
-              <h2 className="font-serif text-2xl md:text-3xl mt-1">Mais Vendidos da Semana</h2>
+              <span className="text-xs tracking-[0.2em] uppercase text-accent font-bold">Destaques</span>
+              <h2 className="font-serif text-2xl md:text-3xl mt-1">Lançamentos Recentes</h2>
             </div>
             <Link to="/catalogo">
-              <Button variant="ghost" className="gap-1.5 text-sm hover:text-accent">
+              <Button variant="ghost" className="gap-1.5 text-sm hover:text-accent font-bold">
                 Ver todos
                 <ArrowRight className="h-4 w-4" />
               </Button>
@@ -234,14 +239,14 @@ const Index = () => {
         </div>
       </section>
 
-      {/* ═══ 4. OCCASION CHIPS ═══ */}
+      {/* ═══ 6. OCCASION CHIPS ═══ */}
       <section className="py-14 md:py-20 px-5">
         <div className="max-w-3xl mx-auto text-center">
-          <span className="text-xs tracking-[0.2em] uppercase text-accent font-medium">Para cada momento</span>
+          <span className="text-xs tracking-[0.2em] uppercase text-accent font-bold">Para cada momento</span>
           <h2 className="font-serif text-2xl md:text-3xl mt-2 mb-3">
             Qual ocasião você precisa<br className="hidden sm:block" /> se vestir hoje?
           </h2>
-          <p className="text-muted-foreground text-sm font-light mb-10 max-w-md mx-auto">
+          <p className="text-muted-foreground text-sm mb-10 max-w-md mx-auto font-medium">
             Conte pra gente e a nossa curadoria encontra opções perfeitas para você.
           </p>
 
@@ -252,7 +257,7 @@ const Index = () => {
                 to={`/catalogo?occasion=${encodeURIComponent(occ)}`}
                 className="group relative"
               >
-                <span className="font-serif text-lg md:text-xl text-foreground/70 transition-colors duration-300 group-hover:text-foreground">
+                <span className="font-serif text-lg md:text-xl text-foreground transition-colors duration-300 group-hover:text-accent font-medium">
                   {occ}
                 </span>
                 <span className="absolute -bottom-1 left-0 w-0 h-px bg-accent transition-all duration-500 group-hover:w-full" />
@@ -262,16 +267,16 @@ const Index = () => {
         </div>
       </section>
 
-      {/* ═══ 5. TRUST / AUTHORITY ═══ */}
+      {/* ═══ 7. TRUST / AUTHORITY ═══ */}
       <section className="py-14 md:py-20 px-5 bg-[hsl(35,30%,94%)]/60">
         <div className="max-w-4xl mx-auto text-center">
-          <span className="text-xs tracking-[0.2em] uppercase text-accent font-medium">
+          <span className="text-xs tracking-[0.2em] uppercase text-accent font-bold">
             Por que escolher a LE.POÁ
           </span>
           <h2 className="font-serif text-2xl md:text-3xl mt-2 mb-3">
             Mais de 8 anos vestindo mulheres reais.
           </h2>
-          <p className="text-muted-foreground text-sm font-light mb-10 max-w-md mx-auto">
+          <p className="text-muted-foreground text-sm mb-10 max-w-md mx-auto font-medium">
             Não somos só uma loja. Somos sua parceira de estilo para cada momento da sua vida.
           </p>
 
@@ -282,8 +287,8 @@ const Index = () => {
                   <item.icon className="h-6 w-6 text-accent" />
                 </div>
                 <div>
-                  <p className="font-medium text-sm">{item.label}</p>
-                  <p className="text-xs text-muted-foreground">{item.desc}</p>
+                  <p className="font-bold text-sm text-foreground">{item.label}</p>
+                  <p className="text-xs text-muted-foreground font-medium">{item.desc}</p>
                 </div>
               </div>
             ))}
@@ -291,23 +296,23 @@ const Index = () => {
         </div>
       </section>
 
-      {/* ═══ 6. FINAL CTA ═══ */}
+      {/* ═══ 8. FINAL CTA ═══ */}
       <section className="py-16 md:py-24 px-5">
         <div className="max-w-2xl mx-auto text-center">
           <div className="w-px h-12 bg-accent/40 mx-auto mb-6" />
-          <h2 className="font-serif text-3xl md:text-4xl mb-4 italic">
+          <h2 className="font-serif text-3xl md:text-4xl mb-4 italic font-bold">
             Pronta para se sentir incrível?
           </h2>
-          <p className="text-muted-foreground font-light mb-8 max-w-md mx-auto">
+          <p className="text-muted-foreground mb-8 max-w-md mx-auto font-medium text-base">
             Monte seu provador VIP em 2 minutos e receba sugestões
             personalizadas direto no seu WhatsApp.
           </p>
           <Link to="/meu-estilo">
-            <button className="px-12 py-4 bg-foreground text-background text-xs tracking-[0.25em] uppercase font-medium transition-all duration-500 hover:bg-accent hover:text-white">
+            <button className="px-12 py-4 bg-foreground text-background text-xs tracking-[0.25em] uppercase font-bold transition-all duration-500 hover:bg-accent hover:text-white">
               Quero meu provador VIP
             </button>
           </Link>
-          <p className="text-[11px] text-muted-foreground mt-6 tracking-wide">
+          <p className="text-[11px] text-muted-foreground mt-6 tracking-wide font-medium">
             Gratuito · Leva menos de 2 minutos
           </p>
         </div>
@@ -318,11 +323,11 @@ const Index = () => {
         <div className="max-w-5xl mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="text-center md:text-left">
-              <p className="font-serif text-lg mb-1">LE.POÁ</p>
-              <p className="text-xs text-muted-foreground">Curadoria de moda feminina • Anápolis, GO</p>
+              <p className="font-serif text-xl mb-1 font-bold">LE.POÁ</p>
+              <p className="text-xs text-muted-foreground font-medium">Curadoria de moda feminina • Anápolis, GO</p>
             </div>
 
-            <div className="flex items-center gap-5 text-sm text-muted-foreground">
+            <div className="flex items-center gap-5 text-sm text-muted-foreground font-medium">
               <Link to="/catalogo" className="hover:text-foreground transition-colors">Catálogo</Link>
               <Link to="/meu-estilo" className="hover:text-foreground transition-colors">Provador VIP</Link>
               <Link to="/enviar-print" className="hover:text-foreground transition-colors">Buscar por foto</Link>
@@ -338,7 +343,7 @@ const Index = () => {
           </div>
 
           <div className="border-t border-border mt-6 pt-6 flex flex-col sm:flex-row items-center justify-between gap-2">
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground font-medium">
               © {new Date().getFullYear()} LE.POÁ. Todos os direitos reservados.
             </p>
             <Link
@@ -393,13 +398,13 @@ function ActionCard({
           {icon}
         </div>
 
-        <p className="text-[10px] tracking-[0.2em] uppercase text-accent font-semibold mb-1.5">
+        <p className="text-[10px] tracking-[0.2em] uppercase text-accent font-bold mb-1.5">
           {subtitle}
         </p>
-        <h3 className="font-serif text-xl mb-2">{title}</h3>
-        <p className="text-sm text-muted-foreground font-light leading-relaxed">{description}</p>
+        <h3 className="font-serif text-xl mb-2 font-bold">{title}</h3>
+        <p className="text-sm text-muted-foreground leading-relaxed font-medium">{description}</p>
 
-        <div className="mt-5 inline-flex items-center gap-1.5 text-sm text-accent font-medium group-hover:gap-2.5 transition-all duration-300">
+        <div className="mt-5 inline-flex items-center gap-1.5 text-sm text-accent font-bold group-hover:gap-2.5 transition-all duration-300">
           Começar
           <ArrowRight className="h-4 w-4" />
         </div>
