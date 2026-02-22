@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
   }
 
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), { 
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
     })
@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
       console.log('Sending password reset email via Resend')
 
       const { error } = await resend.emails.send({
-        from: 'Provador VIP Le.Poá <noreply@seuprovador.lovable.app>',
+        from: 'Provador VIP Le.Poá <noreply@lightcoral-cod-859891.hostingersite.com>',
         to: [user.email],
         subject: 'Redefinir sua senha – Provador VIP Le.Poá',
         html,
@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
     } else {
       // For other email types (signup, magic_link, etc.), use default Supabase emails
       console.log('Email type not customized, using default template')
-      
+
       return new Response(
         JSON.stringify({
           error: {
@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
 
   } catch (error: any) {
     console.error('Error processing auth email:', error)
-    
+
     return new Response(
       JSON.stringify({
         error: {

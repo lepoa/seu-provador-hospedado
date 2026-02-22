@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 // Full status flow per business requirements
-export type OperationalStatus = 
+export type OperationalStatus =
   | 'aguardando_pagamento'   // Initial
   | 'aguardando_retorno'     // Customer was contacted, waiting response
   | 'pago'                   // Payment confirmed
@@ -14,7 +14,9 @@ export type OperationalStatus =
   | 'retirada'               // Ready for pickup
   | 'retirado'               // Picked up (alias of entregue for retirada)
   | 'entregue'               // FINAL - Delivered (any method)
-  | 'pendencia_dados';       // Missing shipping data
+  | 'pendencia_dados'         // Missing shipping data
+  | 'aguardando_validacao_pagamento'; // New status for manual payment review
+
 
 export type DeliveryMethod = 'retirada' | 'motoboy' | 'correios';
 export type DeliveryPeriod = 'manha' | 'tarde' | 'qualquer';
@@ -223,16 +225,16 @@ export function useLiveOrders(eventId: string | undefined) {
   const getOrderUrgency = useCallback((order: LiveOrderCart): UrgencyInfo => {
     const now = Date.now();
     const hoursSinceCreation = (now - new Date(order.created_at).getTime()) / (1000 * 60 * 60);
-    const hoursSincePaid = order.paid_at 
+    const hoursSincePaid = order.paid_at
       ? (now - new Date(order.paid_at).getTime()) / (1000 * 60 * 60)
       : 0;
-    const hoursSinceLastCharge = order.last_charge_at 
+    const hoursSinceLastCharge = order.last_charge_at
       ? (now - new Date(order.last_charge_at).getTime()) / (1000 * 60 * 60)
       : null;
 
     // Check urgency based on status and thresholds
     const status = order.operational_status || order.status;
-    
+
     // Awaiting payment: > 24h without charge or never charged
     if (status === 'aguardando_pagamento' || status === 'aberto') {
       if (!order.last_charge_at && hoursSinceCreation > 24) {
@@ -242,29 +244,29 @@ export function useLiveOrders(eventId: string | undefined) {
         return { isUrgent: true, reason: 'Cobrar novamente +24h', hoursOverdue: hoursSinceLastCharge - 24 };
       }
     }
-    
+
     // Awaiting return: > 24h without new contact
     if (status === 'aguardando_retorno') {
       if (hoursSinceLastCharge && hoursSinceLastCharge > 24) {
         return { isUrgent: true, reason: 'Sem retorno +24h', hoursOverdue: hoursSinceLastCharge - 24 };
       }
     }
-    
+
     // Paid but not advanced: > 12h stuck
     if (status === 'pago' && hoursSincePaid > 12) {
       return { isUrgent: true, reason: 'Pago +12h sem avanço', hoursOverdue: hoursSincePaid - 12 };
     }
-    
+
     // Label generated but not posted: > 24h
     if (status === 'etiqueta_gerada') {
-      const hoursSinceLabel = order.label_printed_at 
+      const hoursSinceLabel = order.label_printed_at
         ? (now - new Date(order.label_printed_at).getTime()) / (1000 * 60 * 60)
         : hoursSincePaid;
       if (hoursSinceLabel > 24) {
         return { isUrgent: true, reason: 'Etiqueta +24h sem postar', hoursOverdue: hoursSinceLabel - 24 };
       }
     }
-    
+
     // In transit: > 8h without delivered
     if (status === 'em_rota') {
       const hoursSinceRoute = hoursSincePaid; // Approximate
@@ -282,7 +284,7 @@ export function useLiveOrders(eventId: string | undefined) {
     const activeOrders = orders.filter(o => o.status !== 'cancelado');
     const now = Date.now();
     const oneDayAgo = now - (24 * 60 * 60 * 1000);
-    
+
     // Helper to calculate order value (excluding gifts)
     const getOrderValue = (o: LiveOrderCart) => {
       const productTotal = o.items?.reduce((itemSum, item) => {
@@ -308,24 +310,26 @@ export function useLiveOrders(eventId: string | undefined) {
 
     // Calculate total paid - only TRULY paid orders (pago status and beyond)
     const paidStatuses = ['pago', 'preparar_envio', 'etiqueta_gerada', 'postado', 'em_rota', 'retirada', 'entregue', 'retirado'];
-    const trulyPaidOrders = activeOrders.filter(o => 
+    const trulyPaidOrders = activeOrders.filter(o =>
       o.status === 'pago' || paidStatuses.includes(o.operational_status || '')
     );
-    
+
     // Total pago excludes gifts (brindes) - only count actual product sales
     const totalPago = trulyPaidOrders.reduce((sum, o) => sum + getOrderValue(o), 0);
 
     // Orders by status for value calculations
-    const awaitingPaymentOrders = activeOrders.filter(o => 
+    const awaitingPaymentOrders = activeOrders.filter(o =>
       (o.operational_status === 'aguardando_pagamento' || o.status === 'aguardando_pagamento' || o.status === 'aberto') &&
       o.operational_status !== 'aguardando_retorno'
     );
     const awaitingReturnOrders = activeOrders.filter(o => o.operational_status === 'aguardando_retorno');
-    const paidOnlyOrders = activeOrders.filter(o => o.status === 'pago' && 
+    const paidOnlyOrders = activeOrders.filter(o => o.status === 'pago' &&
       !['preparar_envio', 'etiqueta_gerada', 'postado', 'em_rota', 'retirada', 'entregue'].includes(o.operational_status || '')
     );
     const prepareShippingOrders = activeOrders.filter(o => o.operational_status === 'preparar_envio');
     const deliveredOrders = activeOrders.filter(o => o.operational_status === 'entregue' || o.operational_status === 'retirado');
+    const validationOrders = activeOrders.filter(o => o.operational_status === 'aguardando_validacao_pagamento');
+
 
     return {
       aguardandoPagamento: awaitingPaymentOrders.length,
@@ -335,10 +339,10 @@ export function useLiveOrders(eventId: string | undefined) {
       etiquetaGerada: activeOrders.filter(o => o.operational_status === 'etiqueta_gerada').length,
       postado: activeOrders.filter(o => o.operational_status === 'postado').length,
       emRota: activeOrders.filter(o => o.operational_status === 'em_rota').length,
-      retirada: activeOrders.filter(o => o.operational_status === 'retirada' || 
+      retirada: activeOrders.filter(o => o.operational_status === 'retirada' ||
         (o.delivery_method === 'retirada' && o.status === 'pago' && o.operational_status !== 'entregue')
       ).length,
-      motoboy: activeOrders.filter(o => o.delivery_method === 'motoboy' && o.status === 'pago' && 
+      motoboy: activeOrders.filter(o => o.delivery_method === 'motoboy' && o.status === 'pago' &&
         !['entregue'].includes(o.operational_status || '')
       ).length,
       entregue: deliveredOrders.length,
@@ -355,26 +359,29 @@ export function useLiveOrders(eventId: string | undefined) {
       valorPago: paidOnlyOrders.reduce((sum, o) => sum + getOrderValue(o), 0),
       valorPrepararEnvio: prepareShippingOrders.reduce((sum, o) => sum + getOrderValue(o), 0),
       valorEntregue: deliveredOrders.reduce((sum, o) => sum + getOrderValue(o), 0),
+      aguardandoValidacao: validationOrders.length,
+      valorAguardandoValidacao: validationOrders.reduce((sum, o) => sum + getOrderValue(o), 0),
     };
+
   }, [orders, getOrderUrgency]);
 
   // Filter orders
   const filterOrders = useCallback((filters: LiveOrderFilters): LiveOrderCart[] => {
     const now = Date.now();
     const oneDayAgo = now - (24 * 60 * 60 * 1000);
-    
+
     return orders.filter(order => {
       // Exclude cancelled
       if (order.status === 'cancelado') return false;
-      
+
       // Search filter
       if (filters.search) {
         const searchLower = filters.search.toLowerCase();
-        const matchesSearch = 
+        const matchesSearch =
           order.live_customer?.instagram_handle.toLowerCase().includes(searchLower) ||
           order.live_customer?.nome?.toLowerCase().includes(searchLower) ||
           order.bag_number?.toString().includes(searchLower) ||
-          order.items?.some(item => 
+          order.items?.some(item =>
             item.product?.sku?.toLowerCase().includes(searchLower) ||
             item.product?.name.toLowerCase().includes(searchLower)
           );
@@ -428,7 +435,7 @@ export function useLiveOrders(eventId: string | undefined) {
   // Actions - with optimistic updates
   const assignSeller = useCallback(async (orderId: string, sellerId: string | null) => {
     // Optimistic update
-    setOrders(prev => prev.map(o => 
+    setOrders(prev => prev.map(o =>
       o.id === orderId ? { ...o, seller_id: sellerId, seller: sellerId ? sellers.find(s => s.id === sellerId) : undefined } : o
     ));
 
@@ -444,12 +451,12 @@ export function useLiveOrders(eventId: string | undefined) {
       fetchOrders(); // Revert on error
       return false;
     }
-    
+
     // Update with confirmed data
     if (data) {
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...data } as LiveOrderCart : o));
     }
-    
+
     toast.success(sellerId ? "Vendedora atribuída" : "Vendedora removida");
     return true;
   }, [sellers, fetchOrders]);
@@ -485,8 +492,8 @@ export function useLiveOrders(eventId: string | undefined) {
   // Update delivery method WITH shipping amount and recalculate total
   // This is used for admin manual payment flow where delivery must be set first
   const updateDeliveryWithShipping = useCallback(async (
-    orderId: string, 
-    method: DeliveryMethod, 
+    orderId: string,
+    method: DeliveryMethod,
     shippingAmount: number,
     shippingServiceName?: string
   ) => {
@@ -505,13 +512,13 @@ export function useLiveOrders(eventId: string | undefined) {
     // Calculate new total
     const newTotal = order.subtotal - order.descontos + shippingAmount;
 
-    const updateData: Record<string, any> = { 
-      delivery_method: method, 
+    const updateData: Record<string, any> = {
+      delivery_method: method,
       frete: shippingAmount,
       total: newTotal,
-      updated_at: new Date().toISOString() 
+      updated_at: new Date().toISOString()
     };
-    
+
     // Add shipping service name if provided (for Correios)
     if (shippingServiceName) {
       updateData.shipping_service_name = shippingServiceName;
@@ -528,9 +535,9 @@ export function useLiveOrders(eventId: string | undefined) {
     }
 
     // Update local state optimistically
-    setOrders(prev => prev.map(o => 
-      o.id === orderId ? { 
-        ...o, 
+    setOrders(prev => prev.map(o =>
+      o.id === orderId ? {
+        ...o,
         delivery_method: method,
         frete: shippingAmount,
         total: newTotal,
@@ -546,7 +553,7 @@ export function useLiveOrders(eventId: string | undefined) {
   const updateCustomerZipCode = useCallback(async (customerId: string, zipCode: string) => {
     const { error } = await supabase
       .from("customers")
-      .update({ 
+      .update({
         zip_code: zipCode,
         updated_at: new Date().toISOString()
       })
@@ -556,7 +563,7 @@ export function useLiveOrders(eventId: string | undefined) {
       console.error("Error updating customer ZIP:", error);
       return false;
     }
-    
+
     console.log("[useLiveOrders] Customer ZIP updated:", customerId, zipCode);
     return true;
   }, []);
@@ -564,10 +571,10 @@ export function useLiveOrders(eventId: string | undefined) {
   const updateDeliveryDetails = useCallback(async (orderId: string, period: DeliveryPeriod | null, notes: string | null) => {
     const { error } = await supabase
       .from("live_carts")
-      .update({ 
-        delivery_period: period, 
+      .update({
+        delivery_period: period,
         delivery_notes: notes,
-        updated_at: new Date().toISOString() 
+        updated_at: new Date().toISOString()
       })
       .eq("id", orderId);
 
@@ -592,7 +599,7 @@ export function useLiveOrders(eventId: string | undefined) {
       }
 
       console.log('[applyPaidEffects] Result:', data);
-      
+
       // Parse JSON response safely
       const result = typeof data === 'object' ? data as Record<string, unknown> : null;
       if (result?.success) {
@@ -603,7 +610,7 @@ export function useLiveOrders(eventId: string | undefined) {
         }
         return true;
       }
-      
+
       return false;
     } catch (err) {
       console.error('[applyPaidEffects] Exception:', err);
@@ -641,14 +648,14 @@ export function useLiveOrders(eventId: string | undefined) {
     // STEP 2: Update cart status to 'pago' (triggers on_live_cart_paid)
     const { error } = await supabase
       .from("live_carts")
-      .update({ 
-        status: 'pago', 
+      .update({
+        status: 'pago',
         operational_status: 'pago',
         paid_method: paymentMethod,
         paid_at: new Date().toISOString(),
         paid_by_user: currentUserId,
         payment_review_status: 'approved', // Auto-approve gateway payments
-        updated_at: new Date().toISOString() 
+        updated_at: new Date().toISOString()
       })
       .eq("id", orderId);
 
@@ -683,8 +690,8 @@ export function useLiveOrders(eventId: string | undefined) {
   // 2. Then update cart status (triggers stock decrement)
   // 3. Manual RPC call as fallback
   const markAsPaidWithProof = useCallback(async (
-    orderId: string, 
-    paymentMethod: string, 
+    orderId: string,
+    paymentMethod: string,
     proofUrl: string,
     notes?: string
   ) => {
@@ -721,15 +728,15 @@ export function useLiveOrders(eventId: string | undefined) {
     // STEP 2: Update cart status to 'pago' (this triggers on_live_cart_paid)
     const { error } = await supabase
       .from("live_carts")
-      .update({ 
-        status: 'pago', 
+      .update({
+        status: 'pago',
         operational_status: 'pago',
         paid_method: paymentMethod,
         paid_at: new Date().toISOString(),
         paid_by_user: currentUserId,
         payment_proof_url: proofUrl,
         payment_review_status: 'pending_review',
-        updated_at: new Date().toISOString() 
+        updated_at: new Date().toISOString()
       })
       .eq("id", orderId);
 
@@ -764,7 +771,7 @@ export function useLiveOrders(eventId: string | undefined) {
     const now = new Date().toISOString();
     const { error } = await supabase
       .from("live_carts")
-      .update({ 
+      .update({
         payment_review_status: 'approved',
         validated_at: now,
         validated_by_user_id: currentUserId,
@@ -806,7 +813,7 @@ export function useLiveOrders(eventId: string | undefined) {
     const now = new Date().toISOString();
     const { error } = await supabase
       .from("live_carts")
-      .update({ 
+      .update({
         status: 'aguardando_pagamento',
         operational_status: 'aguardando_retorno',
         payment_review_status: 'rejected',
@@ -847,7 +854,7 @@ export function useLiveOrders(eventId: string | undefined) {
   // This only records the charge and updates status
   const recordCharge = useCallback(async (orderId: string, channel: 'whatsapp' | 'direct') => {
     const now = new Date().toISOString();
-    
+
     // Get current attempts
     const order = orders.find(o => o.id === orderId);
     const attempts = (order?.charge_attempts || 0) + 1;
@@ -890,11 +897,11 @@ export function useLiveOrders(eventId: string | undefined) {
     });
 
     // Update local state optimistically
-    setOrders(prev => prev.map(o => 
-      o.id === orderId ? { 
-        ...o, 
-        last_charge_at: now, 
-        charge_attempts: attempts, 
+    setOrders(prev => prev.map(o =>
+      o.id === orderId ? {
+        ...o,
+        last_charge_at: now,
+        charge_attempts: attempts,
         charge_channel: channel,
         operational_status: 'aguardando_retorno'
       } as LiveOrderCart : o
@@ -978,9 +985,9 @@ export function useLiveOrders(eventId: string | undefined) {
 
     const { error } = await supabase
       .from("live_carts")
-      .update({ 
+      .update({
         operational_status: nextStatus,
-        updated_at: new Date().toISOString() 
+        updated_at: new Date().toISOString()
       })
       .eq("id", orderId);
 
@@ -998,7 +1005,7 @@ export function useLiveOrders(eventId: string | undefined) {
     });
 
     // Optimistic update
-    setOrders(prev => prev.map(o => 
+    setOrders(prev => prev.map(o =>
       o.id === orderId ? { ...o, operational_status: nextStatus } as LiveOrderCart : o
     ));
 
@@ -1009,8 +1016,8 @@ export function useLiveOrders(eventId: string | undefined) {
   // Revert to previous status - with audit logging
   // Admin can revert any status; Seller can only revert 1 step (not validated payments)
   const revertStatus = useCallback(async (
-    orderId: string, 
-    targetStatus: OperationalStatus, 
+    orderId: string,
+    targetStatus: OperationalStatus,
     reason: string,
     isAdmin: boolean
   ): Promise<boolean> => {
@@ -1020,8 +1027,8 @@ export function useLiveOrders(eventId: string | undefined) {
     // SELLER RESTRICTIONS
     if (!isAdmin) {
       // Sellers cannot revert validated payments
-      if (order.payment_review_status === 'approved' && 
-          ['pago', 'preparar_envio', 'etiqueta_gerada'].includes(targetStatus)) {
+      if (order.payment_review_status === 'approved' &&
+        ['pago', 'preparar_envio', 'etiqueta_gerada'].includes(targetStatus)) {
         toast.error("Apenas admin pode reverter pagamentos validados");
         return false;
       }
@@ -1075,7 +1082,7 @@ export function useLiveOrders(eventId: string | undefined) {
     });
 
     // Optimistic update
-    setOrders(prev => prev.map(o => 
+    setOrders(prev => prev.map(o =>
       o.id === orderId ? { ...o, operational_status: targetStatus, ...updateData } as LiveOrderCart : o
     ));
 
@@ -1089,8 +1096,8 @@ export function useLiveOrders(eventId: string | undefined) {
 
     // Check if we have address data
     if (!order.shipping_address_snapshot) {
-      await supabase.from("live_carts").update({ 
-        operational_status: 'pendencia_dados' 
+      await supabase.from("live_carts").update({
+        operational_status: 'pendencia_dados'
       }).eq("id", orderId);
       return { success: false, error: "Dados de envio pendentes" };
     }
@@ -1111,7 +1118,7 @@ export function useLiveOrders(eventId: string | undefined) {
 
   const markAsPosted = useCallback(async (orderId: string) => {
     const order = orders.find(o => o.id === orderId);
-    
+
     // Check separation status
     if (order?.separation_status !== 'separado') {
       toast.error("Pedido precisa ser separado antes de postar");
@@ -1120,9 +1127,9 @@ export function useLiveOrders(eventId: string | undefined) {
 
     const { error } = await supabase
       .from("live_carts")
-      .update({ 
+      .update({
         operational_status: 'postado',
-        updated_at: new Date().toISOString() 
+        updated_at: new Date().toISOString()
       })
       .eq("id", orderId);
 
@@ -1176,9 +1183,9 @@ export function useLiveOrders(eventId: string | undefined) {
 
     const { error } = await supabase
       .from("live_carts")
-      .update({ 
+      .update({
         operational_status: nextStatus,
-        updated_at: new Date().toISOString() 
+        updated_at: new Date().toISOString()
       })
       .eq("id", orderId);
 
@@ -1196,7 +1203,7 @@ export function useLiveOrders(eventId: string | undefined) {
     });
 
     // Optimistic update
-    setOrders(prev => prev.map(o => 
+    setOrders(prev => prev.map(o =>
       o.id === orderId ? { ...o, operational_status: nextStatus } as LiveOrderCart : o
     ));
 
@@ -1237,9 +1244,9 @@ export function useLiveOrders(eventId: string | undefined) {
 
     const { error } = await supabase
       .from("live_carts")
-      .update({ 
+      .update({
         operational_status: nextStatus,
-        updated_at: new Date().toISOString() 
+        updated_at: new Date().toISOString()
       })
       .eq("id", orderId);
 
@@ -1257,7 +1264,7 @@ export function useLiveOrders(eventId: string | undefined) {
     });
 
     // Optimistic update
-    setOrders(prev => prev.map(o => 
+    setOrders(prev => prev.map(o =>
       o.id === orderId ? { ...o, operational_status: nextStatus } as LiveOrderCart : o
     ));
 
@@ -1269,7 +1276,7 @@ export function useLiveOrders(eventId: string | undefined) {
   const ordersNeedingCharge = useMemo(() => {
     const now = Date.now();
     const oneDayAgo = now - (24 * 60 * 60 * 1000);
-    
+
     return orders.filter(o => {
       if (o.status === 'pago' || o.status === 'cancelado') return false;
       if (!o.last_charge_at) return true;
@@ -1296,7 +1303,7 @@ export function useLiveOrders(eventId: string | undefined) {
 
   // Update tracking code after sync
   const updateTrackingCode = useCallback((orderId: string, trackingCode: string) => {
-    setOrders(prev => prev.map(o => 
+    setOrders(prev => prev.map(o =>
       o.id === orderId ? { ...o, shipping_tracking_code: trackingCode } as LiveOrderCart : o
     ));
   }, []);

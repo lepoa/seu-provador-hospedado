@@ -163,19 +163,19 @@ export function AILookConsultant() {
         }).format(value);
 
     return (
-        <section id="consultora-ai" className="py-16 md:py-24 px-5 bg-background relative overflow-hidden">
+        <section id="consultora-ai" className="py-16 md:py-24 px-5 bg-primary relative overflow-hidden">
             {/* Background decorative blob */}
-            <div className="absolute top-0 right-0 w-96 h-96 bg-accent/5 rounded-full blur-[100px] -mr-48 -mt-48" />
+            <div className="absolute top-0 right-0 w-96 h-96 bg-gold/5 rounded-full blur-[100px] -mr-48 -mt-48" />
             <div className="absolute bottom-0 left-0 w-96 h-96 bg-secondary/5 rounded-full blur-[100px] -ml-48 -mb-48" />
 
             <div className="relative z-10 max-w-4xl mx-auto">
                 <div className="text-center mb-12">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-accent/10 text-accent mb-6 border border-accent/20 shadow-lg">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gold/10 text-gold mb-6 border border-gold/20 shadow-lg">
                         <Sparkles className="h-8 w-8" />
                     </div>
-                    <h2 className="font-serif text-4xl md:text-5xl font-medium mb-4 text-primary">Sua Consultora Digital</h2>
-                    <p className="text-muted-foreground font-light text-base md:text-lg max-w-lg mx-auto">
-                        Conversa em tempo real para encontrar o look que mais combina com você.
+                    <h2 className="font-serif text-4xl md:text-5xl font-medium mb-4 text-white italic">Atelier de Estilo <span className="text-gold">IA</span></h2>
+                    <p className="text-white/60 font-light text-base md:text-lg max-w-lg mx-auto">
+                        Sua consultora exclusiva 24/7. Conte qual a ocasião e nós criamos o visual perfeito.
                     </p>
                 </div>
 

@@ -4,8 +4,9 @@ import {
   Clock, CheckCircle, Truck, CreditCard, X, ChevronDown, Copy,
   Package, Search, MessageCircle, Radio, Store, StickyNote, User,
   Save, Edit2, RefreshCw, AlertCircle, Send, Timer, FileText, Printer,
-  MapPin, Lock, Filter, XCircle
+  MapPin, Lock, Filter, XCircle, ShieldCheck
 } from "lucide-react";
+
 import { copyToClipboard } from "@/lib/clipboardUtils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useSellers } from "@/hooks/useSellers";
 import { RevalidatePaymentModal } from "./RevalidatePaymentModal";
+import { ManualPaymentValidationModal } from "./ManualPaymentValidationModal";
+
 import { OrderPackingSlipPrint, BatchPackingSlipPrint } from "./orders/OrderPackingSlipPrint";
 import { OrderShippingLabelPrint } from "./orders/OrderShippingLabelPrint";
 import {
@@ -99,8 +102,11 @@ interface Order {
   attention_reason?: string | null;
   attention_at?: string | null;
   cancel_reason?: string | null;
+  payment_review_status?: string | null;
+  payment_proof_url?: string | null;
   updated_at?: string;
 }
+
 
 interface OrderItem {
   id: string;
@@ -128,7 +134,9 @@ const statusConfig: Record<string, { label: string; icon: React.ElementType; col
   reembolsado: { label: "Reembolsado", icon: Clock, color: "bg-gray-100 text-gray-800" },
   abandonado: { label: "Abandonado", icon: X, color: "bg-gray-100 text-gray-400" },
   aguardando_pagamento_frete: { label: "Aguardando Pag. Frete", icon: CreditCard, color: "bg-yellow-100 text-yellow-800" },
+  aguardando_validacao_pagamento: { label: "Validar Pagamento", icon: ShieldCheck, color: "bg-purple-100 text-purple-800 animate-pulse border-purple-300" },
 };
+
 
 const statusOptions = [
   { value: "aberto", label: "Sacola Aberta" },
@@ -144,7 +152,9 @@ const statusOptions = [
   { value: "pagamento_rejeitado", label: "Pagamento Rejeitado" },
   { value: "reembolsado", label: "Reembolsado" },
   { value: "aguardando_pagamento_frete", label: "Aguardando Pag. Frete" },
+  { value: "aguardando_validacao_pagamento", label: "Validar Pagamento" },
 ];
+
 
 // Map special filter types to pending order types
 const specialFilterToPendingType: Record<string, PendingOrderType> = {
@@ -189,6 +199,9 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
   const [notesValue, setNotesValue] = useState("");
   const [showRevalidateModal, setShowRevalidateModal] = useState(false);
   const [revalidateOrderId, setRevalidateOrderId] = useState<string | null>(null);
+  const [showValidationModal, setShowValidationModal] = useState(false);
+  const [validatingOrder, setValidatingOrder] = useState<Order | null>(null);
+
 
   // WhatsApp message state per order
   const [whatsappMessages, setWhatsappMessages] = useState<Record<string, string>>({});
@@ -343,13 +356,7 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
       }));
 
       // 4. Merge and Sort
-      const allOrders = [...(regularOrders || []), ...mappedLiveOrders].map(order => {
-        // Ensure orders from regular 'orders' table that have live_cart_id are marked as live source
-        if (order.live_cart_id && order.source !== 'live') {
-          return { ...order, source: 'live' };
-        }
-        return order;
-      }).sort(
+      const allOrders = [...(regularOrders || []), ...mappedLiveOrders].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
 
@@ -400,64 +407,13 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
   const loadOrderItems = async (orderId: string) => {
     if (orderItems[orderId]) return;
 
-    // 1. Try regular order_items
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("order_items")
       .select("*")
       .eq("order_id", orderId);
 
-    if (error) {
-      console.error("Error loading order items:", error);
-      return;
-    }
-
-    if (data && data.length > 0) {
+    if (data) {
       setOrderItems((prev) => ({ ...prev, [orderId]: data }));
-      return;
-    }
-
-    // 2. FALLBACK: Check if it's a live order and needs to pull from live_cart_items
-    const order = orders.find(o => o.id === orderId);
-    if (order?.live_cart_id) {
-      console.log(`[Sync] Order items empty for ${orderId}, trying fallback to live_cart_id: ${order.live_cart_id}`);
-
-      const { data: liveItems, error: liveError } = await supabase
-        .from("live_cart_items")
-        .select(`
-          id,
-          product_id,
-          size,
-          quantity,
-          product_catalog (
-            name,
-            price,
-            image_url,
-            sku
-          )
-        `)
-        .eq("live_cart_id", order.live_cart_id);
-
-      if (liveError) {
-        console.error("[Sync] Error loading fallback live items:", liveError);
-        return;
-      }
-
-      if (liveItems && liveItems.length > 0) {
-        // Map to OrderItem interface
-        const mappedItems: OrderItem[] = liveItems.map((li: any) => ({
-          id: li.id,
-          product_name: li.product_catalog?.name || "Produto Live",
-          product_price: li.product_catalog?.price || 0,
-          size: li.size || "Único",
-          quantity: li.quantity || 1,
-          color: null,
-          image_url: li.product_catalog?.image_url || null,
-          product_sku: li.product_catalog?.sku || null
-        }));
-
-        console.log(`[Sync] Successfully loaded ${mappedItems.length} items from live_cart_items fallback`);
-        setOrderItems((prev) => ({ ...prev, [orderId]: mappedItems }));
-      }
     }
   };
 
@@ -490,9 +446,8 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
     }
 
     // NEW PREVENTIVE SYNC FOR LIVE ORDERS:
-    // If it has a live_cart_id, we MUST update live_carts regardless of the source field
-    if (order.live_cart_id) {
-      console.log(`[Sync] Starting sync for live_cart_id: ${order.live_cart_id} to status: ${newStatus}`);
+    // If it's a Live order, we MUST also update live_carts and apply effects if paid
+    if (order.source === 'live' && order.live_cart_id) {
       const liveCartsUpdate: Record<string, any> = {
         operational_status: newStatus,
         updated_at: new Date().toISOString()
@@ -502,7 +457,7 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
       if (isPaidStatus) {
         liveCartsUpdate.status = 'pago';
         liveCartsUpdate.paid_at = updatePayload.paid_at;
-      } else if (normalizedStatus === 'cancelado') {
+      } else if (newStatus === 'cancelado') {
         liveCartsUpdate.status = 'cancelado';
       }
 
@@ -512,29 +467,26 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
         .eq("id", order.live_cart_id);
 
       if (liveError) {
-        console.error("[Sync] Error syncing live_carts status:", liveError);
+        console.error("Error syncing live_carts status:", liveError);
         toast.error("Status atualizado em Pedidos, mas erro ao sincronizar com Live");
-      } else {
-        console.log("[Sync] Live cart status updated successfully");
       }
 
       // If marked as paid, trigger the stock effects RPC
       if (isPaidStatus) {
         try {
-          console.log("[Sync] Triggering apply_live_cart_paid_effects RPC...");
           const { data: rpcData, error: rpcError } = await supabase.rpc('apply_live_cart_paid_effects', {
             p_live_cart_id: order.live_cart_id
           });
 
           if (rpcError) {
-            console.error("[Sync] RPC Error (stock decrement):", rpcError);
+            console.error("RPC Error (stock decrement):", rpcError);
             toast.error("Erro ao baixar estoque da Live automaticamente");
           } else {
-            console.log("[Sync] Live stock effects applied:", rpcData);
+            console.log("Live stock effects applied:", rpcData);
             toast.success("Estoque da Live atualizado!");
           }
         } catch (rpcCatch) {
-          console.error("[Sync] Catching RPC error:", rpcCatch);
+          console.error("Catching RPC error:", rpcCatch);
         }
       }
 
@@ -543,7 +495,7 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
         live_cart_id: order.live_cart_id,
         old_status: order.status,
         new_status: newStatus,
-        notes: `Atualizado via Gerenciador de Pedidos Geral (Auto-Sync)`,
+        notes: `Atualizado via Gerenciador de Pedidos Geral`,
       });
     }
 
@@ -1755,6 +1707,21 @@ Qualquer dúvida estamos à disposição! \u{1F495}`;
                           </Button>
                         )}
 
+                        {/* Manual Payment Validation Button */}
+                        {order.status === "aguardando_validacao_pagamento" && (
+                          <Button
+                            className="w-full gap-2 bg-purple-600 hover:bg-purple-700 animate-pulse"
+                            onClick={() => {
+                              setValidatingOrder(order);
+                              setShowValidationModal(true);
+                            }}
+                          >
+                            <ShieldCheck className="h-4 w-4" />
+                            Validar Comprovante
+                          </Button>
+                        )}
+
+
                         {/* WhatsApp Section with Auto-Template */}
                         <div className="space-y-3">
                           <label className="text-sm font-medium mb-2 block flex items-center gap-2">
@@ -1925,6 +1892,17 @@ Qualquer dúvida estamos à disposição! \u{1F495}`;
         onSuccess={loadOrders}
         orderId={revalidateOrderId || undefined}
       />
+
+      <ManualPaymentValidationModal
+        isOpen={showValidationModal}
+        onClose={() => {
+          setShowValidationModal(false);
+          setValidatingOrder(null);
+        }}
+        order={validatingOrder}
+        onSuccess={loadOrders}
+      />
     </div>
+
   );
 }

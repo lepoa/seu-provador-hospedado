@@ -10,7 +10,6 @@ import { Separator } from "@/components/ui/separator";
 import { MissionsList } from "@/components/MissionsList";
 import { VipProgressSection } from "@/components/VipProgressSection";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -48,8 +47,11 @@ export default function MinhaConta() {
     setIsGoogleLoading(true);
     try {
       sessionStorage.setItem("oauth_return_to", "/minha-conta");
-      const { error } = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/minha-conta`,
+        },
       });
       if (error) throw error;
     } catch (err: any) {

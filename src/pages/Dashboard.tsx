@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { User, Session } from "@supabase/supabase-js";
-import { 
-  Users, 
-  Image, 
-  LogOut, 
+import {
+  Users,
+  Image,
+  LogOut,
   Package,
   Link2,
   FileSpreadsheet,
@@ -38,7 +38,9 @@ import { SellersManager } from "@/components/SellersManager";
 import { GiftsTabs } from "@/components/gifts/GiftsTabs";
 import { LoyaltyClubAdmin } from "@/components/admin/LoyaltyClubAdmin";
 import { PromotionalTablesManager } from "@/components/promotions/PromotionalTablesManager";
+import { ProfileManager } from "@/components/admin/ProfileManager";
 import { supabase } from "@/integrations/supabase/client";
+
 import { toast } from "sonner";
 import logoLepoa from "@/assets/logo-lepoa.png";
 
@@ -94,7 +96,7 @@ const Dashboard = () => {
     }
     setSearchParams(newParams);
   };
-  
+
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -110,7 +112,7 @@ const Dashboard = () => {
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        
+
         if (!session) {
           navigate("/login");
         }
@@ -120,7 +122,7 @@ const Dashboard = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      
+
       if (!session) {
         navigate("/login");
       }
@@ -246,7 +248,7 @@ const Dashboard = () => {
           </div>
         </div>
       </header>
-      
+
       <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6 overflow-x-hidden w-full">
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4 sm:space-y-6">
           {/* Desktop Tabs - Hidden on mobile */}
@@ -291,7 +293,12 @@ const Dashboard = () => {
               <UsersRound className="h-4 w-4" />
               Equipe
             </TabsTrigger>
+            <TabsTrigger value="profiles" className="gap-2">
+              <UsersRound className="h-4 w-4" />
+              Time e Acessos
+            </TabsTrigger>
             <TabsTrigger value="prints" className="gap-2">
+
               <Image className="h-4 w-4" />
               Prints ({printRequests.length})
             </TabsTrigger>
@@ -318,7 +325,7 @@ const Dashboard = () => {
               {printRequests.map((print) => {
                 const customer = customers.find(c => c.id === print.customer_id);
                 const linkedProduct = print.linked_product_id ? products[print.linked_product_id] : null;
-                
+
                 return (
                   <div key={print.id} className="bg-card rounded-xl border border-border overflow-hidden">
                     <div className="aspect-square bg-secondary">
@@ -330,18 +337,17 @@ const Dashboard = () => {
                     </div>
                     <div className="p-4 space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className={`text-xs px-2 py-1 rounded-full ${
-                          linkedProduct
-                            ? "bg-green-100 text-green-700" 
+                        <span className={`text-xs px-2 py-1 rounded-full ${linkedProduct
+                            ? "bg-green-100 text-green-700"
                             : "bg-amber-100 text-amber-700"
-                        }`}>
+                          }`}>
                           {linkedProduct ? "Vinculado" : "Pendente"}
                         </span>
                         <span className="text-xs text-muted-foreground">
                           {formatDate(print.created_at)}
                         </span>
                       </div>
-                      
+
                       <div className="text-sm space-y-1">
                         <p><strong>Tel:</strong> {customer?.phone || "-"}</p>
                         <p><strong>Tamanho:</strong> {print.size || "-"}</p>
@@ -401,7 +407,7 @@ const Dashboard = () => {
           <TabsContent value="lives">
             <LiveEventsList />
           </TabsContent>
-          
+
           {/* Cupons Tab */}
           <TabsContent value="cupons">
             <CouponsManager />
@@ -426,6 +432,12 @@ const Dashboard = () => {
           <TabsContent value="equipe">
             <SellersManager />
           </TabsContent>
+
+          {/* Profiles Tab */}
+          <TabsContent value="profiles">
+            <ProfileManager />
+          </TabsContent>
+
         </Tabs>
       </main>
 

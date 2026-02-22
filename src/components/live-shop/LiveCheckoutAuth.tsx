@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { toast } from "sonner";
 import { Mail, Lock, Loader2, UserPlus, LogIn, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,8 +28,11 @@ export function LiveCheckoutAuth({ prefillEmail, onAuthSuccess, instagramHandle 
     setIsGoogleLoading(true);
     try {
       sessionStorage.setItem("oauth_return_to", window.location.pathname);
-      const { error } = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}${window.location.pathname}`,
+        },
       });
       if (error) throw error;
     } catch (err: any) {
@@ -240,9 +242,9 @@ export function LiveCheckoutAuth({ prefillEmail, onAuthSuccess, instagramHandle 
               </div>
             </div>
 
-            <Button 
-              className="w-full" 
-              size="lg" 
+            <Button
+              className="w-full"
+              size="lg"
               onClick={handleSignup}
               disabled={isLoading}
             >
@@ -289,9 +291,9 @@ export function LiveCheckoutAuth({ prefillEmail, onAuthSuccess, instagramHandle 
               </div>
             </div>
 
-            <Button 
-              className="w-full" 
-              size="lg" 
+            <Button
+              className="w-full"
+              size="lg"
               onClick={handleLogin}
               disabled={isLoading}
             >

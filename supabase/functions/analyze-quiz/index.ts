@@ -72,10 +72,10 @@ serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const AI_API_KEY = Deno.env.get("AI_API_KEY");
+
+    if (!AI_API_KEY) {
+      throw new Error("AI_API_KEY is not configured");
     }
 
     const answersText = answers.map(a => `- ${a.question}: ${a.answer}`).join("\n");
@@ -117,10 +117,10 @@ Regras:
 - Os styleIds válidos são: elegante, classica, minimal, romantica
 - Use linguagem acolhedora e empática, nunca comercial`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${AI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -152,7 +152,7 @@ Regras:
 
     const aiResponse = await response.json();
     console.log("AI Response structure:", JSON.stringify(aiResponse, null, 2));
-    
+
     const content = aiResponse.choices?.[0]?.message?.content;
 
     if (!content) {
@@ -212,8 +212,8 @@ Regras:
     });
   } catch (error) {
     console.error("analyze-quiz error:", error);
-    return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : "Unknown error" 
+    return new Response(JSON.stringify({
+      error: error instanceof Error ? error.message : "Unknown error"
     }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

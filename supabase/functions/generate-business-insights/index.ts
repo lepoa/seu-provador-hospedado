@@ -72,7 +72,7 @@ serve(async (req) => {
     .select("role")
     .eq("user_id", auth.userId)
     .in("role", ["merchant", "admin"]);
-  
+
   if (!roleData || roleData.length === 0) {
     return new Response(JSON.stringify({ error: "Acesso restrito a administradores" }), {
       status: 403,
@@ -83,9 +83,9 @@ serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const AI_API_KEY = Deno.env.get("AI_API_KEY");
 
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    if (!AI_API_KEY) throw new Error("AI_API_KEY not configured");
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -110,7 +110,7 @@ serve(async (req) => {
     const liveEvents = liveEventsResult.data || [];
 
     const metrics: BusinessMetrics = calculateMetrics(liveCarts, orders, customers, waitlist, liveEvents);
-    const insights = await generateAIInsights(metrics, LOVABLE_API_KEY);
+    const insights = await generateAIInsights(metrics, AI_API_KEY);
 
     // Store insights
     const today = new Date().toISOString().split("T")[0];
@@ -133,13 +133,13 @@ function calculateMetrics(liveCarts: any[], orders: any[], customers: any[], wai
   const paidCarts = liveCarts.filter((c) => c.status === "pago");
   const canceledCarts = liveCarts.filter((c) => c.status === "cancelado");
   const expiredCarts = liveCarts.filter((c) => c.status === "expirado");
-  
+
   const avgTimeToPayHours = paidCarts.length > 0
     ? paidCarts.reduce((sum, c) => {
-        const created = new Date(c.created_at).getTime();
-        const updated = new Date(c.updated_at).getTime();
-        return sum + (updated - created) / (1000 * 60 * 60);
-      }, 0) / paidCarts.length
+      const created = new Date(c.created_at).getTime();
+      const updated = new Date(c.updated_at).getTime();
+      return sum + (updated - created) / (1000 * 60 * 60);
+    }, 0) / paidCarts.length
     : 0;
 
   const cartsByHour: Record<string, { total: number; paid: number; revenue: number }> = {};
@@ -194,7 +194,7 @@ PICO: ${metrics.livePerformance.peakHours.join(", ") || "N/A"}
 Retorne APENAS um array JSON com 3 a 5 strings.`;
 
   try {
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], temperature: 0.7 }),

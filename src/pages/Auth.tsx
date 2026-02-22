@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Header } from "@/components/Header";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { useAuth } from "@/hooks/useAuth";
 import { usePhoneMask } from "@/hooks/usePhoneMask";
 import { toast } from "sonner";
@@ -158,8 +157,11 @@ const Auth = () => {
     try {
       // Save return destination for after OAuth callback
       sessionStorage.setItem("oauth_return_to", redirectTo);
-      const { error } = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}${redirectTo}`,
+        },
       });
       if (error) throw error;
     } catch (error: any) {

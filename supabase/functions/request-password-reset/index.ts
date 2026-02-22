@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
   }
 
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), { 
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
     })
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     }
 
     // Validate redirectUrl if provided (must be same domain)
-    if (redirectUrl && !redirectUrl.startsWith('https://seuprovador.lovable.app')) {
+    if (redirectUrl && !redirectUrl.startsWith('https://lightcoral-cod-859891.hostingersite.com/')) {
       return new Response(
         JSON.stringify({ error: 'URL de redirecionamento inválida' }),
         { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
 
     // Check if user exists in auth.users
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers()
-    
+
     if (authError) {
       console.error('Error listing users:', authError)
       // Return success anyway (security: don't reveal if email exists)
@@ -138,7 +138,7 @@ Deno.serve(async (req) => {
     console.log('Token saved, sending email...')
 
     // Build reset URL
-    const baseUrl = redirectUrl || Deno.env.get('SITE_URL') || 'https://seuprovador.lovable.app'
+    const baseUrl = redirectUrl || Deno.env.get('SITE_URL') || 'https://lightcoral-cod-859891.hostingersite.com/'
     const resetUrl = `${baseUrl}/resetar-senha?token=${token}`
 
     // Render email template
@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
 
     // Send email via Resend
     const { error: emailError } = await resend.emails.send({
-      from: 'Provador VIP Le.Poá <noreply@seuprovador.lovable.app>',
+      from: 'Provador VIP Le.Poá <noreply@lightcoral-cod-859891.hostingersite.com>',
       to: [email],
       subject: '🔐 Recuperação de senha — Provador VIP Le.Poá',
       html,
@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
 
   } catch (error: any) {
     console.error('Error in password reset request:', error)
-    
+
     // Always return success (security: don't reveal internal errors)
     return new Response(
       JSON.stringify({ success: true }),

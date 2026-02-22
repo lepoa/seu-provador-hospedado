@@ -700,7 +700,7 @@ const Catalog = () => {
           <h2 className="font-serif text-3xl md:text-4xl mb-4 italic">
             Pronta para se sentir incrível?
           </h2>
-          <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+          <p className="text-muted-foreground font-light mb-8 max-w-md mx-auto">
             Monte seu provador VIP em 2 minutos e receba sugestões
             personalizadas direto no seu WhatsApp.
           </p>
