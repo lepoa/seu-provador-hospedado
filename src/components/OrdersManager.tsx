@@ -407,13 +407,67 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
   const loadOrderItems = async (orderId: string) => {
     if (orderItems[orderId]) return;
 
-    const { data } = await supabase
-      .from("order_items")
-      .select("*")
-      .eq("order_id", orderId);
+    const order = orders.find((o) => o.id === orderId);
+    if (!order) return;
 
-    if (data) {
-      setOrderItems((prev) => ({ ...prev, [orderId]: data }));
+    try {
+      const { data: regularItems, error: regularError } = await supabase
+        .from("order_items")
+        .select("*")
+        .eq("order_id", orderId);
+
+      if (regularError) {
+        console.error("Erro ao buscar itens do pedido:", regularError);
+      }
+
+      if (regularItems && regularItems.length > 0) {
+        setOrderItems((prev) => ({ ...prev, [orderId]: regularItems }));
+        return;
+      }
+
+      const liveCartId = order.live_cart_id || (order.source === "live" ? order.id : null);
+      if (!liveCartId) {
+        setOrderItems((prev) => ({ ...prev, [orderId]: [] }));
+        return;
+      }
+
+      const { data: liveItems, error: liveError } = await supabase
+        .from("live_cart_items")
+        .select(`
+          id,
+          qtd,
+          preco_unitario,
+          variante,
+          product:product_catalog(id, name, image_url, color, sku, price)
+        `)
+        .eq("live_cart_id", liveCartId);
+
+      if (liveError) {
+        console.error("Erro ao buscar itens da live:", liveError);
+        setOrderItems((prev) => ({ ...prev, [orderId]: [] }));
+        return;
+      }
+
+      const mappedItems: OrderItem[] = (liveItems || []).map((item) => {
+        const variant = (item.variante as Record<string, string>) || {};
+
+        return {
+          id: item.id,
+          product_name: item.product?.name || variant.nome || "Produto da Live",
+          product_price: item.preco_unitario ?? item.product?.price ?? 0,
+          size: variant.tamanho || "Único",
+          quantity: item.qtd ?? 0,
+          color: item.product?.color || variant.cor || null,
+          image_url: item.product?.image_url || null,
+          product_sku: item.product?.sku || null,
+        };
+      });
+
+      setOrderItems((prev) => ({ ...prev, [orderId]: mappedItems }));
+    } catch (error) {
+      console.error("Erro ao carregar itens do pedido:", error);
+      toast.error("Erro ao carregar itens do pedido");
+      setOrderItems((prev) => ({ ...prev, [orderId]: [] }));
     }
   };
 
