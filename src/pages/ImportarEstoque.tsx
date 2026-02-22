@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import ExcelJS from "exceljs";
 import { Upload, FileSpreadsheet, Check, X, AlertCircle, Download, History, Plus, Archive, Merge } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -11,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { reconcileCommittedAfterImport, calculateDisplayStock } from "@/lib/stockCalculation";
 import { useAuth } from "@/hooks/useAuth";
+import { loadExcelJS } from "@/lib/loadExcel";
 import {
   Table,
   TableBody,
@@ -281,6 +281,7 @@ export default function ImportarEstoque() {
     
     setIsProcessing(true);
     try {
+      const ExcelJS = await loadExcelJS();
       const data = await file.arrayBuffer();
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(data);
@@ -764,6 +765,7 @@ export default function ImportarEstoque() {
   };
 
   const downloadTemplate = async () => {
+    const ExcelJS = await loadExcelJS();
     const templateData = [
       ["REFERENCIA", "TIPODESC", "COR1DESC", "PRCVENDA", "PP", "P", "M", "G", "GG", "UN", "36", "38", "40", "42"],
       ["YT00172", "TOP CARLA", "PRETO", "129,90", 2, 5, 3, 1, 0, 0, 0, 0, 0, 0],

@@ -22,7 +22,7 @@ import { RFVTaskList } from "@/components/rfv/RFVTaskList";
 import { RFVSegmentChart } from "@/components/rfv/RFVSegmentChart";
 import { RFVChannelChart } from "@/components/rfv/RFVChannelChart";
 import { RFVTemplateManager } from "@/components/rfv/RFVTemplateManager";
-import ExcelJS from "exceljs";
+import { loadExcelJS } from "@/lib/loadExcel";
 import logoLepoa from "@/assets/logo-lepoa.png";
 
 export default function CopilotoRFV() {
@@ -89,6 +89,7 @@ export default function CopilotoRFV() {
     const handleExportExcel = async () => {
         if (!tasks || tasks.length === 0) return;
 
+        const ExcelJS = await loadExcelJS();
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet("Relatório RFV");
 

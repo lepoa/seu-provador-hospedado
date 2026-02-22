@@ -1,8 +1,9 @@
-import ExcelJS from "exceljs";
+import type ExcelJS from "exceljs";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { LiveEventSummary } from "@/hooks/useLiveReportsByPeriod";
 import type { LiveReportKPIs, TopProduct } from "@/hooks/useLiveReports";
+import { loadExcelJS } from "@/lib/loadExcel";
 
 interface ExportPeriodData {
   events: LiveEventSummary[];
@@ -100,6 +101,7 @@ export async function exportPeriodReportToExcel(data: ExportPeriodData) {
   
   const periodLabel = `${format(startDate, "dd-MM-yyyy")}_a_${format(endDate, "dd-MM-yyyy")}`;
   
+  const ExcelJS = await loadExcelJS();
   const wb = new ExcelJS.Workbook();
   
   // Sheet 1: Resumo

@@ -18,4 +18,16 @@ export default defineConfig(({ mode }) => ({
     },
     dedupe: ["react", "react-dom", "react/jsx-runtime"],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom", "react-router-dom"],
+          supabase: ["@supabase/supabase-js"],
+          charts: ["recharts"],
+          ui: ["@tanstack/react-query", "framer-motion", "embla-carousel-react", "lucide-react"],
+        },
+      },
+    },
+  },
 }));

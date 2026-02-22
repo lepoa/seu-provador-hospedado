@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { Html5Qrcode } from "html5-qrcode";
-import ExcelJS from "exceljs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +53,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Settings } from "lucide-react";
+import { loadExcelJS } from "@/lib/loadExcel";
 
 interface TrackedBag {
   id: string;
@@ -447,6 +447,7 @@ export function BagTracker() {
       return;
     }
 
+    const ExcelJS = await loadExcelJS();
     const wb = new ExcelJS.Workbook();
     
     // Sheet 1: Resumo
