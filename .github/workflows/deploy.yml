@@ -40,5 +40,6 @@ jobs:
           # FTP account already lands in the site webroot.
           # Using domains/.../public_html creates a nested folder and leaves root stale.
           server-dir: ./
+          timeout: 600000
           log-level: verbose
           state-name: .ftp-deploy-sync-state-webroot.json
