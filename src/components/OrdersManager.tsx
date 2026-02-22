@@ -385,7 +385,7 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
       // Cast the data to our Order type
       setOrders(allOrders as unknown as Order[]);
       if (Object.keys(liveItemsMap).length > 0) {
-        setOrderItems(prev => ({ ...liveItemsMap, ...prev }));
+        setOrderItems(prev => ({ ...prev, ...liveItemsMap }));
       }
     } catch (error) {
       console.error("Error loading orders:", error);
