@@ -455,7 +455,7 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
           id: item.id,
           product_name: item.product?.name || variant.nome || "Produto da Live",
           product_price: item.preco_unitario ?? item.product?.price ?? 0,
-          size: variant.tamanho || "Único",
+          size: variant.tamanho || "Unico",
           quantity: item.qtd ?? 0,
           color: item.product?.color || variant.cor || null,
           image_url: item.product?.image_url || null,
