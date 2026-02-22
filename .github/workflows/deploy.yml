@@ -37,6 +37,8 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           port: 21
           local-dir: ./dist/
-          server-dir: domains/lightcoral-cod-859891.hostingersite.com/public_html/
+          # FTP account already lands in the site webroot.
+          # Using domains/.../public_html creates a nested folder and leaves root stale.
+          server-dir: /
           log-level: verbose
-          state-name: .ftp-deploy-sync-state-root-fix.json
+          state-name: .ftp-deploy-sync-state-webroot.json
