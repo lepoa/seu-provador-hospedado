@@ -285,6 +285,23 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
     }
   }, [specialFilter]);
 
+  const mapLiveCartItemsToOrderItems = (items: any[] | null | undefined): OrderItem[] => {
+    if (!items) return [];
+    return items.map((item) => {
+      const variant = (item.variante as Record<string, string>) || {};
+      return {
+        id: item.id,
+        product_name: item.product?.name || variant.nome || "Produto da Live",
+        product_price: item.preco_unitario ?? item.product?.price ?? 0,
+        size: variant.tamanho || "Unico",
+        quantity: item.qtd ?? 0,
+        color: item.product?.color || variant.cor || null,
+        image_url: item.product?.image_url || null,
+        product_sku: item.product?.sku || null,
+      };
+    });
+  };
+
   const loadOrders = async () => {
     setIsLoading(true);
     try {
@@ -356,12 +373,20 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
       }));
 
       // 4. Merge and Sort
+      const liveItemsMap = (liveCarts || []).reduce<Record<string, OrderItem[]>>((acc, cart: any) => {
+        acc[cart.id] = mapLiveCartItemsToOrderItems(cart.items);
+        return acc;
+      }, {});
+
       const allOrders = [...(regularOrders || []), ...mappedLiveOrders].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
 
       // Cast the data to our Order type
       setOrders(allOrders as unknown as Order[]);
+      if (Object.keys(liveItemsMap).length > 0) {
+        setOrderItems(prev => ({ ...liveItemsMap, ...prev }));
+      }
     } catch (error) {
       console.error("Error loading orders:", error);
       toast.error("Erro ao carregar pedidos");
@@ -448,21 +473,7 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
         return;
       }
 
-      const mappedItems: OrderItem[] = (liveItems || []).map((item) => {
-        const variant = (item.variante as Record<string, string>) || {};
-
-        return {
-          id: item.id,
-          product_name: item.product?.name || variant.nome || "Produto da Live",
-          product_price: item.preco_unitario ?? item.product?.price ?? 0,
-          size: variant.tamanho || "Unico",
-          quantity: item.qtd ?? 0,
-          color: item.product?.color || variant.cor || null,
-          image_url: item.product?.image_url || null,
-          product_sku: item.product?.sku || null,
-        };
-      });
-
+      const mappedItems = mapLiveCartItemsToOrderItems(liveItems || []);
       setOrderItems((prev) => ({ ...prev, [orderId]: mappedItems }));
     } catch (error) {
       console.error("Erro ao carregar itens do pedido:", error);
