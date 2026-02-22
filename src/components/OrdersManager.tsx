@@ -326,7 +326,14 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
         .select(`
           *,
           live_customer:live_customers(*),
-          live_event:live_events(titulo)
+          live_event:live_events(titulo),
+          items:live_cart_items(
+            id,
+            qtd,
+            preco_unitario,
+            variante,
+            product:product_catalog(id, name, image_url, color, sku, price)
+          )
         `)
         .is("order_id", null)
         // .neq("status", "aberto") // Removed to allow active carts to be seen in the manager
@@ -386,7 +393,9 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
       }, {});
 
       const liveItemsMap = (liveCarts || []).reduce<Record<string, OrderItem[]>>((acc, cart: any) => {
-        acc[cart.id] = mapLiveCartItemsToOrderItems(cart.items);
+        if (Array.isArray(cart.items) && cart.items.length > 0) {
+          acc[cart.id] = mapLiveCartItemsToOrderItems(cart.items);
+        }
         return acc;
       }, {});
 
@@ -442,7 +451,7 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
   };
 
   const loadOrderItems = async (orderId: string) => {
-    if (orderItems[orderId]) return;
+    if (orderItems[orderId]?.length) return;
 
     const order = orders.find((o) => o.id === orderId);
     if (!order) return;
