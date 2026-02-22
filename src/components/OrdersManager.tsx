@@ -400,13 +400,64 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
   const loadOrderItems = async (orderId: string) => {
     if (orderItems[orderId]) return;
 
-    const { data } = await supabase
+    // 1. Try regular order_items
+    const { data, error } = await supabase
       .from("order_items")
       .select("*")
       .eq("order_id", orderId);
 
-    if (data) {
+    if (error) {
+      console.error("Error loading order items:", error);
+      return;
+    }
+
+    if (data && data.length > 0) {
       setOrderItems((prev) => ({ ...prev, [orderId]: data }));
+      return;
+    }
+
+    // 2. FALLBACK: Check if it's a live order and needs to pull from live_cart_items
+    const order = orders.find(o => o.id === orderId);
+    if (order?.live_cart_id) {
+      console.log(`[Sync] Order items empty for ${orderId}, trying fallback to live_cart_id: ${order.live_cart_id}`);
+
+      const { data: liveItems, error: liveError } = await supabase
+        .from("live_cart_items")
+        .select(`
+          id,
+          product_id,
+          size,
+          quantity,
+          product_catalog (
+            name,
+            price,
+            image_url,
+            sku
+          )
+        `)
+        .eq("live_cart_id", order.live_cart_id);
+
+      if (liveError) {
+        console.error("[Sync] Error loading fallback live items:", liveError);
+        return;
+      }
+
+      if (liveItems && liveItems.length > 0) {
+        // Map to OrderItem interface
+        const mappedItems: OrderItem[] = liveItems.map((li: any) => ({
+          id: li.id,
+          product_name: li.product_catalog?.name || "Produto Live",
+          product_price: li.product_catalog?.price || 0,
+          size: li.size || "Único",
+          quantity: li.quantity || 1,
+          color: null,
+          image_url: li.product_catalog?.image_url || null,
+          product_sku: li.product_catalog?.sku || null
+        }));
+
+        console.log(`[Sync] Successfully loaded ${mappedItems.length} items from live_cart_items fallback`);
+        setOrderItems((prev) => ({ ...prev, [orderId]: mappedItems }));
+      }
     }
   };
 
