@@ -310,7 +310,8 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
         .from("orders")
         .select(`
           *,
-          live_event:live_events(titulo)
+          live_event:live_events(titulo),
+          order_items(*)
         `)
         .order("created_at", { ascending: false });
 
@@ -373,6 +374,17 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
       }));
 
       // 4. Merge and Sort
+      const regularItemsMap = (regularOrders || []).reduce<Record<string, OrderItem[]>>((acc, order: any) => {
+        if (order.order_items?.length) {
+          acc[order.id] = (order.order_items as OrderItem[]).map((item) => ({
+            ...item,
+            size: item.size || "Unico",
+          }));
+        }
+        delete order.order_items;
+        return acc;
+      }, {});
+
       const liveItemsMap = (liveCarts || []).reduce<Record<string, OrderItem[]>>((acc, cart: any) => {
         acc[cart.id] = mapLiveCartItemsToOrderItems(cart.items);
         return acc;
@@ -384,8 +396,8 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
 
       // Cast the data to our Order type
       setOrders(allOrders as unknown as Order[]);
-      if (Object.keys(liveItemsMap).length > 0) {
-        setOrderItems(prev => ({ ...prev, ...liveItemsMap }));
+      if (Object.keys(regularItemsMap).length || Object.keys(liveItemsMap).length) {
+        setOrderItems(prev => ({ ...prev, ...regularItemsMap, ...liveItemsMap }));
       }
     } catch (error) {
       console.error("Error loading orders:", error);
