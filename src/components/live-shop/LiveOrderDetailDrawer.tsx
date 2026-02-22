@@ -202,16 +202,7 @@ export function LiveOrderDetailDrawer({
       `• ${i.product?.name} (${(i.variante as any)?.tamanho || '-'}) x${i.qtd}`
     ).join('\n');
 
-    const message = `Olá${customer.nome ? ` ${customer.nome.split(' ')[0]}` : ''}! 🛍️
-
-Vi aqui que sua sacolinha #${order.bag_number} ainda está aguardando pagamento.
-
-Itens reservados:
-${itemsList}
-
-Total: ${formatPrice(order.total)}
-
-Posso te ajudar a finalizar? 💕`;
+    const message = `Olá${customer.nome ? ` ${customer.nome.split(' ')[0]}` : ''}! \u{1F6CD}\uFE0F\n\nVi aqui que sua sacolinha #${order.bag_number} ainda está aguardando pagamento.\n\nItens reservados:\n${itemsList}\n\nTotal: ${formatPrice(order.total)}\n\nPosso te ajudar a finalizar? \u{1F495}`;
 
     return buildWhatsAppLink(customer.whatsapp, message);
   };
