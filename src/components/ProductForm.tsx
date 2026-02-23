@@ -111,6 +111,32 @@ function toErrorDetails(error: unknown): Record<string, unknown> {
   };
 }
 
+function normalizeOccasionValue(value: unknown): string | null {
+  if (typeof value === "string") {
+    return value.trim() || null;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const normalized = normalizeOccasionValue(item);
+      if (normalized) return normalized;
+    }
+  }
+
+  return null;
+}
+
+function shouldRetryWithOccasionArray(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const err = error as Record<string, unknown>;
+  const code = String(err.code || "");
+  const message = String(err.message || "");
+  const details = String(err.details || "");
+  const merged = `${message} ${details}`.toLowerCase();
+
+  return code === "22P02" && merged.includes("malformed array literal");
+}
+
 function getProductSaveErrorMessage(error: unknown): string {
   if (!error || typeof error !== "object") {
     return "Erro ao salvar produto";
@@ -136,6 +162,10 @@ function getProductSaveErrorMessage(error: unknown): string {
 
   if (code === "PGRST204" || (merged.includes("could not find") && merged.includes("column"))) {
     return "Banco desatualizado para este formulário. Envie o log técnico para ajustarmos a migração.";
+  }
+
+  if (merged.includes("malformed array literal")) {
+    return "Incompatibilidade de formato no campo de ocasião no banco.";
   }
 
   if (code === "22P02" || merged.includes("invalid input syntax")) {
@@ -259,6 +289,7 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
         sku: product.sku || product.group_key || null,
         // Set normalized color
         color: normalizedColor,
+        occasion: normalizeOccasionValue(product.occasion),
         sizes: product.sizes || [],
         tags: product.tags || [],
         weight_kg: product.weight_kg ?? null,
@@ -530,13 +561,37 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
         discount_value: formData.discount_value || null,
       };
 
+      const occasionArrayPayload = {
+        ...productData,
+        occasion: formData.occasion ? [formData.occasion] : [],
+      };
+
       let savedProductId = product?.id;
 
       if (product?.id) {
-        const { error } = await supabase
+        let { error } = await supabase
           .from("product_catalog")
           .update(productData)
           .eq("id", product.id);
+
+        if (error && shouldRetryWithOccasionArray(error)) {
+          runtimeLog("product-form", "submit:update:retry-occasion-array", {
+            productId: product.id,
+            error: toErrorDetails(error),
+          }, "warn");
+
+          const retry = await supabase
+            .from("product_catalog")
+            .update(occasionArrayPayload)
+            .eq("id", product.id);
+
+          error = retry.error;
+          if (!error) {
+            runtimeLog("product-form", "submit:update:retry-occasion-array:success", {
+              productId: product.id,
+            });
+          }
+        }
 
         if (error) {
           runtimeLog("product-form", "submit:update:error", {
@@ -552,11 +607,31 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
         });
         toast.success("Produto atualizado!");
       } else {
-        const { data: newProduct, error } = await supabase
+        let { data: newProduct, error } = await supabase
           .from("product_catalog")
           .insert(productData)
           .select("id")
           .single();
+
+        if (error && shouldRetryWithOccasionArray(error)) {
+          runtimeLog("product-form", "submit:create:retry-occasion-array", {
+            error: toErrorDetails(error),
+          }, "warn");
+
+          const retry = await supabase
+            .from("product_catalog")
+            .insert(occasionArrayPayload)
+            .select("id")
+            .single();
+
+          error = retry.error;
+          newProduct = retry.data;
+          if (!error) {
+            runtimeLog("product-form", "submit:create:retry-occasion-array:success", {
+              productId: retry.data?.id ?? null,
+            });
+          }
+        }
 
         if (error) {
           runtimeLog("product-form", "submit:create:error", {
