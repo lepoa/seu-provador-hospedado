@@ -51,6 +51,7 @@ interface Product {
   video_url?: string | null;
   main_image_index?: number;
   stock_by_size?: Record<string, number>;
+  locked_stock_by_size?: Record<string, number>;
   description?: string | null;
   created_from_import?: boolean;
   weight_kg?: number | null;
@@ -141,6 +142,17 @@ function normalizeOptionalText(value: string | null | undefined): string | null 
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeStockMap(stock: Record<string, number> | null | undefined): Record<string, number> {
+  if (!stock || typeof stock !== "object") return {};
+  return Object.entries(stock).reduce<Record<string, number>>((acc, [size, qty]) => {
+    const key = size.trim();
+    if (!key) return acc;
+    const value = Number.isFinite(qty) ? Number(qty) : 0;
+    acc[key] = Math.max(0, value);
+    return acc;
+  }, {});
 }
 
 function getProductSaveErrorMessage(error: unknown): string {
@@ -255,6 +267,7 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
 
   // Stock state
   const [stockBySize, setStockBySize] = useState<Record<string, number>>({});
+  const [lockedStockBySize, setLockedStockBySize] = useState<Record<string, number>>({});
 
   const [formData, setFormData] = useState<Product>({
     name: "",
@@ -308,7 +321,8 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
       setImages(product.images || (product.image_url ? [product.image_url] : []));
       setMainImageIndex(product.main_image_index || 0);
       setVideoUrl(product.video_url || null);
-      setStockBySize(product.stock_by_size || {});
+      setStockBySize(normalizeStockMap(product.stock_by_size));
+      setLockedStockBySize(normalizeStockMap(product.locked_stock_by_size));
 
       // Add custom color to available options if not already present
       if (normalizedColor && !BASE_COLORS.includes(normalizedColor)) {
@@ -344,6 +358,7 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
       setMainImageIndex(0);
       setVideoUrl(null);
       setStockBySize({});
+      setLockedStockBySize({});
       setAvailableColors(BASE_COLORS);
     }
     clearAnalysis();
@@ -554,6 +569,23 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
         .map((url) => url.trim())
         .filter((url) => url.length > 0);
 
+      // Form edits available stock. Persist physical stock as available + locked (reserved + sold).
+      const sizesUnion = new Set([
+        ...Object.keys(stockBySize),
+        ...Object.keys(lockedStockBySize),
+      ]);
+      const stockToPersist = Array.from(sizesUnion).reduce<Record<string, number>>((acc, size) => {
+        const availableQty = Math.max(0, Number(stockBySize[size] || 0));
+        const lockedQty = Math.max(0, Number(lockedStockBySize[size] || 0));
+        const totalQty = availableQty + lockedQty;
+
+        if (totalQty > 0) {
+          acc[size] = totalQty;
+        }
+
+        return acc;
+      }, {});
+
       const productData = {
         name: formData.name.trim(),
         sku: formData.sku || null,
@@ -571,7 +603,7 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
         images: normalizedImages,
         video_url: videoUrl,
         main_image_index: mainImageIndex,
-        stock_by_size: stockBySize,
+        stock_by_size: stockToPersist,
         description: formData.description,
         weight_kg: formData.weight_kg || null,
         length_cm: formData.length_cm || null,
@@ -1051,6 +1083,15 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
               stock={stockBySize}
               onChange={setStockBySize}
             />
+            {Object.values(lockedStockBySize).some((qty) => qty > 0) && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Valores editÃ¡veis mostram estoque disponÃ­vel. Reservado/Vendido atual:{" "}
+                <span className="font-medium text-foreground">
+                  {Object.values(lockedStockBySize).reduce((sum, qty) => sum + (qty || 0), 0)}
+                </span>{" "}
+                unidade(s).
+              </p>
+            )}
           </div>
 
           {/* Discount */}

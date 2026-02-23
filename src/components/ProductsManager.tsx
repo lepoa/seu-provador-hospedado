@@ -50,6 +50,7 @@ interface Product {
   weight_kg?: number | null;
   discount_type?: DiscountType;
   discount_value?: number | null;
+  locked_stock_by_size?: Record<string, number>;
 }
 
 interface AvailableStockEntry {
@@ -215,11 +216,19 @@ export function ProductsManager({ userId, initialFilter }: ProductsManagerProps)
   };
 
   const handleEdit = (product: Product) => {
+    const { availableBySize, lockedBySize } = getEditableStockContext(product);
+
     runtimeLog("products-manager", "form:open-edit", {
       productId: product.id,
       name: product.name,
+      availableStock: availableBySize,
+      lockedStock: lockedBySize,
     });
-    setEditingProduct(product);
+    setEditingProduct({
+      ...product,
+      stock_by_size: availableBySize,
+      locked_stock_by_size: lockedBySize,
+    });
     setFormOpen(true);
   };
 
@@ -252,6 +261,44 @@ export function ProductsManager({ userId, initialFilter }: ProductsManagerProps)
   const getStockBySize = (stockBySize: unknown): Record<string, number> => {
     if (!stockBySize || typeof stockBySize !== 'object') return {};
     return stockBySize as Record<string, number>;
+  };
+
+  const getEditableStockContext = (product: Product): {
+    availableBySize: Record<string, number>;
+    lockedBySize: Record<string, number>;
+  } => {
+    const fallbackStock = getStockBySize(product.stock_by_size);
+    const productViewStock = availableStock.get(product.id);
+
+    if (!productViewStock || productViewStock.size === 0) {
+      return {
+        availableBySize: fallbackStock,
+        lockedBySize: {},
+      };
+    }
+
+    const availableBySize: Record<string, number> = {};
+    const lockedBySize: Record<string, number> = {};
+
+    productViewStock.forEach((entry, size) => {
+      const availableQty = Number(entry.available || 0);
+      const committedQty = Number(entry.committed || 0);
+      const reservedQty = Number(entry.reserved || 0);
+
+      availableBySize[size] = Math.max(0, availableQty);
+      lockedBySize[size] = Math.max(0, committedQty + reservedQty);
+    });
+
+    Object.entries(fallbackStock).forEach(([size, qty]) => {
+      if (!(size in availableBySize)) {
+        availableBySize[size] = Math.max(0, Number(qty || 0));
+      }
+      if (!(size in lockedBySize)) {
+        lockedBySize[size] = 0;
+      }
+    });
+
+    return { availableBySize, lockedBySize };
   };
 
   // Sort sizes: letter sizes first (PP, P, M, G, GG, etc.), then numeric sizes in ascending order
@@ -640,6 +687,7 @@ export function ProductsManager({ userId, initialFilter }: ProductsManagerProps)
           tags: editingProduct.tags || [],
           is_active: editingProduct.is_active ?? true,
           stock_by_size: getStockBySize(editingProduct.stock_by_size),
+          locked_stock_by_size: editingProduct.locked_stock_by_size || {},
           group_key: editingProduct.group_key,
           created_from_import: editingProduct.created_from_import,
         } : null}
