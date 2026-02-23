@@ -27,6 +27,7 @@ declare global {
 
 const TRACE_PREFIX = "[SAAS-TRACE]";
 const TRACE_STORAGE_KEY = "saas_trace_entries";
+const CHUNK_RELOAD_KEY = "saas_chunk_reload_once";
 const TRACE_MAX_ENTRIES = 5000;
 const TRACE_MAX_STRING = 1200;
 const TRACE_MAX_KEYS = 40;
@@ -163,6 +164,61 @@ function describeElement(element: Element | null): TraceMetadata {
   };
 }
 
+function extractChunkErrorMessage(reason: unknown): string {
+  if (!reason) return "";
+  if (typeof reason === "string") return reason;
+  if (reason instanceof Error) return `${reason.name}: ${reason.message}`;
+  if (typeof reason === "object" && reason !== null && "message" in reason) {
+    const maybeMessage = (reason as Record<string, unknown>).message;
+    if (typeof maybeMessage === "string") return maybeMessage;
+  }
+  return String(reason);
+}
+
+function shouldRecoverChunkError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("failed to fetch dynamically imported module") ||
+    normalized.includes("importing a module script failed")
+  );
+}
+
+function buildReloadUrlWithCacheBust(): string {
+  const url = new URL(window.location.href);
+  url.searchParams.set("_chunk_retry", Date.now().toString());
+  return url.toString();
+}
+
+function attemptChunkErrorRecovery(reason: unknown): void {
+  if (typeof window === "undefined") return;
+
+  const message = extractChunkErrorMessage(reason);
+  if (!shouldRecoverChunkError(message)) return;
+
+  const currentKey = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  const previousKey = sessionStorage.getItem(CHUNK_RELOAD_KEY);
+
+  if (previousKey === currentKey) {
+    runtimeLog(
+      "runtime",
+      "chunk-load:recover:skipped",
+      { key: currentKey, message },
+      "error",
+    );
+    return;
+  }
+
+  sessionStorage.setItem(CHUNK_RELOAD_KEY, currentKey);
+  const reloadUrl = buildReloadUrlWithCacheBust();
+  runtimeLog(
+    "runtime",
+    "chunk-load:recover:reload",
+    { key: currentKey, reloadUrl, message },
+    "warn",
+  );
+  window.location.replace(reloadUrl);
+}
+
 export function runtimeLog(scope: string, action: string, details: unknown = {}, level: LogLevel = "info"): RuntimeLogEntry {
   const state = getTraceState();
   state.sequence += 1;
@@ -288,10 +344,13 @@ export function installRuntimeDiagnostics(): void {
       },
       "error",
     );
+
+    attemptChunkErrorRecovery(event.error || event.message);
   });
 
   window.addEventListener("unhandledrejection", (event) => {
     runtimeLog("runtime", "window:unhandledrejection", { reason: event.reason }, "error");
+    attemptChunkErrorRecovery(event.reason);
   });
 
   document.addEventListener(
