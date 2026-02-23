@@ -470,7 +470,7 @@ const loadImageAsDataUrl = async (src: string): Promise<string> => {
 export function OrderPackingSlipPrint({ order, items, variant = "button" }: OrderPackingSlipPrintProps) {
   const handlePrint = async () => {
     if (items.length === 0) {
-      toast.error("Nenhum item no pedido");
+      toast.error("Nenhum item no pedido.");
       return;
     }
 
