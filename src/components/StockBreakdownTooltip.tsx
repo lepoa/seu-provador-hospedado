@@ -49,7 +49,7 @@ export function StockBreakdownTooltip({
         <>
           <div className="space-y-1 text-sm">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Total Físico:</span>
+              <span className="text-muted-foreground">Estoque Inicial:</span>
               <span className="font-medium">{stock.stock}</span>
             </div>
 
@@ -172,7 +172,7 @@ export function StockBreakdownPanel({ stockBySize, className = "" }: StockBreakd
           <thead>
             <tr className="border-b">
               <th className="text-left py-2 px-2 font-medium">Tamanho</th>
-              <th className="text-right py-2 px-2 font-medium">Total Físico</th>
+              <th className="text-right py-2 px-2 font-medium">Estoque Inicial</th>
               <th className="text-right py-2 px-2 font-medium">Reservado</th>
               <th className="text-right py-2 px-2 font-medium">Vendido</th>
               <th className="text-right py-2 px-2 font-medium">Disponível Venda</th>
@@ -199,7 +199,7 @@ export function StockBreakdownPanel({ stockBySize, className = "" }: StockBreakd
         </table>
       </div>
       <p className="text-xs text-muted-foreground">
-        Disponível Venda = Total Físico − Reservado − Vendido
+        Disponível Venda = Estoque Inicial − Reservado − Vendido
       </p>
     </div>
   );
