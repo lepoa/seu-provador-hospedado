@@ -1,6 +1,7 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import RuntimeLoggerPanel from "@/components/RuntimeLoggerPanel";
 import { CartProvider } from "@/contexts/CartContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ComponentType, LazyExoticComponent, Suspense, lazy, useEffect } from "react";
@@ -158,6 +159,7 @@ const App = () => (
             
             <Route path="*" element={withRouteSuspense(NotFound)} />
           </Routes>
+          <RuntimeLoggerPanel />
         </BrowserRouter>
       </TooltipProvider>
     </CartProvider>
