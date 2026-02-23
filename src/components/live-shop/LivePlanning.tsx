@@ -186,6 +186,23 @@ export function LivePlanning() {
     return Object.values(stock).reduce((sum, qty) => sum + (qty || 0), 0);
   };
 
+  const getAvailableStockBySize = (product: Product | LiveProduct["product"] | null): Record<string, number> => {
+    if (!product?.id) return {};
+
+    const liveAvailability = availableStock.get(product.id);
+    if (liveAvailability && liveAvailability.size > 0) {
+      const fromView: Record<string, number> = {};
+      liveAvailability.forEach((qty, size) => {
+        if ((qty || 0) > 0) {
+          fromView[size] = qty;
+        }
+      });
+      return fromView;
+    }
+
+    return (product.stock_by_size || {}) as Record<string, number>;
+  };
+
   const handleAddProduct = async () => {
     if (!selectedProduct) return;
     
@@ -204,7 +221,7 @@ export function LivePlanning() {
       ? (lp.snapshot_variantes as Record<string, number>)
       : {};
     const totalReserved = Object.values(existingReservations).reduce((sum, qty) => sum + (qty || 0), 0);
-    const totalStock = getTotalStock(lp.product?.stock_by_size || null);
+    const totalStock = getTotalStock(getAvailableStockBySize(lp.product));
     
     setEditConfig({
       visibilidade: lp.visibilidade,
@@ -704,7 +721,7 @@ export function LivePlanning() {
                   <div className="space-y-2 border-t pt-4">
                     <Label className="font-medium">Reserva de estoque por tamanho</Label>
                     <StockByVariationInput
-                      stockBySize={selectedProduct.stock_by_size}
+                      stockBySize={getAvailableStockBySize(selectedProduct)}
                       value={productConfig.stock_reservations}
                       onChange={(value) =>
                         setProductConfig((prev) => ({
@@ -929,7 +946,7 @@ export function LivePlanning() {
                 <div className="space-y-2 border-t pt-4">
                   <Label className="font-medium">Reserva de estoque por tamanho</Label>
                   <StockByVariationInput
-                    stockBySize={editingLiveProduct.product.stock_by_size}
+                    stockBySize={getAvailableStockBySize(editingLiveProduct.product)}
                     value={editConfig.stock_reservations}
                     onChange={(value) => setEditConfig(prev => ({
                       ...prev,
