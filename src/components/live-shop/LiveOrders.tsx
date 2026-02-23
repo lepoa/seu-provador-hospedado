@@ -68,6 +68,8 @@ export function LiveOrders() {
     updateCustomerZipCode,
     updateDeliveryDetails,
     recordCharge,
+    holdReservation,
+    cancelLiveOrder,
     fetchChargeHistory,
     updateTrackingCode,
     refetch
@@ -318,6 +320,7 @@ export function LiveOrders() {
                 <SelectItem value="all">Todos os status</SelectItem>
                 <SelectItem value="aguardando_pagamento">Aguardando Pgto</SelectItem>
                 <SelectItem value="aguardando_retorno">Aguardando Retorno</SelectItem>
+                <SelectItem value="manter_na_reserva">Manter na Reserva</SelectItem>
                 <SelectItem value="pago">Pago</SelectItem>
                 <SelectItem value="preparar_envio">Preparar Envio</SelectItem>
                 <SelectItem value="etiqueta_gerada">Etiqueta Gerada</SelectItem>
@@ -509,6 +512,8 @@ export function LiveOrders() {
         onUpdateDeliveryWithShipping={updateDeliveryWithShipping}
         onUpdateCustomerZipCode={updateCustomerZipCode}
         onRecordCharge={recordCharge}
+        onHoldReservation={holdReservation}
+        onCancelOrder={cancelLiveOrder}
         onApprovePayment={approveManualPayment}
         onRejectPayment={rejectManualPayment}
         onRevertStatus={(orderId, targetStatus, reason) => revertStatus(orderId, targetStatus, reason, isAdmin)}

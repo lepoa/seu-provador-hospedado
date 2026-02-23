@@ -80,8 +80,9 @@ export function LiveOrderCard({
   };
 
   const isPaid = order.status === 'pago';
+  const isOnHold = order.operational_status === 'manter_na_reserva' || order.status === 'manter_na_reserva';
   const isAwaitingPayment = order.status === 'aguardando_pagamento' || order.status === 'aberto' ||
-    order.operational_status === 'aguardando_pagamento';
+    order.operational_status === 'aguardando_pagamento' || isOnHold;
   const isAwaitingReturn = order.operational_status === 'aguardando_retorno';
   const isCancelled = order.status === 'cancelado';
   const isFinal = order.operational_status === 'entregue' || order.operational_status === 'retirado';
@@ -147,6 +148,7 @@ export function LiveOrderCard({
       return { label: 'Pago', color: 'text-green-700 bg-green-50 border-green-200' };
     }
 
+    if (isOnHold) return { label: 'Manter na Reserva', color: 'text-amber-700 bg-amber-50 border-amber-200' };
     if (isAwaitingReturn) return { label: 'Aguardando Retorno', color: 'text-orange-700 bg-orange-50 border-orange-200' };
     if (isAwaitingPayment && !isPaid) return { label: 'Aguardando Pagamento', color: 'text-amber-700 bg-amber-50 border-amber-200' };
     return null;

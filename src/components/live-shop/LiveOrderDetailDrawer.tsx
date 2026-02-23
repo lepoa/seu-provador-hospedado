@@ -94,6 +94,8 @@ interface LiveOrderDetailDrawerProps {
   onUpdateDeliveryWithShipping: (orderId: string, method: DeliveryMethod, shippingAmount: number, shippingService?: string) => Promise<boolean>;
   onUpdateCustomerZipCode?: (customerId: string, zipCode: string) => Promise<boolean>;
   onRecordCharge?: (orderId: string, channel: 'whatsapp' | 'direct', moveToAwaitingReturn?: boolean) => Promise<boolean>;
+  onHoldReservation?: (orderId: string, reason?: string) => Promise<boolean>;
+  onCancelOrder?: (orderId: string, reason?: string) => Promise<boolean>;
   onApprovePayment: (orderId: string) => Promise<boolean>;
   onRejectPayment: (orderId: string, reason: string) => Promise<boolean>;
   onRevertStatus?: (orderId: string, targetStatus: OperationalStatus, reason: string) => Promise<boolean>;
@@ -117,6 +119,8 @@ export function LiveOrderDetailDrawer({
   onUpdateDeliveryWithShipping,
   onUpdateCustomerZipCode,
   onRecordCharge,
+  onHoldReservation,
+  onCancelOrder,
   onApprovePayment,
   onRejectPayment,
   onRevertStatus,
@@ -142,7 +146,8 @@ export function LiveOrderDetailDrawer({
   };
 
   const isPaid = order.status === 'pago';
-  const isAwaitingPayment = order.status === 'aguardando_pagamento' || order.status === 'aberto';
+  const isOnHold = order.operational_status === 'manter_na_reserva' || order.status === 'manter_na_reserva';
+  const isAwaitingPayment = order.status === 'aguardando_pagamento' || order.status === 'aberto' || isOnHold;
   const isAwaitingReturn = order.operational_status === 'aguardando_retorno';
   const isCancelled = order.status === 'cancelado';
 
@@ -350,6 +355,7 @@ Pode me enviar? 😊`;
     if (status === 'preparar_envio' || status === 'em_rota' || status === 'retirada') options.push('pago');
     if (status === 'pago' && isAdmin) options.push('aguardando_retorno', 'aguardando_pagamento');
     if (status === 'aguardando_retorno') options.push('aguardando_pagamento');
+    if (status === 'manter_na_reserva') options.push('aguardando_retorno', 'aguardando_pagamento');
 
     return options;
   };
@@ -383,7 +389,13 @@ Pode me enviar? 😊`;
             {/* Status & Delivery */}
             <div className="flex flex-wrap gap-2">
               {isCancelled && <Badge variant="destructive">Cancelado</Badge>}
-              {isAwaitingPayment && !isAwaitingReturn && (
+              {isOnHold && (
+                <Badge variant="outline" className="border-amber-400 text-amber-800 bg-amber-50">
+                  <Clock className="h-3 w-3 mr-1" />
+                  Manter na Reserva
+                </Badge>
+              )}
+              {isAwaitingPayment && !isAwaitingReturn && !isOnHold && (
                 <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50">
                   <Clock className="h-3 w-3 mr-1" />
                   Aguardando Pagamento
@@ -870,7 +882,7 @@ Pode me enviar? 😊`;
                         rel="noopener noreferrer"
                       >
                         <MessageCircle className="h-4 w-4 mr-2" />
-                        {isAwaitingReturn ? 'Cobrar novamente' : 'Cobrar WhatsApp'}
+                        {(isAwaitingReturn || isOnHold) ? 'Cobrar novamente' : 'Cobrar WhatsApp'}
                       </a>
                     </Button>
                   )}
@@ -911,6 +923,29 @@ Pode me enviar? 😊`;
                     >
                       Registrar via Direct
                     </Button>
+                  </div>
+                )}
+
+                {(onHoldReservation || onCancelOrder) && (
+                  <div className="flex gap-2">
+                    {onHoldReservation && (
+                      <Button
+                        variant="outline"
+                        className="flex-1 border-amber-300 text-amber-700 hover:bg-amber-50"
+                        onClick={() => onHoldReservation(order.id)}
+                      >
+                        Manter na Reserva
+                      </Button>
+                    )}
+                    {onCancelOrder && (
+                      <Button
+                        variant="outline"
+                        className="flex-1 border-red-300 text-red-700 hover:bg-red-50"
+                        onClick={() => onCancelOrder(order.id)}
+                      >
+                        Cancelar Pedido
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>

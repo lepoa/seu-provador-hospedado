@@ -71,6 +71,8 @@ export function OrderStatusTimeline({
         return <Clock className="h-4 w-4 text-amber-500" />;
       case 'aguardando_retorno':
         return <MessageCircle className="h-4 w-4 text-orange-500" />;
+      case 'manter_na_reserva':
+        return <Clock className="h-4 w-4 text-amber-600" />;
       case 'pago':
         return <CheckCircle className="h-4 w-4 text-green-500" />;
       case 'preparar_envio':
@@ -94,6 +96,7 @@ export function OrderStatusTimeline({
     const labels: Record<string, string> = {
       'aguardando_pagamento': 'Aguardando Pagamento',
       'aguardando_retorno': 'Aguardando Retorno',
+      'manter_na_reserva': 'Manter na Reserva',
       'pago': 'Pago',
       'preparar_envio': 'Preparar Envio',
       'etiqueta_gerada': 'Etiqueta Gerada',

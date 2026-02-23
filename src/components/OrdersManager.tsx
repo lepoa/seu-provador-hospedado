@@ -120,13 +120,14 @@ interface OrderItem {
 }
 
 const statusConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-  aberto: { label: "Sacola Aberta", icon: Clock, color: "bg-blue-50 text-blue-600 border-blue-200" },
+  aberto: { label: "Aguardando Pagamento (sacola)", icon: Clock, color: "bg-blue-50 text-blue-600 border-blue-200" },
   aguardando_retorno: { label: "Aguardando Retorno", icon: Clock, color: "bg-orange-50 text-orange-600 border-orange-200" },
-  pendente: { label: "Pendente", icon: Clock, color: "bg-amber-100 text-amber-800" },
+  pendente: { label: "Aguardando Pagamento (legado)", icon: Clock, color: "bg-amber-100 text-amber-800" },
   aguardando_pagamento: { label: "Aguardando Pagamento", icon: CreditCard, color: "bg-orange-100 text-orange-800" },
+  manter_na_reserva: { label: "Manter na Reserva", icon: Clock, color: "bg-amber-50 text-amber-700 border-amber-200" },
   pago: { label: "Pago", icon: CheckCircle, color: "bg-green-100 text-green-800" },
   etiqueta_gerada: { label: "Etiqueta Gerada", icon: FileText, color: "bg-cyan-100 text-cyan-800" },
-  confirmado: { label: "Confirmado", icon: CheckCircle, color: "bg-blue-100 text-blue-800" },
+  confirmado: { label: "Pago (legado)", icon: CheckCircle, color: "bg-blue-100 text-blue-800" },
   enviado: { label: "Enviado", icon: Truck, color: "bg-purple-100 text-purple-800" },
   entregue: { label: "Entregue", icon: CheckCircle, color: "bg-green-100 text-green-800" },
   cancelado: { label: "Cancelado", icon: X, color: "bg-red-100 text-red-800" },
@@ -139,13 +140,11 @@ const statusConfig: Record<string, { label: string; icon: React.ElementType; col
 
 
 const statusOptions = [
-  { value: "aberto", label: "Sacola Aberta" },
   { value: "aguardando_retorno", label: "Aguardando Retorno" },
-  { value: "pendente", label: "Pendente" },
   { value: "aguardando_pagamento", label: "Aguardando Pagamento" },
+  { value: "manter_na_reserva", label: "Manter na Reserva" },
   { value: "pago", label: "Pago" },
   { value: "etiqueta_gerada", label: "Etiqueta Gerada" },
-  { value: "confirmado", label: "Confirmado" },
   { value: "enviado", label: "Enviado" },
   { value: "entregue", label: "Entregue" },
   { value: "cancelado", label: "Cancelado" },
@@ -337,7 +336,8 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
         `)
         .is("order_id", null)
         // .neq("status", "aberto") // Removed to allow active carts to be seen in the manager
-        .neq("status", "abandonado")
+        .neq("status", "cancelado")
+        .neq("status", "expirado")
         .order("created_at", { ascending: false });
 
       if (liveError) {

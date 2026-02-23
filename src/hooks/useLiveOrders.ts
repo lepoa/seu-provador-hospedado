@@ -6,6 +6,7 @@ import { toast } from "sonner";
 export type OperationalStatus =
   | 'aguardando_pagamento'   // Initial
   | 'aguardando_retorno'     // Customer was contacted, waiting response
+  | 'manter_na_reserva'      // Manual hold: keep reservation active
   | 'pago'                   // Payment confirmed
   | 'preparar_envio'         // Paid and ready for logistics
   | 'etiqueta_gerada'        // Shipping label created (Correios)
@@ -235,6 +236,11 @@ export function useLiveOrders(eventId: string | undefined) {
     // Check urgency based on status and thresholds
     const status = order.operational_status || order.status;
 
+    // Manual hold is intentional, so it should not generate urgency alerts.
+    if (status === 'manter_na_reserva') {
+      return { isUrgent: false, reason: null, hoursOverdue: 0 };
+    }
+
     // Awaiting payment: > 24h without charge or never charged
     if (status === 'aguardando_pagamento' || status === 'aberto') {
       if (!order.last_charge_at && hoursSinceCreation > 24) {
@@ -322,7 +328,9 @@ export function useLiveOrders(eventId: string | undefined) {
       (o.operational_status === 'aguardando_pagamento' || o.status === 'aguardando_pagamento' || o.status === 'aberto') &&
       o.operational_status !== 'aguardando_retorno'
     );
-    const awaitingReturnOrders = activeOrders.filter(o => o.operational_status === 'aguardando_retorno');
+    const awaitingReturnOrders = activeOrders.filter(o =>
+      o.operational_status === 'aguardando_retorno' || o.operational_status === 'manter_na_reserva'
+    );
     const paidOnlyOrders = activeOrders.filter(o => o.status === 'pago' &&
       !['preparar_envio', 'etiqueta_gerada', 'postado', 'em_rota', 'retirada', 'entregue'].includes(o.operational_status || '')
     );
@@ -391,7 +399,13 @@ export function useLiveOrders(eventId: string | undefined) {
       // Status filter
       if (filters.status && filters.status !== 'all') {
         if (filters.status === 'aguardando_pagamento') {
-          if (order.status !== 'aguardando_pagamento' && order.status !== 'aberto') return false;
+          const isPendingBase = order.status === 'aguardando_pagamento' || order.status === 'aberto';
+          if (!isPendingBase) return false;
+          if (['aguardando_retorno', 'manter_na_reserva'].includes(order.operational_status || '')) return false;
+        } else if (filters.status === 'aguardando_retorno') {
+          if (order.operational_status !== 'aguardando_retorno') return false;
+        } else if (filters.status === 'manter_na_reserva') {
+          if (order.operational_status !== 'manter_na_reserva') return false;
         } else if (filters.status === 'pago') {
           if (order.status !== 'pago') return false;
         } else if (order.operational_status !== filters.status) {
@@ -911,6 +925,116 @@ export function useLiveOrders(eventId: string | undefined) {
     return true;
   }, [orders, currentUserId]);
 
+  // Keep a pending order explicitly reserved (manual hold).
+  const holdReservation = useCallback(async (orderId: string, reason?: string): Promise<boolean> => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return false;
+
+    if (['pago', 'cancelado', 'expirado'].includes(order.status)) {
+      toast.error("Somente pedidos pendentes podem ficar na reserva");
+      return false;
+    }
+
+    const now = new Date().toISOString();
+    const oldStatus = order.operational_status || 'aguardando_pagamento';
+
+    const { error: cartError } = await supabase
+      .from("live_carts")
+      .update({
+        operational_status: 'manter_na_reserva',
+        updated_at: now
+      })
+      .eq("id", orderId);
+
+    if (cartError) {
+      toast.error("Erro ao manter pedido na reserva");
+      return false;
+    }
+
+    // Keep orders table aligned for support workflow.
+    await supabase
+      .from("orders")
+      .update({
+        status: 'manter_na_reserva',
+        reserved_until: null,
+        updated_at: now
+      })
+      .eq("live_cart_id", orderId);
+
+    await supabase.from("live_cart_status_history").insert({
+      live_cart_id: orderId,
+      old_status: oldStatus,
+      new_status: 'manter_na_reserva',
+      notes: reason || 'Reserva mantida manualmente',
+      changed_by: currentUserId,
+    });
+
+    setOrders(prev => prev.map(o =>
+      o.id === orderId
+        ? { ...o, operational_status: 'manter_na_reserva' } as LiveOrderCart
+        : o
+    ));
+
+    toast.success("Pedido mantido na reserva");
+    return true;
+  }, [orders, currentUserId]);
+
+  // Cancel pending live order and release reservation.
+  const cancelLiveOrder = useCallback(async (orderId: string, reason?: string): Promise<boolean> => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return false;
+
+    if (order.status === 'pago') {
+      toast.error("Pedido pago deve ser cancelado pelo fluxo financeiro");
+      return false;
+    }
+
+    const now = new Date().toISOString();
+    const oldStatus = order.operational_status || 'aguardando_pagamento';
+
+    await supabase
+      .from("live_cart_items")
+      .update({ status: 'cancelado' })
+      .eq("live_cart_id", orderId)
+      .in("status", ['reservado', 'confirmado']);
+
+    const { error: cartError } = await supabase
+      .from("live_carts")
+      .update({
+        status: 'cancelado',
+        updated_at: now
+      })
+      .eq("id", orderId);
+
+    if (cartError) {
+      toast.error("Erro ao cancelar pedido");
+      return false;
+    }
+
+    await supabase
+      .from("orders")
+      .update({
+        cancel_reason: reason || 'Cancelado manualmente na live',
+        updated_at: now
+      })
+      .eq("live_cart_id", orderId);
+
+    await supabase.from("live_cart_status_history").insert({
+      live_cart_id: orderId,
+      old_status: oldStatus,
+      new_status: 'cancelado',
+      notes: reason || 'Cancelado manualmente',
+      changed_by: currentUserId,
+    });
+
+    setOrders(prev => prev.map(o =>
+      o.id === orderId ? { ...o, status: 'cancelado' } as LiveOrderCart : o
+    ));
+
+    toast.success("Pedido cancelado");
+    return true;
+  }, [orders, currentUserId]);
+
   // Advance to next logical status with BLOCKING RULES
   const advanceStatus = useCallback(async (orderId: string): Promise<boolean> => {
     const order = orders.find(o => o.id === orderId);
@@ -1034,7 +1158,7 @@ export function useLiveOrders(eventId: string | undefined) {
       }
       // Sellers can only go back 1 step
       const statusOrder: OperationalStatus[] = [
-        'aguardando_pagamento', 'aguardando_retorno', 'pago', 'preparar_envio',
+        'aguardando_pagamento', 'aguardando_retorno', 'manter_na_reserva', 'pago', 'preparar_envio',
         'etiqueta_gerada', 'postado', 'em_rota', 'retirada', 'entregue'
       ];
       const currentIdx = statusOrder.indexOf(order.operational_status);
@@ -1058,7 +1182,7 @@ export function useLiveOrders(eventId: string | undefined) {
     };
 
     // If reverting from paid status, may need to adjust cart status
-    if (['aguardando_pagamento', 'aguardando_retorno'].includes(targetStatus)) {
+    if (['aguardando_pagamento', 'aguardando_retorno', 'manter_na_reserva'].includes(targetStatus)) {
       updateData.status = 'aguardando_pagamento';
     }
 
@@ -1329,6 +1453,8 @@ export function useLiveOrders(eventId: string | undefined) {
     rejectManualPayment,
     applyPaidEffects,
     recordCharge,
+    holdReservation,
+    cancelLiveOrder,
     advanceStatus,
     revertStatus,
     generateShippingLabel,
