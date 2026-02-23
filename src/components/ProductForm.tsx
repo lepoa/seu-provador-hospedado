@@ -590,7 +590,8 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
       const legacyArrayCompatibilityPayload = {
         ...productData,
         style: normalizedStyle ? [normalizedStyle] : null,
-        occasion: normalizedOccasion ? [normalizedOccasion] : null,
+        // Some production DBs drifted to text[][] for occasion; keep 2D fallback.
+        occasion: normalizedOccasion ? [[normalizedOccasion]] : null,
         modeling: normalizedModeling ? [normalizedModeling] : null,
         sizes: sizesFromStock.length > 0 ? sizesFromStock : null,
         tags: generatedTags.length > 0 ? generatedTags : null,
