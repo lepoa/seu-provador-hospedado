@@ -111,6 +111,44 @@ function toErrorDetails(error: unknown): Record<string, unknown> {
   };
 }
 
+function getProductSaveErrorMessage(error: unknown): string {
+  if (!error || typeof error !== "object") {
+    return "Erro ao salvar produto";
+  }
+
+  const err = error as Record<string, unknown>;
+  const code = String(err.code || "");
+  const message = String(err.message || "");
+  const details = String(err.details || "");
+  const hint = String(err.hint || "");
+  const merged = `${message} ${details} ${hint}`.toLowerCase();
+
+  if (code === "23505" || merged.includes("duplicate key")) {
+    if (merged.includes("sku")) {
+      return "SKU já existe. Use outro código para salvar.";
+    }
+    return "Registro duplicado. Revise os dados e tente novamente.";
+  }
+
+  if (code === "42501" || merged.includes("row-level security")) {
+    return "Sem permissão para salvar produto. Faça login novamente e confirme seu acesso de lojista.";
+  }
+
+  if (code === "PGRST204" || (merged.includes("could not find") && merged.includes("column"))) {
+    return "Banco desatualizado para este formulário. Envie o log técnico para ajustarmos a migração.";
+  }
+
+  if (code === "22P02" || merged.includes("invalid input syntax")) {
+    return "Campo numérico inválido. Revise preço, peso e dimensões.";
+  }
+
+  if (message) {
+    return `Erro ao salvar produto: ${message}`;
+  }
+
+  return "Erro ao salvar produto";
+}
+
 // Mapping from ERP/AI response to form values - normalize color names
 const ERP_TO_FORM_COLOR: Record<string, string> = {
   "preto": "Preto",
@@ -568,14 +606,18 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
         onOpenChange(false);
       }
     } catch (error) {
+      const errorDetails = toErrorDetails(error);
+      const friendlyMessage = getProductSaveErrorMessage(error);
+
       runtimeLog("product-form", "submit:exception", {
         mode: product?.id ? "update" : "create",
         productId: product?.id || null,
         quickSave,
-        error: toErrorDetails(error),
+        error: errorDetails,
+        friendlyMessage,
       }, "error");
       console.error("Error saving product:", error);
-      toast.error("Erro ao salvar produto");
+      toast.error(friendlyMessage);
     } finally {
       setIsSubmitting(false);
     }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { getRuntimeLogs, runtimeLog } from "@/lib/runtimeLogger";
 
-const MAX_VISIBLE_ENTRIES = 400;
+const MAX_VISIBLE_ENTRIES = 1200;
 
 export default function RuntimeLoggerPanel() {
   const [isOpen, setIsOpen] = useState(false);
@@ -11,6 +11,7 @@ export default function RuntimeLoggerPanel() {
   const logs = useMemo(() => getRuntimeLogs(), [refreshTick]);
   const visibleLogs = useMemo(() => logs.slice(-MAX_VISIBLE_ENTRIES), [logs]);
   const logPayload = useMemo(() => JSON.stringify(visibleLogs, null, 2), [visibleLogs]);
+  const fullLogPayload = useMemo(() => JSON.stringify(logs, null, 2), [logs]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -37,9 +38,10 @@ export default function RuntimeLoggerPanel() {
 
   const copyLogs = async () => {
     try {
-      await navigator.clipboard.writeText(logPayload);
+      await navigator.clipboard.writeText(fullLogPayload);
       runtimeLog("diagnostics", "panel:copy", {
-        copiedEntries: visibleLogs.length,
+        copiedEntries: logs.length,
+        visibleEntries: visibleLogs.length,
         totalEntries: logs.length,
       });
     } catch (error) {
@@ -72,7 +74,7 @@ export default function RuntimeLoggerPanel() {
                 Atualizar
               </Button>
               <Button type="button" size="sm" variant="outline" onClick={copyLogs}>
-                Copiar
+                Copiar tudo
               </Button>
             </div>
           </div>

@@ -231,6 +231,16 @@ export function installRuntimeDiagnostics(): void {
     try {
       const response = await originalFetch(input, init);
       const durationMs = Number((performance.now() - startedAt).toFixed(2));
+      let responseBody: string | null = null;
+
+      if (!response.ok) {
+        try {
+          responseBody = limitString(await response.clone().text());
+        } catch {
+          responseBody = "<unreadable>";
+        }
+      }
+
       runtimeLog(
         "network",
         "request:done",
@@ -241,6 +251,7 @@ export function installRuntimeDiagnostics(): void {
           status: response.status,
           ok: response.ok,
           durationMs,
+          responseBody,
         },
         response.ok ? "info" : "warn",
       );
