@@ -137,6 +137,12 @@ function shouldRetryWithOccasionArray(error: unknown): boolean {
   return code === "22P02" && merged.includes("malformed array literal");
 }
 
+function normalizeOptionalText(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 function getProductSaveErrorMessage(error: unknown): string {
   if (!error || typeof error !== "object") {
     return "Erro ao salvar produto";
@@ -528,27 +534,41 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
         active: formData.is_active,
       });
 
-      // Derive sizes from stock
-      const sizesFromStock = getAvailableSizes(stockBySize);
+      // Derive and sanitize sizes from stock
+      const sizesFromStock = getAvailableSizes(stockBySize)
+        .map((size) => size.trim())
+        .filter((size) => size.length > 0);
 
       // Main image URL (for backward compatibility)
       const mainImageUrl = images[mainImageIndex] || images[0] || null;
 
+      const normalizedStyle = normalizeOptionalText(formData.style);
+      const normalizedOccasion = normalizeOptionalText(formData.occasion);
+      const normalizedModeling = normalizeOptionalText(formData.modeling);
+      const normalizedColor = normalizeOptionalText(formData.color);
+      const normalizedCategory = normalizeOptionalText(formData.category);
+      const generatedTags = generateTags()
+        .map((tag) => tag.trim())
+        .filter((tag) => tag.length > 0);
+      const normalizedImages = images
+        .map((url) => url.trim())
+        .filter((url) => url.length > 0);
+
       const productData = {
-        name: formData.name,
+        name: formData.name.trim(),
         sku: formData.sku || null,
-        category: formData.category,
+        category: normalizedCategory,
         price: formData.price,
-        color: formData.color,
-        style: formData.style,
-        occasion: formData.occasion,
-        modeling: formData.modeling,
+        color: normalizedColor,
+        style: normalizedStyle,
+        occasion: normalizedOccasion,
+        modeling: normalizedModeling,
         sizes: sizesFromStock,
         is_active: formData.is_active,
         image_url: mainImageUrl,
-        tags: generateTags(),
+        tags: generatedTags,
         user_id: userId,
-        images: images,
+        images: normalizedImages,
         video_url: videoUrl,
         main_image_index: mainImageIndex,
         stock_by_size: stockBySize,
@@ -563,7 +583,18 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
 
       const occasionArrayPayload = {
         ...productData,
-        occasion: formData.occasion ? [formData.occasion] : [],
+        occasion: normalizedOccasion ? [normalizedOccasion] : null,
+      };
+
+      // Safety fallback for legacy schema drift where these columns became array-typed.
+      const legacyArrayCompatibilityPayload = {
+        ...productData,
+        style: normalizedStyle ? [normalizedStyle] : null,
+        occasion: normalizedOccasion ? [normalizedOccasion] : null,
+        modeling: normalizedModeling ? [normalizedModeling] : null,
+        sizes: sizesFromStock.length > 0 ? sizesFromStock : null,
+        tags: generatedTags.length > 0 ? generatedTags : null,
+        images: normalizedImages.length > 0 ? normalizedImages : null,
       };
 
       let savedProductId = product?.id;
@@ -580,16 +611,33 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
             error: toErrorDetails(error),
           }, "warn");
 
-          const retry = await supabase
+          const retryOccasion = await supabase
             .from("product_catalog")
             .update(occasionArrayPayload)
             .eq("id", product.id);
 
-          error = retry.error;
+          error = retryOccasion.error;
           if (!error) {
             runtimeLog("product-form", "submit:update:retry-occasion-array:success", {
               productId: product.id,
             });
+          } else if (shouldRetryWithOccasionArray(error)) {
+            runtimeLog("product-form", "submit:update:retry-legacy-array-compat", {
+              productId: product.id,
+              error: toErrorDetails(error),
+            }, "warn");
+
+            const retryLegacyCompat = await supabase
+              .from("product_catalog")
+              .update(legacyArrayCompatibilityPayload)
+              .eq("id", product.id);
+
+            error = retryLegacyCompat.error;
+            if (!error) {
+              runtimeLog("product-form", "submit:update:retry-legacy-array-compat:success", {
+                productId: product.id,
+              });
+            }
           }
         }
 
@@ -618,18 +666,36 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
             error: toErrorDetails(error),
           }, "warn");
 
-          const retry = await supabase
+          const retryOccasion = await supabase
             .from("product_catalog")
             .insert(occasionArrayPayload)
             .select("id")
             .single();
 
-          error = retry.error;
-          newProduct = retry.data;
+          error = retryOccasion.error;
+          newProduct = retryOccasion.data;
           if (!error) {
             runtimeLog("product-form", "submit:create:retry-occasion-array:success", {
-              productId: retry.data?.id ?? null,
+              productId: retryOccasion.data?.id ?? null,
             });
+          } else if (shouldRetryWithOccasionArray(error)) {
+            runtimeLog("product-form", "submit:create:retry-legacy-array-compat", {
+              error: toErrorDetails(error),
+            }, "warn");
+
+            const retryLegacyCompat = await supabase
+              .from("product_catalog")
+              .insert(legacyArrayCompatibilityPayload)
+              .select("id")
+              .single();
+
+            error = retryLegacyCompat.error;
+            newProduct = retryLegacyCompat.data;
+            if (!error) {
+              runtimeLog("product-form", "submit:create:retry-legacy-array-compat:success", {
+                productId: retryLegacyCompat.data?.id ?? null,
+              });
+            }
           }
         }
 
