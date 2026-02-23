@@ -29,6 +29,7 @@ import { StockBySize, getAvailableSizes } from "@/components/StockBySize";
 import { ProductDiscountFields, calculateDiscountedPrice } from "@/components/ProductDiscountFields";
 import { generateProductDescription } from "@/lib/generateDescription";
 import { suggestCustomersForProduct } from "@/lib/customerSuggestions";
+import { runtimeLog } from "@/lib/runtimeLogger";
 
 interface Product {
   id?: string;
@@ -95,6 +96,20 @@ const BASE_COLORS = ["Preto", "Branco", "Bege", "Rosa", "Azul", "Verde", "Vermel
 const STYLES = ["elegante", "clássico", "minimal", "romântico", "casual", "moderno", "fashion", "sexy_chic"];
 const OCCASIONS = ["trabalho", "casual", "festa", "dia a dia", "especial", "casual_chic", "eventos", "viagem"];
 const MODELINGS = ["ajustado", "regular", "soltinho", "oversized", "acinturado", "slim", "reto", "amplo"];
+
+function toErrorDetails(error: unknown): Record<string, unknown> {
+  if (!error || typeof error !== "object") return { raw: String(error) };
+
+  const err = error as Record<string, unknown>;
+  return {
+    name: err.name,
+    message: err.message,
+    code: err.code,
+    details: err.details,
+    hint: err.hint,
+    status: err.status,
+  };
+}
 
 // Mapping from ERP/AI response to form values - normalize color names
 const ERP_TO_FORM_COLOR: Record<string, string> = {
@@ -416,12 +431,34 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
   const handleSubmit = async (e: React.FormEvent, quickSave = false) => {
     e.preventDefault();
     if (!formData.name || !formData.price) {
+      runtimeLog(
+        "product-form",
+        "submit:validation-failed",
+        {
+          missingName: !formData.name,
+          missingPrice: !formData.price,
+          mode: product?.id ? "update" : "create",
+        },
+        "warn",
+      );
       toast.error("Nome e preço são obrigatórios");
       return;
     }
 
     setIsSubmitting(true);
     try {
+      runtimeLog("product-form", "submit:start", {
+        mode: product?.id ? "update" : "create",
+        quickSave,
+        productId: product?.id || null,
+        name: formData.name,
+        sku: formData.sku || null,
+        price: formData.price,
+        imagesCount: images.length,
+        mainImageIndex,
+        active: formData.is_active,
+      });
+
       // Derive sizes from stock
       const sizesFromStock = getAvailableSizes(stockBySize);
 
@@ -463,7 +500,18 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
           .update(productData)
           .eq("id", product.id);
 
-        if (error) throw error;
+        if (error) {
+          runtimeLog("product-form", "submit:update:error", {
+            productId: product.id,
+            error: toErrorDetails(error),
+          }, "error");
+          throw error;
+        }
+
+        runtimeLog("product-form", "submit:update:success", {
+          productId: product.id,
+          quickSave,
+        });
         toast.success("Produto atualizado!");
       } else {
         const { data: newProduct, error } = await supabase
@@ -472,25 +520,60 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
           .select("id")
           .single();
 
-        if (error) throw error;
+        if (error) {
+          runtimeLog("product-form", "submit:create:error", {
+            error: toErrorDetails(error),
+            payload: {
+              name: productData.name,
+              sku: productData.sku,
+              category: productData.category,
+            },
+          }, "error");
+          throw error;
+        }
+
         savedProductId = newProduct?.id;
+        runtimeLog("product-form", "submit:create:success", {
+          productId: savedProductId,
+          quickSave,
+        });
         toast.success("Produto criado!");
       }
 
       // Generate customer suggestions if product is active
       if (savedProductId && formData.is_active) {
         suggestCustomersForProduct(savedProductId).then((result) => {
+          runtimeLog("product-form", "suggest-customers:done", {
+            productId: savedProductId,
+            count: result.count,
+          });
           if (result.count > 0) {
             toast.info(`${result.count} cliente(s) sugerido(s) para avisar!`);
           }
+        }).catch((error) => {
+          runtimeLog("product-form", "suggest-customers:error", {
+            productId: savedProductId,
+            error: toErrorDetails(error),
+          }, "error");
         });
       }
 
+      runtimeLog("product-form", "submit:complete", {
+        productId: savedProductId,
+        mode: product?.id ? "update" : "create",
+        quickSave,
+      });
       onSuccess();
       if (!quickSave) {
         onOpenChange(false);
       }
     } catch (error) {
+      runtimeLog("product-form", "submit:exception", {
+        mode: product?.id ? "update" : "create",
+        productId: product?.id || null,
+        quickSave,
+        error: toErrorDetails(error),
+      }, "error");
       console.error("Error saving product:", error);
       toast.error("Erro ao salvar produto");
     } finally {

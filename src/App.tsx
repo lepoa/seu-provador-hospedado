@@ -3,8 +3,9 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CartProvider } from "@/contexts/CartContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ComponentType, LazyExoticComponent, Suspense, lazy } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { ComponentType, LazyExoticComponent, Suspense, lazy, useEffect } from "react";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { runtimeLog } from "@/lib/runtimeLogger";
 
 const Index = lazy(() => import("./pages/Index"));
 const MeuEstilo = lazy(() => import("./pages/MeuEstilo"));
@@ -68,6 +69,20 @@ const withRouteSuspense = <T extends ComponentType<any>>(Component: LazyExoticCo
   </Suspense>
 );
 
+const RouteChangeLogger = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    runtimeLog("navigation", "route-change", {
+      pathname: location.pathname,
+      search: location.search,
+      hash: location.hash,
+    });
+  }, [location.pathname, location.search, location.hash]);
+
+  return null;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <CartProvider>
@@ -75,6 +90,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <RouteChangeLogger />
           <Routes>
             <Route path="/" element={withRouteSuspense(Index)} />
             <Route path="/meu-estilo" element={withRouteSuspense(MeuEstilo)} />

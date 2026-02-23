@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { StockBreakdownTooltip } from "@/components/StockBreakdownTooltip";
 import { calculateDiscountedPrice, hasDiscount, getDiscountLabel, DiscountType } from "@/lib/discountUtils";
+import { runtimeLog } from "@/lib/runtimeLogger";
 
 interface Product {
   id: string;
@@ -118,6 +119,8 @@ export function ProductsManager({ userId, initialFilter }: ProductsManagerProps)
 
   const loadProducts = async () => {
     try {
+      runtimeLog("products-manager", "load-products:start", { userId, filter });
+
       let query = supabase
         .from("product_catalog")
         .select("*")
@@ -142,12 +145,22 @@ export function ProductsManager({ userId, initialFilter }: ProductsManagerProps)
       if (error) throw error;
 
       setProducts(data || []);
+      runtimeLog("products-manager", "load-products:success", {
+        userId,
+        filter,
+        count: data?.length || 0,
+      });
 
       // Load available stock for these products
       if (data && data.length > 0) {
         loadAvailableStock(data.map((p: Product) => p.id));
       }
     } catch (error) {
+      runtimeLog("products-manager", "load-products:error", {
+        userId,
+        filter,
+        error,
+      }, "error");
       console.error("Error loading products:", error);
       toast.error("Erro ao carregar produtos");
     } finally {
@@ -202,11 +215,16 @@ export function ProductsManager({ userId, initialFilter }: ProductsManagerProps)
   };
 
   const handleEdit = (product: Product) => {
+    runtimeLog("products-manager", "form:open-edit", {
+      productId: product.id,
+      name: product.name,
+    });
     setEditingProduct(product);
     setFormOpen(true);
   };
 
   const handleNewProduct = () => {
+    runtimeLog("products-manager", "form:open-new");
     setEditingProduct(null);
     setFormOpen(true);
   };
@@ -612,7 +630,10 @@ export function ProductsManager({ userId, initialFilter }: ProductsManagerProps)
       <ProductForm
         key={formOpen ? "open" : "closed"}
         open={formOpen}
-        onOpenChange={setFormOpen}
+        onOpenChange={(open) => {
+          runtimeLog("products-manager", "form:visibility-change", { open });
+          setFormOpen(open);
+        }}
         product={editingProduct ? {
           ...editingProduct,
           sizes: editingProduct.sizes || [],
@@ -622,7 +643,13 @@ export function ProductsManager({ userId, initialFilter }: ProductsManagerProps)
           group_key: editingProduct.group_key,
           created_from_import: editingProduct.created_from_import,
         } : null}
-        onSuccess={loadProducts}
+        onSuccess={() => {
+          runtimeLog("products-manager", "form:success", {
+            mode: editingProduct?.id ? "update" : "create",
+            productId: editingProduct?.id || null,
+          });
+          loadProducts();
+        }}
         userId={userId}
       />
 
