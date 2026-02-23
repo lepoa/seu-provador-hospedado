@@ -18,6 +18,8 @@ import {
   Gift,
   RefreshCw,
   Tag,
+  Brain,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -87,6 +89,16 @@ const Dashboard = () => {
   }, [tabParam]);
 
   const handleTabChange = (value: string) => {
+    if (value === "rfv") {
+      navigate("/dashboard/rfv");
+      return;
+    }
+
+    if (value === "consultora") {
+      navigate("/dashboard/consultora");
+      return;
+    }
+
     setActiveTab(value);
     const newParams = new URLSearchParams(searchParams);
     newParams.set("tab", value);
@@ -96,6 +108,17 @@ const Dashboard = () => {
     }
     setSearchParams(newParams);
   };
+
+  useEffect(() => {
+    if (tabParam === "rfv") {
+      navigate("/dashboard/rfv", { replace: true });
+      return;
+    }
+
+    if (tabParam === "consultora") {
+      navigate("/dashboard/consultora", { replace: true });
+    }
+  }, [navigate, tabParam]);
 
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -288,6 +311,14 @@ const Dashboard = () => {
             <TabsTrigger value="club" className="gap-2">
               <Crown className="h-4 w-4" />
               Club
+            </TabsTrigger>
+            <TabsTrigger value="rfv" className="gap-2">
+              <Brain className="h-4 w-4" />
+              RFV
+            </TabsTrigger>
+            <TabsTrigger value="consultora" className="gap-2">
+              <Sparkles className="h-4 w-4" />
+              Consultora IA
             </TabsTrigger>
             <TabsTrigger value="equipe" className="gap-2">
               <UsersRound className="h-4 w-4" />

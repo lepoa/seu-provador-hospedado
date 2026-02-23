@@ -15,6 +15,8 @@ import {
   LogOut,
   FileSpreadsheet,
   Tag,
+  Brain,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,6 +47,8 @@ const navItems = [
   { value: "promocoes", label: "Promoções", icon: Tag },
   { value: "brindes", label: "Brindes", icon: Gift },
   { value: "club", label: "Le.Poá Club", icon: Crown },
+  { value: "rfv", label: "RFV", icon: Brain },
+  { value: "consultora", label: "Consultora IA", icon: Sparkles },
   { value: "equipe", label: "Equipe", icon: UsersRound },
   { value: "prints", label: "Prints", icon: Image, showCount: true },
 ];

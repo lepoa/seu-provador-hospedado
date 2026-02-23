@@ -51,6 +51,8 @@ const BagTrackerPage = lazy(() => import("./pages/BagTrackerPage"));
 const LiveOrdersPage = lazy(() => import("./pages/LiveOrdersPage"));
 const LivePendenciasPage = lazy(() => import("./pages/LivePendenciasPage"));
 const InsightsPage = lazy(() => import("./pages/InsightsPage"));
+const CopilotoRFV = lazy(() => import("./pages/CopilotoRFV"));
+const DashboardConsultoraPage = lazy(() => import("./pages/DashboardConsultoraPage"));
 
 const queryClient = new QueryClient();
 
@@ -114,6 +116,8 @@ const App = () => (
             <Route path="/dashboard/lives/:eventId/pendencias" element={withRouteSuspense(LivePendenciasPage)} />
             <Route path="/dashboard/lives/:eventId/separacao" element={withRouteSuspense(LiveSeparationPage)} />
             <Route path="/dashboard/insights" element={withRouteSuspense(InsightsPage)} />
+            <Route path="/dashboard/rfv" element={withRouteSuspense(CopilotoRFV)} />
+            <Route path="/dashboard/consultora" element={withRouteSuspense(DashboardConsultoraPage)} />
             <Route path="/importar-estoque" element={withRouteSuspense(ImportarEstoque)} />
             
             {/* E-commerce routes */}
