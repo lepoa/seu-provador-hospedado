@@ -13,6 +13,7 @@ export interface WhatsAppTemplateData {
 export type OrderStatus =
   | 'pendente'
   | 'aguardando_pagamento'
+  | 'manter_na_reserva'
   | 'pago'
   | 'confirmado'
   | 'enviado'
@@ -30,6 +31,9 @@ export const whatsappTemplates: Record<OrderStatus, (data: WhatsAppTemplateData)
 
   aguardando_pagamento: (data) =>
     `Oi, ${data.customerName}! \u{1F44B}\n\nSeu pedido #${data.shortId} está aguardando pagamento.\n\n${data.total ? `*Total:* ${data.total}\n\n` : ''}Assim que o pagamento for confirmado, já começamos a preparar! \u{1F495}`,
+
+  manter_na_reserva: (data) =>
+    `Oi, ${data.customerName}! \u{1F44B}\n\nSeu pedido #${data.shortId} permanece reservado para voce.\n\n${data.total ? `*Total:* ${data.total}\n\n` : ''}Quando finalizar o pagamento, seguimos com a preparacao. \u{1F495}`,
 
   pago: (data) =>
     `Oi, ${data.customerName}! \u{1F49B}\n\nPagamento confirmado \u2705\n\nJá vamos preparar seu pedido #${data.shortId} com muito carinho!\n\nQualquer coisa, estou por aqui! \u{1F495}`,
@@ -80,6 +84,7 @@ export function getShortOrderId(orderId: string): string {
 export const statusLabels: Record<OrderStatus, string> = {
   pendente: 'Pendente',
   aguardando_pagamento: 'Aguardando Pagamento',
+  manter_na_reserva: 'Manter na Reserva',
   pago: 'Pago',
   confirmado: 'Confirmado',
   enviado: 'Enviado',

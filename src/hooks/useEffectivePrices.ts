@@ -40,6 +40,13 @@ interface UseEffectivePricesOptions {
  */
 export function useEffectivePrices(options: UseEffectivePricesOptions = {}) {
   const { channel = 'catalog', productIds, enabled = true } = options;
+
+  // Normalize IDs into a stable key so this hook does not refetch on every render.
+  const stableProductIdsKey = useMemo(() => {
+    if (!productIds || productIds.length === 0) return '';
+    const uniqueSorted = Array.from(new Set(productIds.filter(Boolean))).sort();
+    return uniqueSorted.join(',');
+  }, [productIds?.join(',')]);
   
   const [priceData, setPriceData] = useState<Map<string, EffectivePriceData>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
@@ -56,9 +63,10 @@ export function useEffectivePrices(options: UseEffectivePricesOptions = {}) {
       setError(null);
 
       // Call the RPC function
+      const rpcProductIds = stableProductIdsKey ? stableProductIdsKey.split(',') : null;
       const { data, error: rpcError } = await supabase.rpc('get_products_effective_prices', {
         p_channel: channel,
-        p_product_ids: productIds || null
+        p_product_ids: rpcProductIds
       });
 
       if (rpcError) {
@@ -80,7 +88,7 @@ export function useEffectivePrices(options: UseEffectivePricesOptions = {}) {
     } finally {
       setIsLoading(false);
     }
-  }, [channel, productIds, enabled]);
+  }, [channel, stableProductIdsKey, enabled]);
 
   useEffect(() => {
     fetchPrices();

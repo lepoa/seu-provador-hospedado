@@ -28,6 +28,11 @@ const statusMap: Record<string, StatusDisplay> = {
     icon: CreditCard,
     color: "bg-orange-100 text-orange-800"
   },
+  manter_na_reserva: {
+    label: "Reserva estendida",
+    icon: Clock,
+    color: "bg-amber-100 text-amber-800"
+  },
   confirmado: {
     label: "Confirmado",
     icon: CheckCircle,
