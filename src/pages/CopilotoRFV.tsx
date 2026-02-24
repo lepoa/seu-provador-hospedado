@@ -46,6 +46,8 @@ export default function CopilotoRFV() {
   const {
     metrics,
     tasks,
+    todayTasks,
+    backlogTasks,
     summary,
     isLoading,
     isRecalculating,
@@ -60,20 +62,27 @@ export default function CopilotoRFV() {
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
 
-  const filteredTasks = tasks.filter((task: RFVTask) => {
+  const filteredTodayTasks = todayTasks.filter((task: RFVTask) => {
     if (channelFilter !== "all" && task.channel_context !== channelFilter) return false;
     if (priorityFilter !== "all" && task.priority !== priorityFilter) return false;
     if (typeFilter !== "all" && task.task_type !== typeFilter) return false;
     return true;
   });
 
-  const criticalCount = filteredTasks.filter(
+  const filteredBacklogTasks = backlogTasks.filter((task: RFVTask) => {
+    if (channelFilter !== "all" && task.channel_context !== channelFilter) return false;
+    if (priorityFilter !== "all" && task.priority !== priorityFilter) return false;
+    if (typeFilter !== "all" && task.task_type !== typeFilter) return false;
+    return true;
+  });
+
+  const criticalCount = filteredTodayTasks.filter(
     (task: RFVTask) => task.priority === "critical" && task.status === "todo"
   ).length;
-  const highCount = filteredTasks.filter(
+  const highCount = filteredTodayTasks.filter(
     (task: RFVTask) => task.priority === "high" && task.status === "todo"
   ).length;
-  const mediumCount = filteredTasks.filter(
+  const mediumCount = filteredTodayTasks.filter(
     (task: RFVTask) => task.priority === "medium" && task.status === "todo"
   ).length;
 
@@ -266,6 +275,15 @@ export default function CopilotoRFV() {
             </CardContent>
           </Card>
         )}
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="bg-white">
+            Hoje: {todayTasks.length} tarefas
+          </Badge>
+          <Badge variant="outline" className="bg-white">
+            Pendentes anteriores: {backlogTasks.length}
+          </Badge>
+        </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-2 space-y-6">
@@ -275,7 +293,7 @@ export default function CopilotoRFV() {
           <TabsList className="bg-white border">
             <TabsTrigger value="tasks" className="data-[state=active]:bg-purple-100 data-[state=active]:text-purple-700">
               <Target className="h-4 w-4 mr-1" />
-              Tarefas ({filteredTasks.filter((task: RFVTask) => task.status === "todo").length})
+              Tarefas ({filteredTodayTasks.filter((task: RFVTask) => task.status === "todo").length})
             </TabsTrigger>
             <TabsTrigger value="segments" className="data-[state=active]:bg-purple-100 data-[state=active]:text-purple-700">
               <Users className="h-4 w-4 mr-1" />
@@ -355,7 +373,20 @@ export default function CopilotoRFV() {
               </Select>
             </div>
 
-            <RFVTaskList tasks={filteredTasks} onUpdateStatus={updateTaskStatus} isLoading={isLoading} />
+            <Tabs defaultValue="today" className="space-y-3">
+              <TabsList className="bg-white border">
+                <TabsTrigger value="today">Hoje ({filteredTodayTasks.length})</TabsTrigger>
+                <TabsTrigger value="backlog">
+                  Pendentes anteriores ({filteredBacklogTasks.length})
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="today">
+                <RFVTaskList tasks={filteredTodayTasks} onUpdateStatus={updateTaskStatus} isLoading={isLoading} />
+              </TabsContent>
+              <TabsContent value="backlog">
+                <RFVTaskList tasks={filteredBacklogTasks} onUpdateStatus={updateTaskStatus} isLoading={isLoading} />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           <TabsContent value="segments">

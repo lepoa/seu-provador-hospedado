@@ -150,6 +150,7 @@ export interface RFVMetrics {
 export interface RFVTask {
   id: string;
   customer_id: string;
+  task_date: string;
   task_type: string;
   priority: string;
   reason: string;
@@ -207,6 +208,8 @@ export interface RFVTemplate {
 export function useRFVData() {
   const [metrics, setMetrics] = useState<RFVMetrics[]>([]);
   const [tasks, setTasks] = useState<RFVTask[]>([]);
+  const [todayTasks, setTodayTasks] = useState<RFVTask[]>([]);
+  const [backlogTasks, setBacklogTasks] = useState<RFVTask[]>([]);
   const [summary, setSummary] = useState<RFVSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRecalculating, setIsRecalculating] = useState(false);
@@ -288,6 +291,22 @@ export function useRFVData() {
       });
 
       setTasks(enrichedTasks);
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayTasksRaw = enrichedTasks.filter((task: RFVTask) => isoDate(task.task_date) === todayStr);
+      const todayUniqueByCustomer = new Map<string, RFVTask>();
+      for (const task of todayTasksRaw) {
+        if (!todayUniqueByCustomer.has(task.customer_id)) {
+          todayUniqueByCustomer.set(task.customer_id, task);
+        }
+      }
+      const derivedTodayTasks = Array.from(todayUniqueByCustomer.values());
+      setTodayTasks(derivedTodayTasks);
+
+      const derivedBacklogTasks = enrichedTasks.filter((task: RFVTask) => {
+        const taskDay = isoDate(task.task_date);
+        return task.status === "todo" && !!taskDay && taskDay < todayStr;
+      });
+      setBacklogTasks(derivedBacklogTasks);
 
       if (enrichedMetrics.length > 0) {
         const segDist: Record<string, number> = {};
@@ -323,19 +342,17 @@ export function useRFVData() {
           .map((m: RFVMetrics) => m.avg_cycle_days as number);
 
         const today = new Date();
-        const todayStr = today.toISOString().slice(0, 10);
         const plusSeven = new Date(today);
         plusSeven.setDate(plusSeven.getDate() + 7);
 
-        const criticalToday = enrichedTasks.filter(
+        const criticalToday = derivedTodayTasks.filter(
           (t: RFVTask) => t.status === "todo" && t.priority === "critical"
         ).length;
 
-        const postSalesToday = enrichedTasks.filter(
+        const postSalesToday = derivedTodayTasks.filter(
           (t: RFVTask) =>
             t.status === "todo" &&
-            t.task_type === "post_sale" &&
-            isoDate(t.created_at) === todayStr
+            t.task_type === "post_sale"
         ).length;
 
         const idealWindowToday = enrichedMetrics.filter((m: RFVMetrics) => {
@@ -353,8 +370,6 @@ export function useRFVData() {
             return !Number.isNaN(exp.getTime()) && exp <= plusSeven;
           })
           .reduce((sum: number, t: RFVTask) => sum + (t.estimated_impact || 0), 0);
-
-        const todayTasks = enrichedTasks.filter((t: RFVTask) => isoDate(t.created_at) === todayStr);
 
         setSummary({
           totalCustomers: enrichedMetrics.length,
@@ -375,8 +390,8 @@ export function useRFVData() {
           executionRate: (executed / total) * 100,
           responseRate: (responded / total) * 100,
           conversionRate: (converted / total) * 100,
-          dailyTaskGoal: todayTasks.length,
-          dailyTaskDone: todayTasks.filter((t: RFVTask) => t.status !== "todo").length,
+          dailyTaskGoal: derivedTodayTasks.length,
+          dailyTaskDone: derivedTodayTasks.filter((t: RFVTask) => t.status !== "todo").length,
           totalRevenue,
           roi: totalRevenue > 0 ? totalRevenue / (normalizedRecentTasks.length || 1) : 0,
           criticalToday,
@@ -508,6 +523,8 @@ export function useRFVData() {
   return {
     metrics,
     tasks,
+    todayTasks,
+    backlogTasks,
     summary,
     isLoading,
     isRecalculating,
