@@ -149,9 +149,25 @@ export interface DashboardIntelligenceData {
   operational: OperationalScore;
 }
 
+export interface RevenueCommandAction {
+  tipo: string;
+  impacto_estimado: number;
+  recomendacao: string;
+}
+
+export interface RevenueCommandData {
+  receita_latente: number;
+  projecao_30d_base: number;
+  projecao_30d_otimizada: number;
+  diferenca_projetada: number;
+  acoes_priorizadas: RevenueCommandAction[];
+  breakdown_componentes: Record<string, unknown>;
+}
+
 export function useDashboardDataV2(filters: DashboardFilters) {
   const [kpis, setKpis] = useState<DashboardKPIsV2 | null>(null);
   const [intelligence, setIntelligence] = useState<DashboardIntelligenceData | null>(null);
+  const [revenueCommand, setRevenueCommand] = useState<RevenueCommandData | null>(null);
   const [channelComparison, setChannelComparison] = useState<ChannelComparison | null>(null);
   const [sellerPerformance, setSellerPerformance] = useState<SellerPerformance[]>([]);
   const [topCustomers, setTopCustomers] = useState<TopCustomer[]>([]);
@@ -552,20 +568,29 @@ export function useDashboardDataV2(filters: DashboardFilters) {
 
       const startDateParam = startDate.toISOString().slice(0, 10);
       const endDateParam = endDate.toISOString().slice(0, 10);
-      const [{ data: healthData, error: healthError }, { data: projectionData, error: projectionError }] =
-        await Promise.all([
-          supabase.rpc("get_business_health_score", {
-            p_start_date: startDateParam,
-            p_end_date: endDateParam,
-            p_channel: filters.channel,
-            p_store_id: null,
-          }),
-          supabase.rpc("get_business_projection", {
-            p_start_date: startDateParam,
-            p_end_date: endDateParam,
-            p_store_id: null,
-          }),
-        ]);
+      const [
+        { data: healthData, error: healthError },
+        { data: projectionData, error: projectionError },
+        { data: revenueCommandData, error: revenueCommandError },
+      ] = await Promise.all([
+        supabase.rpc("get_business_health_score", {
+          p_start_date: startDateParam,
+          p_end_date: endDateParam,
+          p_channel: filters.channel,
+          p_store_id: null,
+        }),
+        supabase.rpc("get_business_projection", {
+          p_start_date: startDateParam,
+          p_end_date: endDateParam,
+          p_store_id: null,
+        }),
+        supabase.rpc("get_revenue_command", {
+          p_start_date: startDateParam,
+          p_end_date: endDateParam,
+          p_channel: filters.channel,
+          p_store_id: null,
+        }),
+      ]);
 
       if (healthError) {
         console.error("[Dashboard Intelligence] health score error:", healthError);
@@ -573,9 +598,13 @@ export function useDashboardDataV2(filters: DashboardFilters) {
       if (projectionError) {
         console.error("[Dashboard Intelligence] projection error:", projectionError);
       }
+      if (revenueCommandError) {
+        console.error("[Revenue Command] data error:", revenueCommandError);
+      }
 
       const parsedHealth = (healthData || {}) as any;
       const parsedProjection = (projectionData || {}) as any;
+      const parsedRevenueCommand = (revenueCommandData || {}) as any;
       const conversionComponent = Number(parsedHealth?.components?.conversion || 0);
       const paComponent = Number(parsedHealth?.components?.pa || 0);
       const cancelComponent = Number(parsedHealth?.components?.cancel || 0);
@@ -619,6 +648,25 @@ export function useDashboardDataV2(filters: DashboardFilters) {
         },
       });
 
+      setRevenueCommand({
+        receita_latente: Number(parsedRevenueCommand.receita_latente || 0),
+        projecao_30d_base: Number(parsedRevenueCommand.projecao_30d_base || 0),
+        projecao_30d_otimizada: Number(parsedRevenueCommand.projecao_30d_otimizada || 0),
+        diferenca_projetada: Number(parsedRevenueCommand.diferenca_projetada || 0),
+        acoes_priorizadas: Array.isArray(parsedRevenueCommand.acoes_priorizadas)
+          ? parsedRevenueCommand.acoes_priorizadas.map((item: any) => ({
+            tipo: String(item?.tipo || "Acao"),
+            impacto_estimado: Number(item?.impacto_estimado || 0),
+            recomendacao: String(item?.recomendacao || "Sem recomendacao"),
+          }))
+          : [],
+        breakdown_componentes:
+          parsedRevenueCommand.breakdown_componentes &&
+            typeof parsedRevenueCommand.breakdown_componentes === "object"
+            ? parsedRevenueCommand.breakdown_componentes
+            : {},
+      });
+
       const cancelledCount = orders.filter(o => o.status === "cancelado").length;
       const notCancelledCount = orders.filter(o => o.status !== "cancelado").length;
 
@@ -659,6 +707,7 @@ export function useDashboardDataV2(filters: DashboardFilters) {
   return {
     kpis,
     intelligence,
+    revenueCommand,
     channelComparison,
     sellerPerformance,
     topCustomers,

@@ -203,7 +203,7 @@ export function DashboardIntelligence({ intelligence }: DashboardIntelligencePro
             <CardHeader className="pb-2">
               <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
                 <Brain className="h-4 w-4 text-purple-600" />
-                Retail Pulse™
+                Retail Pulse\u2122
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
