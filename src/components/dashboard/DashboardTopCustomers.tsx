@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+﻿import { useNavigate } from "react-router-dom";
 import { Users, ArrowRight, Instagram } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { TopCustomer } from "@/hooks/useDashboardDataV2";
@@ -8,6 +8,13 @@ import { ptBR } from "date-fns/locale";
 interface DashboardTopCustomersProps {
   customers: TopCustomer[];
 }
+
+const sanitizeLabel = (value: string) => {
+  const collapsedEscapes = value.replace(/\\\\u/g, "\\u");
+  return collapsedEscapes.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) =>
+    String.fromCharCode(parseInt(hex, 16))
+  );
+};
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat("pt-BR", {
@@ -31,9 +38,7 @@ export function DashboardTopCustomers({ customers }: DashboardTopCustomersProps)
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground text-center py-6">
-            Nenhum cliente encontrado.
-          </p>
+          <p className="text-sm text-muted-foreground text-center py-6">Nenhum cliente encontrado.</p>
         </CardContent>
       </Card>
     );
@@ -47,9 +52,10 @@ export function DashboardTopCustomers({ customers }: DashboardTopCustomersProps)
             <Users className="h-4 w-4 text-muted-foreground" />
             Melhores Clientes
           </CardTitle>
-          <button 
+          <button
+            type="button"
             className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
-            onClick={() => navigate("/dashboard?tab=clientes")}
+            onClick={() => navigate("/clientes/ranking")}
           >
             Ver todos <ArrowRight className="h-3 w-3" />
           </button>
@@ -63,17 +69,16 @@ export function DashboardTopCustomers({ customers }: DashboardTopCustomersProps)
               className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
               onClick={() => navigate(`/dashboard/clientes/${customer.id}`)}
             >
-              <span className="text-xs text-muted-foreground w-4">{index + 1}.</span>
-              
+              <span className="text-xs text-muted-foreground w-6">#{index + 1}</span>
+
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">
-                  {customer.name || customer.instagram_handle || "Cliente"}
+                  {sanitizeLabel(customer.name || customer.instagram_handle || "Cliente")}
                 </p>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   {customer.instagram_handle && (
                     <span className="flex items-center gap-1">
-                      <Instagram className="h-3 w-3" />
-                      @{customer.instagram_handle.replace("@", "")}
+                      <Instagram className="h-3 w-3" />@{customer.instagram_handle.replace("@", "")}
                     </span>
                   )}
                   <span>• {customer.totalPedidos} pedido{customer.totalPedidos !== 1 ? "s" : ""}</span>
@@ -81,9 +86,7 @@ export function DashboardTopCustomers({ customers }: DashboardTopCustomersProps)
               </div>
 
               <div className="text-right">
-                <p className="text-sm font-semibold text-primary">
-                  {formatCurrency(customer.totalGasto)}
-                </p>
+                <p className="text-sm font-semibold text-primary">{formatCurrency(customer.totalGasto)}</p>
                 {customer.ultimaCompra && (
                   <p className="text-xs text-muted-foreground">
                     {formatDistanceToNow(new Date(customer.ultimaCompra), { addSuffix: true, locale: ptBR })}

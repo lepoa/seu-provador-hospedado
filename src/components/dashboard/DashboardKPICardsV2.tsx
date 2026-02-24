@@ -1,4 +1,4 @@
-import {
+﻿import {
   DollarSign,
   ShoppingBag,
   Target,
@@ -6,7 +6,6 @@ import {
   TrendingDown,
   Package,
   AlertTriangle,
-  Clock,
   Info,
   UsersRound,
 } from "lucide-react";
@@ -58,10 +57,10 @@ function KPICard({ icon: Icon, label, value, kpi, tooltip, onClick, variant = "d
   const TrendIcon = isPositive ? TrendingUp : isNegative ? TrendingDown : null;
 
   const bgClass = {
-    default: "bg-card hover:bg-card/80",
-    success: "bg-primary/5 hover:bg-primary/10 border-primary/20",
-    warning: "bg-amber-50 hover:bg-amber-100/50 border-amber-200",
-    muted: "bg-muted/50 hover:bg-muted",
+    default: "bg-card/80 hover:bg-card border-border/60",
+    success: "bg-primary/5 hover:bg-primary/10 border-primary/15",
+    warning: "bg-amber-50/70 hover:bg-amber-100/60 border-amber-200/70",
+    muted: "bg-muted/40 hover:bg-muted/60 border-border/60",
   }[variant];
 
   return (
@@ -70,7 +69,7 @@ function KPICard({ icon: Icon, label, value, kpi, tooltip, onClick, variant = "d
         <TooltipTrigger asChild>
           <Card
             className={cn(
-              "cursor-pointer transition-all group border min-h-[100px]",
+              "cursor-pointer transition-all group border min-h-[94px] shadow-none",
               bgClass
             )}
             onClick={onClick}
@@ -86,15 +85,17 @@ function KPICard({ icon: Icon, label, value, kpi, tooltip, onClick, variant = "d
                 <Info className="h-3 w-3 text-muted-foreground/50 shrink-0 hidden sm:block" />
               </div>
 
-              <p className="text-lg sm:text-2xl font-semibold text-foreground tracking-tight truncate">
+              <p className="text-lg sm:text-xl font-semibold text-foreground tracking-tight truncate">
                 {value}
               </p>
 
               {TrendIcon && kpi.changePercent !== 0 && (
-                <div className={cn(
-                  "flex items-center gap-1 mt-1 text-[10px] sm:text-xs font-medium",
-                  isPositive ? "text-primary" : "text-destructive"
-                )}>
+                <div
+                  className={cn(
+                    "flex items-center gap-1 mt-1 text-[10px] sm:text-xs font-medium",
+                    isPositive ? "text-primary" : "text-destructive"
+                  )}
+                >
                   <TrendIcon className="h-3 w-3 shrink-0" />
                   <span className="truncate">{isPositive ? "+" : ""}{formatPercent(kpi.changePercent)}</span>
                   <span className="text-muted-foreground font-normal hidden sm:inline">vs anterior</span>
@@ -114,7 +115,6 @@ function KPICard({ icon: Icon, label, value, kpi, tooltip, onClick, variant = "d
 export function DashboardKPICardsV2({ kpis, onKPIClick }: DashboardKPICardsV2Props) {
   return (
     <div className="space-y-3 sm:space-y-4">
-      {/* Main KPIs Row - 2 cols mobile, 3 cols tablet, 6 cols desktop */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
         <KPICard
           icon={DollarSign}
@@ -158,7 +158,7 @@ export function DashboardKPICardsV2({ kpis, onKPIClick }: DashboardKPICardsV2Pro
           label="P.A."
           value={formatNumber(kpis.pecasAtendimento.value)}
           kpi={kpis.pecasAtendimento}
-          tooltip="Peças por Atendimento: itens pagos (sem brinde) ÷ nº de pedidos pagos."
+          tooltip="Peças por atendimento: itens pagos (sem brinde) ÷ nº de pedidos pagos."
           onClick={() => onKPIClick("pa")}
         />
 
@@ -173,43 +173,54 @@ export function DashboardKPICardsV2({ kpis, onKPIClick }: DashboardKPICardsV2Pro
         />
       </div>
 
-      {/* Secondary KPIs Row - Horizontal scroll on mobile, grid on larger screens */}
       <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 sm:grid sm:grid-cols-3 md:grid-cols-5 sm:overflow-visible -mx-4 px-4 sm:mx-0 sm:px-0">
-        <Card className="bg-card/50 cursor-pointer hover:bg-card transition-colors shrink-0 w-[140px] sm:w-auto" onClick={() => onKPIClick("pagos")}>
+        <Card
+          className="bg-card/40 border-border/60 cursor-pointer hover:bg-card/60 transition-colors shadow-none shrink-0 w-[140px] sm:w-auto"
+          onClick={() => onKPIClick("pagos")}
+        >
           <CardContent className="p-3">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-muted-foreground whitespace-nowrap">Pagos</span>
-              <span className="text-base sm:text-lg font-semibold text-primary">{kpis.pedidosPagos}</span>
+              <span className="text-base sm:text-base font-semibold text-primary">{kpis.pedidosPagos}</span>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-card/50 cursor-pointer hover:bg-card transition-colors shrink-0 w-[140px] sm:w-auto" onClick={() => onKPIClick("pendentes")}>
+        <Card
+          className="bg-card/40 border-border/60 cursor-pointer hover:bg-card/60 transition-colors shadow-none shrink-0 w-[140px] sm:w-auto"
+          onClick={() => onKPIClick("pendentes")}
+        >
           <CardContent className="p-3">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-muted-foreground whitespace-nowrap">Pendentes</span>
-              <span className="text-base sm:text-lg font-semibold text-amber-600">{kpis.pedidosPendentes}</span>
+              <span className="text-base sm:text-base font-semibold text-amber-600">{kpis.pedidosPendentes}</span>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-card/50 cursor-pointer hover:bg-card transition-colors shrink-0 w-[140px] sm:w-auto" onClick={() => onKPIClick("cancelados")}>
+        <Card
+          className="bg-card/40 border-border/60 cursor-pointer hover:bg-card/60 transition-colors shadow-none shrink-0 w-[140px] sm:w-auto"
+          onClick={() => onKPIClick("cancelados")}
+        >
           <CardContent className="p-3">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-muted-foreground whitespace-nowrap">Cancelados</span>
-              <span className="text-base sm:text-lg font-semibold text-destructive">{kpis.cancelados}</span>
+              <span className="text-base sm:text-base font-semibold text-destructive">{kpis.cancelados}</span>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-card/50 cursor-pointer hover:bg-card transition-colors shrink-0 w-[140px] sm:w-auto" onClick={() => onKPIClick("ticket")}>
+        <Card
+          className="bg-card/40 border-border/60 cursor-pointer hover:bg-card/60 transition-colors shadow-none shrink-0 w-[140px] sm:w-auto"
+          onClick={() => onKPIClick("ticket")}
+        >
           <CardContent className="p-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1">
                 <UsersRound className="h-3 w-3 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground whitespace-nowrap">Novos Cli.</span>
               </div>
-              <span className="text-base sm:text-lg font-semibold">
+              <span className="text-base sm:text-base font-semibold">
                 {kpis.novosClientes.value}
                 {kpis.novosClientes.change > 0 && (
                   <span className="text-xs text-primary ml-1">+{kpis.novosClientes.change}</span>
@@ -219,14 +230,16 @@ export function DashboardKPICardsV2({ kpis, onKPIClick }: DashboardKPICardsV2Pro
           </CardContent>
         </Card>
 
-        <Card className="bg-card/50 shrink-0 w-[140px] sm:w-auto">
+        <Card className="bg-card/40 border-border/60 shadow-none shrink-0 w-[140px] sm:w-auto">
           <CardContent className="p-3">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-muted-foreground whitespace-nowrap">Cancelam.</span>
-              <span className={cn(
-                "text-base sm:text-lg font-semibold",
-                kpis.taxaCancelamento > 10 ? "text-destructive" : "text-muted-foreground"
-              )}>
+              <span
+                className={cn(
+                  "text-base sm:text-base font-semibold",
+                  kpis.taxaCancelamento > 10 ? "text-destructive" : "text-muted-foreground"
+                )}
+              >
                 {formatPercent(kpis.taxaCancelamento)}
               </span>
             </div>
