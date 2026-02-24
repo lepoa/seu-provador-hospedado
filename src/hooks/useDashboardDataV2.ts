@@ -126,6 +126,8 @@ export interface BusinessHealthScore {
   score: number;
   classification: "strong" | "stable" | "attention" | "risk";
   trend: number;
+  volatility_index: number;
+  stability_classification: "stable" | "oscillating" | "unstable";
   components: BusinessHealthComponents;
   raw: BusinessHealthRaw;
 }
@@ -136,9 +138,15 @@ export interface BusinessProjection {
   projected_7d_revenue: number;
 }
 
+export interface OperationalScore {
+  score: number;
+  classification: "strong" | "attention" | "critical";
+}
+
 export interface DashboardIntelligenceData {
   health: BusinessHealthScore;
   projection: BusinessProjection;
+  operational: OperationalScore;
 }
 
 export function useDashboardDataV2(filters: DashboardFilters) {
@@ -550,10 +558,12 @@ export function useDashboardDataV2(filters: DashboardFilters) {
             p_start_date: startDateParam,
             p_end_date: endDateParam,
             p_channel: filters.channel,
+            p_store_id: null,
           }),
           supabase.rpc("get_business_projection", {
             p_start_date: startDateParam,
             p_end_date: endDateParam,
+            p_store_id: null,
           }),
         ]);
 
@@ -566,17 +576,24 @@ export function useDashboardDataV2(filters: DashboardFilters) {
 
       const parsedHealth = (healthData || {}) as any;
       const parsedProjection = (projectionData || {}) as any;
+      const conversionComponent = Number(parsedHealth?.components?.conversion || 0);
+      const paComponent = Number(parsedHealth?.components?.pa || 0);
+      const cancelComponent = Number(parsedHealth?.components?.cancel || 0);
+      const pendenciasComponent = Number(parsedHealth?.components?.pendencias || 0);
+      const operationalScore = (conversionComponent + paComponent + cancelComponent + pendenciasComponent) / 4;
       setIntelligence({
         health: {
           score: Number(parsedHealth.score || 0),
           classification: (parsedHealth.classification || "risk") as BusinessHealthScore["classification"],
           trend: Number(parsedHealth.trend || 0),
+          volatility_index: Number(parsedHealth.volatility_index || 0),
+          stability_classification: (parsedHealth.stability_classification || "stable") as BusinessHealthScore["stability_classification"],
           components: {
-            conversion: Number(parsedHealth?.components?.conversion || 0),
+            conversion: conversionComponent,
             ticket: Number(parsedHealth?.components?.ticket || 0),
-            pa: Number(parsedHealth?.components?.pa || 0),
-            cancel: Number(parsedHealth?.components?.cancel || 0),
-            pendencias: Number(parsedHealth?.components?.pendencias || 0),
+            pa: paComponent,
+            cancel: cancelComponent,
+            pendencias: pendenciasComponent,
             growth: Number(parsedHealth?.components?.growth || 0),
             recorrencia: Number(parsedHealth?.components?.recorrencia || 0),
           },
@@ -595,6 +612,10 @@ export function useDashboardDataV2(filters: DashboardFilters) {
           average_daily_7d: Number(parsedProjection.average_daily_7d || 0),
           rfv_pending_impact_7d: Number(parsedProjection.rfv_pending_impact_7d || 0),
           projected_7d_revenue: Number(parsedProjection.projected_7d_revenue || 0),
+        },
+        operational: {
+          score: Number(operationalScore.toFixed(2)),
+          classification: operationalScore >= 75 ? "strong" : operationalScore >= 55 ? "attention" : "critical",
         },
       });
 
