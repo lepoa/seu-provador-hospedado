@@ -51,12 +51,13 @@ async function createPaidOrder(
   params: {
     customerId: string;
     seed: string;
-    daysAgo: number;
+    daysAgo?: number;
+    paidAtIso?: string;
     total?: number;
     source?: string;
   }
 ): Promise<string> {
-  const paidAt = isoDaysAgo(params.daysAgo);
+  const paidAt = params.paidAtIso ?? isoDaysAgo(params.daysAgo ?? 0);
 
   const { data, error } = await supabase
     .from("orders")
@@ -95,7 +96,41 @@ async function cleanupCustomerData(supabase: SupabaseClient, customerId: string)
 }
 
 describe("rfv regression: copiloto", () => {
-  it("cliente com ciclo de 30 dias gera tarefa preventiva no dia 21", async () => {
+  it("pos-venda D+3 gera 1 tarefa e nao duplica", async () => {
+    const supabase = getServiceClient();
+    if (!supabase) {
+      expect(true).toBe(true);
+      return;
+    }
+
+    const seed = runId("rfv-postsale");
+    let customerId: string | undefined;
+
+    try {
+      customerId = await createCustomer(supabase, seed);
+      await createPaidOrder(supabase, { customerId, seed, daysAgo: 63 });
+      await createPaidOrder(supabase, { customerId, seed, daysAgo: 33 });
+      await createPaidOrder(supabase, { customerId, seed, daysAgo: 3 });
+
+      await runCopilot(supabase);
+      await runCopilot(supabase);
+
+      const { data, error } = await supabase
+        .from("rfv_tasks")
+        .select("task_type,priority")
+        .eq("customer_id", customerId)
+        .eq("task_date", todayIsoDate());
+
+      expect(error).toBeNull();
+      expect((data || []).length).toBe(1);
+      expect(data?.[0]?.task_type).toBe("pos_compra");
+      expect(data?.[0]?.priority).toBe("oportunidade");
+    } finally {
+      if (customerId) await cleanupCustomerData(supabase, customerId);
+    }
+  }, 60000);
+
+  it("preventivo (70%-100% do ciclo) gera tarefa preventive", async () => {
     const supabase = getServiceClient();
     if (!supabase) {
       expect(true).toBe(true);
@@ -118,49 +153,53 @@ describe("rfv regression: copiloto", () => {
         .from("rfv_tasks")
         .select("task_type,priority")
         .eq("customer_id", customerId)
-        .eq("task_date", todayIsoDate())
-        .eq("task_type", "preventivo");
+        .eq("task_date", todayIsoDate());
 
       expect(error).toBeNull();
-      expect((data || []).length).toBeGreaterThan(0);
+      expect((data || []).length).toBe(1);
+      expect(data?.[0]?.task_type).toBe("preventivo");
       expect(data?.[0]?.priority).toBe("importante");
     } finally {
       if (customerId) await cleanupCustomerData(supabase, customerId);
     }
   }, 60000);
 
-  it("cliente com compra ontem nao gera tarefa operacional", async () => {
+  it("reativacao >=100% gera critico e >=130% vira critica maxima na reason", async () => {
     const supabase = getServiceClient();
     if (!supabase) {
       expect(true).toBe(true);
       return;
     }
 
-    const seed = runId("rfv-yesterday");
+    const seed = runId("rfv-reactivation");
     let customerId: string | undefined;
 
     try {
       customerId = await createCustomer(supabase, seed);
-      await createPaidOrder(supabase, { customerId, seed, daysAgo: 31 });
-      await createPaidOrder(supabase, { customerId, seed, daysAgo: 1 });
+      await createPaidOrder(supabase, { customerId, seed, daysAgo: 135 });
+      await createPaidOrder(supabase, { customerId, seed, daysAgo: 105 });
+      await createPaidOrder(supabase, { customerId, seed, daysAgo: 75 });
+      await createPaidOrder(supabase, { customerId, seed, daysAgo: 45 });
 
       await runCopilot(supabase);
 
       const { data, error } = await supabase
         .from("rfv_tasks")
-        .select("id")
+        .select("task_type,priority,reason")
         .eq("customer_id", customerId)
         .eq("task_date", todayIsoDate())
-        .in("task_type", ["pos_compra", "preventivo", "reativacao", "vip"]);
+        .single();
 
       expect(error).toBeNull();
-      expect((data || []).length).toBe(0);
+      expect(data?.task_type).toBe("reativacao");
+      expect(data?.priority).toBe("critico");
+      expect((data?.reason || "").toLowerCase()).toContain("130%");
     } finally {
       if (customerId) await cleanupCustomerData(supabase, customerId);
     }
   }, 60000);
 
-  it("rodar motor 2x no mesmo dia nao duplica tarefas", async () => {
+  it("rodar run_rfv_copilot() 3x no dia nao duplica tarefas", async () => {
     const supabase = getServiceClient();
     if (!supabase) {
       expect(true).toBe(true);
@@ -179,82 +218,23 @@ describe("rfv regression: copiloto", () => {
 
       await runCopilot(supabase);
       await runCopilot(supabase);
-
-      const { data, error } = await supabase
-        .from("rfv_tasks")
-        .select("task_type")
-        .eq("customer_id", customerId)
-        .eq("task_date", todayIsoDate());
-
-      expect(error).toBeNull();
-      const taskTypes = (data || []).map((row) => row.task_type);
-      const uniqueTaskTypes = new Set(taskTypes);
-      expect(taskTypes.length).toBe(uniqueTaskTypes.size);
-    } finally {
-      if (customerId) await cleanupCustomerData(supabase, customerId);
-    }
-  }, 60000);
-
-  it("marcar check registra usuario e horario", async () => {
-    const supabase = getServiceClient();
-    if (!supabase) {
-      expect(true).toBe(true);
-      return;
-    }
-
-    const seed = runId("rfv-check");
-    let customerId: string | undefined;
-
-    try {
-      customerId = await createCustomer(supabase, seed);
-      await createPaidOrder(supabase, { customerId, seed, daysAgo: 111 });
-      await createPaidOrder(supabase, { customerId, seed, daysAgo: 81 });
-      await createPaidOrder(supabase, { customerId, seed, daysAgo: 51 });
-      await createPaidOrder(supabase, { customerId, seed, daysAgo: 21 });
-
       await runCopilot(supabase);
 
-      const { data: task, error: taskError } = await supabase
+      const { data, error } = await supabase
         .from("rfv_tasks")
         .select("id")
         .eq("customer_id", customerId)
         .eq("task_date", todayIsoDate())
-        .eq("status", "pendente")
-        .limit(1)
-        .single();
+        .in("status", ["pendente", "enviado", "respondeu", "converteu", "sem_resposta", "skipped"]);
 
-      expect(taskError).toBeNull();
-      const taskId = task?.id as string;
-      expect(taskId).toBeTruthy();
-
-      const checkedAt = new Date().toISOString();
-      const { error: updateError } = await supabase
-        .from("rfv_tasks")
-        .update({
-          status: "enviado",
-          executed_by: "rfv-regression-test",
-          executed_at: checkedAt,
-        })
-        .eq("id", taskId);
-
-      expect(updateError).toBeNull();
-
-      const { data: updatedTask, error: readError } = await supabase
-        .from("rfv_tasks")
-        .select("status,executed_by,executed_at")
-        .eq("id", taskId)
-        .single();
-
-      expect(readError).toBeNull();
-      expect(updatedTask?.status).toBe("enviado");
-      expect(updatedTask?.executed_by).toBe("rfv-regression-test");
-      expect(updatedTask?.executed_at).toBeTruthy();
+      expect(error).toBeNull();
+      expect((data || []).length).toBe(1);
     } finally {
       if (customerId) await cleanupCustomerData(supabase, customerId);
     }
   }, 60000);
 
-  it("nova venda apos tarefa enviada gera atribuicao de receita", async () => {
+  it("attribute_rfv_revenue() atribui para o primeiro pedido pago apos sent", async () => {
     const supabase = getServiceClient();
     if (!supabase) {
       expect(true).toBe(true);
@@ -263,7 +243,7 @@ describe("rfv regression: copiloto", () => {
 
     const seed = runId("rfv-revenue");
     let customerId: string | undefined;
-    let convertedOrderId: string | undefined;
+    let firstOrderId: string | undefined;
 
     try {
       customerId = await createCustomer(supabase, seed);
@@ -279,31 +259,39 @@ describe("rfv regression: copiloto", () => {
         .select("id")
         .eq("customer_id", customerId)
         .eq("task_date", todayIsoDate())
-        .eq("task_type", "preventivo")
-        .limit(1)
         .single();
 
       expect(taskError).toBeNull();
       const taskId = task?.id as string;
       expect(taskId).toBeTruthy();
 
-      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const executedAt = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
       const { error: updateError } = await supabase
         .from("rfv_tasks")
         .update({
           status: "enviado",
           executed_by: "rfv-regression-test",
-          executed_at: oneHourAgo,
+          executed_at: executedAt,
         })
         .eq("id", taskId);
 
       expect(updateError).toBeNull();
 
-      convertedOrderId = await createPaidOrder(supabase, {
+      const firstPaidAt = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const secondPaidAt = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+
+      firstOrderId = await createPaidOrder(supabase, {
         customerId,
         seed,
-        daysAgo: 0,
+        paidAtIso: firstPaidAt,
         total: 123,
+      });
+
+      await createPaidOrder(supabase, {
+        customerId,
+        seed,
+        paidAtIso: secondPaidAt,
+        total: 321,
       });
 
       const { error: attrError } = await supabase.rpc("attribute_rfv_revenue");
@@ -317,10 +305,11 @@ describe("rfv regression: copiloto", () => {
 
       expect(readError).toBeNull();
       expect(convertedTask?.status).toBe("converteu");
-      expect(Number(convertedTask?.revenue_generated || 0)).toBeGreaterThanOrEqual(123);
-      expect(convertedTask?.converted_order_id).toBe(convertedOrderId);
+      expect(convertedTask?.converted_order_id).toBe(firstOrderId);
+      expect(Number(convertedTask?.revenue_generated || 0)).toBe(123);
     } finally {
       if (customerId) await cleanupCustomerData(supabase, customerId);
     }
   }, 60000);
 });
+

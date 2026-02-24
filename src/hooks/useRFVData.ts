@@ -18,6 +18,9 @@ const UI_STATUS_BY_DB: Record<string, string> = {
   converteu: "won",
   sem_resposta: "no_reply",
   skipped: "skipped",
+  pulou: "skipped",
+  ignorado: "skipped",
+  skipado: "skipped",
 };
 
 const UI_PRIORITY_BY_DB: Record<string, string> = {
@@ -196,6 +199,34 @@ export interface RFVSummary {
   idealWindowToday: number;
   postSalesToday: number;
   potentialRevenue7d: number;
+  performanceInsights: RFVPerformanceInsights;
+}
+
+export interface RFVConversionByType {
+  task_type: string;
+  total: number;
+  converted: number;
+  rate: number;
+}
+
+export interface RFVImpactAnalysis {
+  estimated: number;
+  real: number;
+  efficiency_percent: number;
+}
+
+export interface RFVSegmentConversion {
+  segment_ak: string;
+  total: number;
+  converted: number;
+  rate: number;
+}
+
+export interface RFVPerformanceInsights {
+  last_30d_revenue: number;
+  conversion_by_type: RFVConversionByType[];
+  impact_analysis: RFVImpactAnalysis;
+  segment_conversion: RFVSegmentConversion[];
 }
 
 export interface RFVTemplate {
@@ -239,7 +270,17 @@ export function useRFVData() {
       const { data: tasksData, error: tasksError } = await supabase
         .from("rfv_tasks")
         .select("*, customer:customers(name, phone, phone_e164)")
-        .in("status", ["pendente", "enviado", "respondeu", "converteu", "sem_resposta", "skipped"])
+        .in("status", [
+          "pendente",
+          "enviado",
+          "respondeu",
+          "converteu",
+          "sem_resposta",
+          "skipped",
+          "pulou",
+          "ignorado",
+          "skipado",
+        ])
         .order("created_at", { ascending: false })
         .limit(400);
 
@@ -317,16 +358,49 @@ export function useRFVData() {
           chDist[m.purchase_channel] = (chDist[m.purchase_channel] || 0) + 1;
         });
 
-        const { data: recentTasks } = await supabase
-          .from("rfv_tasks")
-          .select("status,created_at,revenue_generated")
-          .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+        const [{ data: recentTasks }, { data: insightsData, error: insightsError }] = await Promise.all([
+          supabase
+            .from("rfv_tasks")
+            .select("status,created_at,revenue_generated")
+            .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
+          supabase.rpc("get_rfv_performance_insights"),
+        ]);
+
+        if (insightsError) {
+          console.warn("RFV insights unavailable:", insightsError.message);
+        }
 
         const normalizedRecentTasks = (recentTasks || []).map((task: any) => ({
           ...task,
           status: normalizeStatus(task.status),
           revenue_generated: Number(task.revenue_generated || 0),
         }));
+
+        const parsedInsights = (!insightsError ? insightsData : null) as any;
+        const performanceInsights: RFVPerformanceInsights = {
+          last_30d_revenue: Number(parsedInsights?.last_30d_revenue || 0),
+          conversion_by_type: Array.isArray(parsedInsights?.conversion_by_type)
+            ? parsedInsights.conversion_by_type.map((item: any) => ({
+                task_type: String(item?.task_type || "unknown"),
+                total: Number(item?.total || 0),
+                converted: Number(item?.converted || 0),
+                rate: Number(item?.rate || 0),
+              }))
+            : [],
+          impact_analysis: {
+            estimated: Number(parsedInsights?.impact_analysis?.estimated || 0),
+            real: Number(parsedInsights?.impact_analysis?.real || 0),
+            efficiency_percent: Number(parsedInsights?.impact_analysis?.efficiency_percent || 0),
+          },
+          segment_conversion: Array.isArray(parsedInsights?.segment_conversion)
+            ? parsedInsights.segment_conversion.map((item: any) => ({
+                segment_ak: String(item?.segment_ak || "unknown"),
+                total: Number(item?.total || 0),
+                converted: Number(item?.converted || 0),
+                rate: Number(item?.rate || 0),
+              }))
+            : [],
+        };
 
         const total = normalizedRecentTasks.length || 1;
         const executed = normalizedRecentTasks.filter((t: any) => t.status !== "todo").length;
@@ -338,8 +412,8 @@ export function useRFVData() {
           .reduce((sum: number, t: any) => sum + (Number(t.revenue_generated) || 0), 0);
 
         const avgCycles = enrichedMetrics
-          .filter((m: RFVMetrics) => m.avg_cycle_days !== null)
-          .map((m: RFVMetrics) => m.avg_cycle_days as number);
+          .map((m: RFVMetrics) => m.individual_cycle_avg_days ?? m.avg_cycle_days)
+          .filter((cycle): cycle is number => cycle !== null && cycle !== undefined);
 
         const today = new Date();
         const plusSeven = new Date(today);
@@ -398,6 +472,7 @@ export function useRFVData() {
           idealWindowToday,
           postSalesToday,
           potentialRevenue7d,
+          performanceInsights,
         });
       }
 
@@ -428,7 +503,11 @@ export function useRFVData() {
       await supabase.rpc("attribute_rfv_revenue");
 
       toast.success(
-        `Copiloto atualizado! ${(data as any)?.metrics?.customers_calculated || 0} clientes, ${(data as any)?.tasks?.tasks_created || 0} tarefas`
+        `Copiloto atualizado! ${(data as any)?.metrics?.customers_calculated || 0} clientes, ${
+          (data as any)?.tasks?.tasks_created ??
+          (data as any)?.tasks?.tasks_created_or_refreshed ??
+          0
+        } tarefas`
       );
       await loadData();
     } catch (err: any) {

@@ -38,6 +38,7 @@ import { RFVTaskList } from "@/components/rfv/RFVTaskList";
 import { RFVSegmentChart } from "@/components/rfv/RFVSegmentChart";
 import { RFVChannelChart } from "@/components/rfv/RFVChannelChart";
 import { RFVTemplateManager } from "@/components/rfv/RFVTemplateManager";
+import { RFVPerformanceInsights } from "@/components/rfv/RFVPerformanceInsights";
 import { loadExcelJS } from "@/lib/loadExcel";
 import logoLepoa from "@/assets/logo-lepoa.png";
 
@@ -288,6 +289,7 @@ export default function CopilotoRFV() {
 
       <div className="max-w-7xl mx-auto px-4 py-2 space-y-6">
         {summary && <RFVKPICards summary={summary} />}
+        {summary && <RFVPerformanceInsights insights={summary.performanceInsights} />}
 
         <Tabs defaultValue="tasks" className="space-y-4">
           <TabsList className="bg-white border">
