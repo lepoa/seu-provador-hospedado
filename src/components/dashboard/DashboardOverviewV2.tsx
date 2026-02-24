@@ -5,6 +5,7 @@ import { useDashboardDataV2, DashboardFilters } from "@/hooks/useDashboardDataV2
 import { DashboardFiltersBar } from "./DashboardFilters";
 import { DashboardMobileFilters } from "./DashboardMobileFilters";
 import { DashboardKPICardsV2 } from "./DashboardKPICardsV2";
+import { DashboardIntelligence } from "./DashboardIntelligence";
 import { DashboardChannelComparison } from "./DashboardChannelComparison";
 import { DashboardSellerPerformance } from "./DashboardSellerPerformance";
 import { DashboardPendingActions } from "./DashboardPendingActions";
@@ -26,6 +27,7 @@ export function DashboardOverviewV2() {
 
   const {
     kpis,
+    intelligence,
     channelComparison,
     sellerPerformance,
     topCustomers,
@@ -137,6 +139,7 @@ export function DashboardOverviewV2() {
       )}
 
       {/* KPI Cards */}
+      {intelligence && <DashboardIntelligence intelligence={intelligence} />}
       <DashboardKPICardsV2 kpis={kpis} onKPIClick={handleKPIClick} />
 
       {/* BI Intelligence Cards */}

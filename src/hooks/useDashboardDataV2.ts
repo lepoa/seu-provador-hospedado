@@ -101,8 +101,49 @@ export type PendingAction = {
   severity: "warning" | "error" | "info";
 };
 
+export interface BusinessHealthComponents {
+  conversion: number;
+  ticket: number;
+  pa: number;
+  cancel: number;
+  pendencias: number;
+  growth: number;
+  recorrencia: number;
+}
+
+export interface BusinessHealthRaw {
+  conversion_percent: number;
+  ticket_value: number;
+  pa_value: number;
+  cancel_percent: number;
+  pending_rate: number;
+  pending_orders: number;
+  growth_percent: number;
+  recurrence_score: number;
+}
+
+export interface BusinessHealthScore {
+  score: number;
+  classification: "strong" | "stable" | "attention" | "risk";
+  trend: number;
+  components: BusinessHealthComponents;
+  raw: BusinessHealthRaw;
+}
+
+export interface BusinessProjection {
+  average_daily_7d: number;
+  rfv_pending_impact_7d: number;
+  projected_7d_revenue: number;
+}
+
+export interface DashboardIntelligenceData {
+  health: BusinessHealthScore;
+  projection: BusinessProjection;
+}
+
 export function useDashboardDataV2(filters: DashboardFilters) {
   const [kpis, setKpis] = useState<DashboardKPIsV2 | null>(null);
+  const [intelligence, setIntelligence] = useState<DashboardIntelligenceData | null>(null);
   const [channelComparison, setChannelComparison] = useState<ChannelComparison | null>(null);
   const [sellerPerformance, setSellerPerformance] = useState<SellerPerformance[]>([]);
   const [topCustomers, setTopCustomers] = useState<TopCustomer[]>([]);
@@ -501,6 +542,62 @@ export function useDashboardDataV2(filters: DashboardFilters) {
         fetchNewCustomers(prevStartDate, prevEndDate)
       ]);
 
+      const startDateParam = startDate.toISOString().slice(0, 10);
+      const endDateParam = endDate.toISOString().slice(0, 10);
+      const [{ data: healthData, error: healthError }, { data: projectionData, error: projectionError }] =
+        await Promise.all([
+          supabase.rpc("get_business_health_score", {
+            p_start_date: startDateParam,
+            p_end_date: endDateParam,
+            p_channel: filters.channel,
+          }),
+          supabase.rpc("get_business_projection", {
+            p_start_date: startDateParam,
+            p_end_date: endDateParam,
+          }),
+        ]);
+
+      if (healthError) {
+        console.error("[Dashboard Intelligence] health score error:", healthError);
+      }
+      if (projectionError) {
+        console.error("[Dashboard Intelligence] projection error:", projectionError);
+      }
+
+      const parsedHealth = (healthData || {}) as any;
+      const parsedProjection = (projectionData || {}) as any;
+      setIntelligence({
+        health: {
+          score: Number(parsedHealth.score || 0),
+          classification: (parsedHealth.classification || "risk") as BusinessHealthScore["classification"],
+          trend: Number(parsedHealth.trend || 0),
+          components: {
+            conversion: Number(parsedHealth?.components?.conversion || 0),
+            ticket: Number(parsedHealth?.components?.ticket || 0),
+            pa: Number(parsedHealth?.components?.pa || 0),
+            cancel: Number(parsedHealth?.components?.cancel || 0),
+            pendencias: Number(parsedHealth?.components?.pendencias || 0),
+            growth: Number(parsedHealth?.components?.growth || 0),
+            recorrencia: Number(parsedHealth?.components?.recorrencia || 0),
+          },
+          raw: {
+            conversion_percent: Number(parsedHealth?.raw?.conversion_percent || 0),
+            ticket_value: Number(parsedHealth?.raw?.ticket_value || 0),
+            pa_value: Number(parsedHealth?.raw?.pa_value || 0),
+            cancel_percent: Number(parsedHealth?.raw?.cancel_percent || 0),
+            pending_rate: Number(parsedHealth?.raw?.pending_rate || 0),
+            pending_orders: Number(parsedHealth?.raw?.pending_orders || 0),
+            growth_percent: Number(parsedHealth?.raw?.growth_percent || 0),
+            recurrence_score: Number(parsedHealth?.raw?.recurrence_score || 0),
+          },
+        },
+        projection: {
+          average_daily_7d: Number(parsedProjection.average_daily_7d || 0),
+          rfv_pending_impact_7d: Number(parsedProjection.rfv_pending_impact_7d || 0),
+          projected_7d_revenue: Number(parsedProjection.projected_7d_revenue || 0),
+        },
+      });
+
       const cancelledCount = orders.filter(o => o.status === "cancelado").length;
       const notCancelledCount = orders.filter(o => o.status !== "cancelado").length;
 
@@ -540,6 +637,7 @@ export function useDashboardDataV2(filters: DashboardFilters) {
 
   return {
     kpis,
+    intelligence,
     channelComparison,
     sellerPerformance,
     topCustomers,
