@@ -173,7 +173,6 @@ BEGIN
       END AS impact_ticket,
       (c.pending_orders::numeric * c.baseline_ticket_value) AS impact_pending,
       ((c.cancel_percent / 100.0) * c.reserved_total) AS impact_cancel,
-      c.impact_rfv,
       CASE
         WHEN 1.2 > 0 THEN GREATEST(0::numeric, (1.2 - c.pa_value) / 1.2)
         ELSE 0::numeric
