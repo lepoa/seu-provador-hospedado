@@ -55,6 +55,7 @@ const LivePendenciasPage = lazy(() => import("./pages/LivePendenciasPage"));
 const InsightsPage = lazy(() => import("./pages/InsightsPage"));
 const CopilotoRFV = lazy(() => import("./pages/CopilotoRFV"));
 const DashboardConsultoraPage = lazy(() => import("./pages/DashboardConsultoraPage"));
+const ClientesRankingPage = lazy(() => import("./pages/ClientesRankingPage"));
 
 const queryClient = new QueryClient();
 
@@ -135,6 +136,7 @@ const App = () => (
             <Route path="/dashboard/insights" element={withRouteSuspense(InsightsPage)} />
             <Route path="/dashboard/rfv" element={withRouteSuspense(CopilotoRFV)} />
             <Route path="/dashboard/consultora" element={withRouteSuspense(DashboardConsultoraPage)} />
+            <Route path="/clientes/ranking" element={withRouteSuspense(ClientesRankingPage)} />
             <Route path="/importar-estoque" element={withRouteSuspense(ImportarEstoque)} />
             
             {/* E-commerce routes */}

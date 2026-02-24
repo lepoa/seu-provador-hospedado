@@ -194,7 +194,15 @@ export function DashboardBICards() {
               </div>
             ))
           )}
-          <Button variant="ghost" size="sm" className="w-full mt-2 gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full mt-2 gap-1"
+            onClick={(event) => {
+              event.stopPropagation();
+              handleNavigateToInsights("qty");
+            }}
+          >
             Ver ranking completo <ChevronRight className="h-3 w-3" />
           </Button>
         </CardContent>
@@ -227,7 +235,15 @@ export function DashboardBICards() {
               </div>
             ))
           )}
-          <Button variant="ghost" size="sm" className="w-full mt-2 gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full mt-2 gap-1"
+            onClick={(event) => {
+              event.stopPropagation();
+              handleNavigateToInsights("revenue");
+            }}
+          >
             Ver ranking completo <ChevronRight className="h-3 w-3" />
           </Button>
         </CardContent>
@@ -270,7 +286,15 @@ export function DashboardBICards() {
               </div>
             ))
           )}
-          <Button variant="ghost" size="sm" className="w-full mt-2 gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full mt-2 gap-1"
+            onClick={(event) => {
+              event.stopPropagation();
+              handleNavigateToInsights("risk");
+            }}
+          >
             Ver todos alertas <ChevronRight className="h-3 w-3" />
           </Button>
         </CardContent>
