@@ -251,7 +251,7 @@ export function useRFVData() {
     try {
       const { data: metricsData, error: metricsError } = await supabase
         .from("customer_rfv_metrics")
-        .select("*, customer:customers(name, phone, phone_e164)")
+        .select("*, customer:customers(*)")
         .order("monetary_value", { ascending: false });
 
       if (metricsError) throw metricsError;
@@ -269,7 +269,7 @@ export function useRFVData() {
 
       const { data: tasksData, error: tasksError } = await supabase
         .from("rfv_tasks")
-        .select("*, customer:customers(name, phone, phone_e164)")
+        .select("*, customer:customers(*)")
         .in("status", [
           "pendente",
           "enviado",
