@@ -18,6 +18,8 @@ interface ProductCardProps {
   // Legacy: product-level discounts (deprecated, kept for backward compat)
   discountType?: 'percentage' | 'fixed' | null;
   discountValue?: number | null;
+  showSizes?: boolean;
+  discountBadgeVariant?: "default" | "subtle";
 }
 
 export function ProductCard({
@@ -34,6 +36,8 @@ export function ProductCard({
   discountPercent = 0,
   discountType,
   discountValue,
+  showSizes = true,
+  discountBadgeVariant = "default",
 }: ProductCardProps) {
   const formatPrice = (value: number) =>
     new Intl.NumberFormat("pt-BR", {
@@ -65,10 +69,22 @@ export function ProductCard({
   }
 
   return (
-    <div className={cn("card-product group", isOutOfStock && "opacity-60")}>
-      <div className="relative aspect-[3/4] overflow-hidden bg-secondary">
+    <div
+      className={cn(
+        "group overflow-hidden rounded-2xl border border-[#d2ba8966] bg-[#fffdf8] shadow-[0_8px_24px_rgba(16,40,32,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(16,40,32,0.10)]",
+        isOutOfStock && "opacity-60"
+      )}
+    >
+      <div className="relative aspect-[3/4] overflow-hidden bg-[#f5f0e4]">
         {showDiscount && discountLabel && (
-          <span className="absolute top-2 right-2 z-10 bg-green-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
+          <span
+            className={cn(
+              "absolute right-2 top-2 z-10 flex items-center rounded-full border text-[10px]",
+              discountBadgeVariant === "subtle"
+                ? "gap-0.5 border-[#cbb48a] bg-[#f8f2e6]/95 px-1.5 py-0.5 font-medium text-[#7a6744]"
+                : "gap-1 border-[#c19a54] bg-[#f6ebd5] px-2 py-1 font-bold text-[#6f572e]"
+            )}
+          >
             <Tag className="h-3 w-3" />
             {discountLabel}
           </span>
@@ -83,16 +99,16 @@ export function ProductCard({
           )}
         />
         <div className={cn(
-          "absolute inset-0 bg-gradient-to-t from-black/20 to-transparent transition-opacity",
+          "absolute inset-0 bg-gradient-to-t from-[#102820]/30 via-transparent to-transparent transition-opacity",
           isOutOfStock ? "opacity-30" : "opacity-0 group-hover:opacity-100"
         )} />
       </div>
       
       <div className="p-3 md:p-4">
-        <h3 className="font-medium text-sm md:text-base line-clamp-2 mb-1">{name}</h3>
+        <h3 className="mb-1 line-clamp-2 text-sm font-medium text-[#1d1b18] md:text-base">{name}</h3>
         
-        {sizes.length > 0 && (
-          <p className="text-xs text-muted-foreground mb-2">
+        {showSizes && sizes.length > 0 && (
+          <p className="mb-2 text-xs text-[#6d6658]">
             Tam: {sizes.slice(0, 4).join(", ")}{sizes.length > 4 ? "..." : ""}
           </p>
         )}
@@ -102,18 +118,18 @@ export function ProductCard({
             {showDiscount ? (
               <>
                 <span className={cn(
-                  "font-semibold text-base md:text-lg text-green-600",
+                  "text-base font-semibold text-[#6f572e] md:text-lg",
                   isOutOfStock && "text-muted-foreground"
                 )}>
                   {formatPrice(finalPrice)}
                 </span>
-                <span className="text-xs text-muted-foreground line-through">
+                <span className="text-xs text-[#88806e] line-through">
                   {formatPrice(price)}
                 </span>
               </>
             ) : (
               <span className={cn(
-                "font-semibold text-base md:text-lg",
+                "text-base font-semibold text-[#102820] md:text-lg",
                 isOutOfStock && "text-muted-foreground"
               )}>
                 {formatPrice(price)}
@@ -121,7 +137,12 @@ export function ProductCard({
             )}
           </div>
           {onAddToLook && !isOutOfStock && (
-            <Button size="sm" variant="outline" onClick={onAddToLook} className="gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onAddToLook}
+              className="gap-1.5 border-[#c7aa6b] bg-[#f8f1df] text-[#2f2a22] hover:border-[#b8944e] hover:bg-[#f2e6cc]"
+            >
               <ShoppingBag className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Adicionar</span>
             </Button>

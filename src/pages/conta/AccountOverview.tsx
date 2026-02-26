@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Package, Target, Heart, Loader2 } from "lucide-react";
+import { Heart, Loader2, Package, Target } from "lucide-react";
 import { AccountLayout } from "@/components/account/AccountLayout";
 import { LoyaltyClubCard } from "@/components/account/LoyaltyClubCard";
 import { QuickActionCard } from "@/components/account/QuickActionCard";
@@ -13,7 +13,6 @@ export default function AccountOverview() {
   const [lastOrder, setLastOrder] = useState<{ id: string; status: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Redirect to auth if not logged in
   useEffect(() => {
     if (!authLoading && !user) {
       navigate("/minha-conta/auth");
@@ -53,7 +52,7 @@ export default function AccountOverview() {
     return (
       <AccountLayout>
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Loader2 className="h-8 w-8 animate-spin text-[#6f6759]" />
         </div>
       </AccountLayout>
     );
@@ -61,18 +60,15 @@ export default function AccountOverview() {
 
   return (
     <AccountLayout>
-      {/* Welcome */}
-      <div className="mb-6">
-        <h1 className="font-serif text-2xl mb-1">Olá! 👋</h1>
-        <p className="text-muted-foreground text-sm">Bem-vinda ao seu espaço Le.Poá</p>
+      <div className="mb-6 rounded-2xl border border-[#ccb487]/45 bg-[#fffaf0] p-5 shadow-sm">
+        <h1 className="mb-1 font-serif text-2xl text-[#13261f]">Olá! 👋</h1>
+        <p className="text-sm font-medium text-[#6f6759]">Bem-vinda ao seu espaço Le.Poá</p>
       </div>
 
-      {/* Club Card */}
       <div className="mb-6">
         <LoyaltyClubCard variant="full" />
       </div>
 
-      {/* Quick Actions */}
       <div className="space-y-3">
         <QuickActionCard
           title="Meus Pedidos"

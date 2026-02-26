@@ -111,18 +111,18 @@ export function AccountLayout({ children, title, showBackButton }: AccountLayout
   // Desktop layout with sidebar
   if (!isMobile) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-[#f8f3e8]">
         <Header />
 
         <div className="container mx-auto px-4 py-8">
-          <div className="flex gap-8 max-w-6xl mx-auto">
+          <div className="mx-auto flex max-w-6xl gap-8">
             {/* Sidebar */}
             <aside className="w-64 shrink-0">
-              <div className="sticky top-24">
+              <div className="sticky top-24 rounded-2xl border border-[#ccb487]/45 bg-[#fffaf0] p-4 shadow-[0_8px_24px_rgba(16,37,31,0.08)]">
                 {/* User greeting */}
                 <div className="mb-6 px-2">
-                  <p className="text-sm text-muted-foreground">Olá,</p>
-                  <p className="font-serif text-lg truncate">{user?.email?.split("@")[0]}</p>
+                  <p className="text-sm font-medium text-[#7d7568]">Olá,</p>
+                  <p className="truncate font-serif text-lg text-[#13261f]">{user?.email?.split("@")[0]}</p>
                 </div>
 
                 {/* Navigation */}
@@ -136,16 +136,16 @@ export function AccountLayout({ children, title, showBackButton }: AccountLayout
                         key={item.href}
                         to={item.href}
                         className={cn(
-                          "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors group",
+                          "group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors",
                           isActive
-                            ? "bg-primary text-primary-foreground"
-                            : "hover:bg-secondary text-foreground",
-                          item.highlight && !isActive && "text-accent"
+                            ? "bg-[#15251f] text-[#f5e8c8]"
+                            : "text-[#292823] hover:bg-[#f0e5cc]",
+                          item.highlight && !isActive && "text-[#a37d38]"
                         )}
                       >
                         <Icon className={cn(
                           "h-5 w-5 shrink-0",
-                          item.highlight && !isActive && "text-accent"
+                          item.highlight && !isActive && "text-[#a37d38]"
                         )} />
                         <span className="font-medium">{item.label}</span>
                         <ChevronRight className={cn(
@@ -158,10 +158,10 @@ export function AccountLayout({ children, title, showBackButton }: AccountLayout
                 </nav>
 
                 {/* Logout */}
-                <div className="mt-8 pt-6 border-t">
+                <div className="mt-8 border-t border-[#ccb487]/45 pt-6">
                   <Button
                     variant="ghost"
-                    className="w-full justify-start text-muted-foreground hover:text-destructive"
+                    className="w-full justify-start text-[#6f6759] hover:bg-[#f0e5cc] hover:text-[#3f392e]"
                     onClick={handleLogout}
                   >
                     <LogOut className="h-5 w-5 mr-3" />
@@ -174,7 +174,7 @@ export function AccountLayout({ children, title, showBackButton }: AccountLayout
             {/* Main content */}
             <main className="flex-1 min-w-0">
               {title && (
-                <h1 className="font-serif text-2xl mb-6">{title}</h1>
+                <h1 className="mb-6 font-serif text-2xl text-[#13261f]">{title}</h1>
               )}
               {children}
             </main>
@@ -186,27 +186,27 @@ export function AccountLayout({ children, title, showBackButton }: AccountLayout
 
   // Mobile layout with bottom nav
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-[#f8f3e8] pb-20">
       <Header />
 
       <main className="container mx-auto px-4 py-6">
         {showBackButton && (
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-1 text-muted-foreground mb-4 text-sm"
+            className="mb-4 flex items-center gap-1 text-sm text-[#746d61]"
           >
             <ChevronRight className="h-4 w-4 rotate-180" />
             Voltar
           </button>
         )}
         {title && (
-          <h1 className="font-serif text-xl mb-5">{title}</h1>
+          <h1 className="mb-5 font-serif text-xl text-[#13261f]">{title}</h1>
         )}
         {children}
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border z-50">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-[#ccb487]/45 bg-[#fffaf0]/98 backdrop-blur">
         <div className="flex items-center justify-around h-16">
           {bottomNavItems.map((item) => {
             const isActive = location.pathname === item.href ||
@@ -219,12 +219,12 @@ export function AccountLayout({ children, title, showBackButton }: AccountLayout
                 to={item.href}
                 className={cn(
                   "flex flex-col items-center justify-center gap-1 px-4 py-2 min-w-[64px]",
-                  isActive ? "text-primary" : "text-muted-foreground"
+                  isActive ? "text-[#13261f]" : "text-[#7a725f]"
                 )}
               >
                 <Icon className={cn(
                   "h-5 w-5",
-                  item.href === "/minha-conta/club" && "text-accent"
+                  item.href === "/minha-conta/club" && "text-[#a37d38]"
                 )} />
                 <span className="text-[10px] font-medium">{item.label}</span>
               </Link>

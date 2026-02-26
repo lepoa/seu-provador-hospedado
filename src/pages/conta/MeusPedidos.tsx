@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { Package, ChevronRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { ChevronRight, Package } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { buildWhatsAppLink, buildOrderShortMessage } from "@/lib/whatsappHelpers";
+import { buildOrderShortMessage, buildWhatsAppLink } from "@/lib/whatsappHelpers";
 import { getCustomerStatusDisplay } from "@/lib/orderStatusMapping";
 
 interface Order {
@@ -19,7 +19,7 @@ interface Order {
   customer_name: string;
   tracking_code: string | null;
   items_count?: number;
-  type?: 'regular' | 'live'; // Distinguish order source
+  type?: "regular" | "live";
 }
 
 export default function MeusPedidos() {
@@ -44,7 +44,6 @@ export default function MeusPedidos() {
     if (!user) return;
 
     try {
-      // 1. Fetch regular orders
       const { data: regularOrders, error: regularError } = await supabase
         .from("orders")
         .select("id, created_at, status, total, customer_name, tracking_code")
@@ -53,42 +52,36 @@ export default function MeusPedidos() {
 
       if (regularError) throw regularError;
 
-      // 2. Fetch live shop orders (live_carts linked to user)
-      // Including ALL statuses so the user can see orders as soon as they are reserved
-      const { data: liveOrders, error: liveError } = await (supabase
-        .from("live_carts") as any)
+      const { data: liveOrders, error: liveError } = await (supabase.from("live_carts") as any)
         .select("id, created_at, status, total")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
-      if (liveError && liveError.code !== "PGRST100") { // ignore if column doesn't exist yet (graceful degradation)
+      if (liveError && liveError.code !== "PGRST100") {
         console.error("Error fetching live orders:", liveError);
       }
 
-      // 3. Process regular orders
       const processedRegularOrders = await Promise.all(
         (regularOrders || []).map(async (order) => {
           const { count } = await supabase
             .from("order_items")
             .select("*", { count: "exact", head: true })
             .eq("order_id", order.id);
-          return { ...order, items_count: count || 0, type: 'regular' as const };
+          return { ...order, items_count: count || 0, type: "regular" as const };
         })
       );
 
-      // 4. Process live orders
-      const processedLiveOrders: Order[] = (liveOrders || []).map(order => ({
+      const processedLiveOrders: Order[] = (liveOrders || []).map((order) => ({
         id: order.id,
         created_at: order.created_at,
         status: order.status,
         total: order.total,
         customer_name: user?.user_metadata?.name || "Cliente",
-        tracking_code: null, // Default null since we removed it
+        tracking_code: null,
         items_count: 1,
-        type: 'live' as const
+        type: "live" as const,
       }));
 
-      // 5. Combine and Sort
       const allOrders = [...processedRegularOrders, ...processedLiveOrders].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
@@ -118,10 +111,10 @@ export default function MeusPedidos() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-[#f8f3e8]">
         <Header />
         <main className="container mx-auto px-4 py-8">
-          <Skeleton className="h-8 w-48 mb-6" />
+          <Skeleton className="mb-6 h-8 w-48" />
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
               <Skeleton key={i} className="h-24 w-full" />
@@ -133,13 +126,13 @@ export default function MeusPedidos() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#f8f3e8]">
       <Header />
 
-      <main className="container mx-auto px-4 py-8 max-w-2xl">
-        <h1 className="font-serif text-2xl mb-6">Meus Pedidos e Lives</h1>
-
-
+      <main className="container mx-auto max-w-2xl px-4 py-8">
+        <div className="mb-6 rounded-2xl border border-[#ccb487]/45 bg-[#fffaf0] p-5 shadow-sm">
+          <h1 className="font-serif text-2xl text-[#13261f]">Meus Pedidos e Lives</h1>
+        </div>
 
         {isLoading ? (
           <div className="space-y-4">
@@ -148,13 +141,11 @@ export default function MeusPedidos() {
             ))}
           </div>
         ) : orders.length === 0 ? (
-          <Card>
+          <Card className="border-[#ccb487]/45 bg-[#fffaf0] shadow-sm">
             <CardContent className="py-12 text-center">
-              <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground mb-4">
-                Você ainda não fez nenhum pedido
-              </p>
-              <Link to="/catalogo" className="text-accent hover:underline">
+              <Package className="mx-auto mb-4 h-12 w-12 text-[#7c7467]" />
+              <p className="mb-4 text-sm font-medium text-[#6f6759]">Você ainda não fez nenhum pedido</p>
+              <Link to="/catalogo" className="font-medium text-[#8a672d] hover:underline">
                 Conferir peças →
               </Link>
             </CardContent>
@@ -168,16 +159,17 @@ export default function MeusPedidos() {
               const whatsAppUrl = buildWhatsAppLink(buildOrderShortMessage(orderNumber));
 
               return (
-                <Card key={order.id} className="hover:shadow-md transition-shadow">
+                <Card
+                  key={order.id}
+                  className="border-[#d4bf98] bg-[#fffaf0] transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(17,37,31,0.10)]"
+                >
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <Link to={`/meus-pedidos/${order.id}`} className="flex-1">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-sm">
-                              Pedido #{orderNumber}
-                            </span>
-                            <Badge className={`${status.color} border-0 gap-1`}>
+                            <span className="text-sm font-medium">Pedido #{orderNumber}</span>
+                            <Badge className={`${status.color} gap-1 border-0`}>
                               <StatusIcon className="h-3 w-3" />
                               {status.label}
                             </Badge>
@@ -185,16 +177,13 @@ export default function MeusPedidos() {
                           <p className="text-sm text-muted-foreground">
                             {formatDate(order.created_at)} • {order.items_count} {order.items_count === 1 ? "item" : "itens"}
                           </p>
-                          <p className="font-semibold">{formatPrice(order.total)}</p>
+                          <p className="font-semibold text-[#13261f]">{formatPrice(order.total)}</p>
                         </div>
                       </Link>
                       <div className="flex items-center gap-2">
-                        <WhatsAppButton
-                          href={whatsAppUrl}
-                          variant="circle"
-                        />
+                        <WhatsAppButton href={whatsAppUrl} variant="circle" />
                         <Link to={`/meus-pedidos/${order.id}`}>
-                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                          <ChevronRight className="h-5 w-5 text-[#746d61]" />
                         </Link>
                       </div>
                     </div>

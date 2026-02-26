@@ -48,6 +48,13 @@ export interface DashboardKPIsV2 {
   taxaCancelamento: number;
 }
 
+export interface ExecutivePulse {
+  receitaHoje: MainKPI;
+  receita7d: MainKPI;
+  conversao: MainKPI;
+  ticketMedio: MainKPI;
+}
+
 export interface ChannelComparison {
   catalog: {
     pago: number;
@@ -166,6 +173,7 @@ export interface RevenueCommandData {
 
 export function useDashboardDataV2(filters: DashboardFilters) {
   const [kpis, setKpis] = useState<DashboardKPIsV2 | null>(null);
+  const [executivePulse, setExecutivePulse] = useState<ExecutivePulse | null>(null);
   const [intelligence, setIntelligence] = useState<DashboardIntelligenceData | null>(null);
   const [revenueCommand, setRevenueCommand] = useState<RevenueCommandData | null>(null);
   const [channelComparison, setChannelComparison] = useState<ChannelComparison | null>(null);
@@ -239,43 +247,47 @@ export function useDashboardDataV2(filters: DashboardFilters) {
       setSellers(sellersRes.data || []);
       setLiveEvents(livesRes.data || []);
 
-      // Fetch orders for current period - SINGLE SOURCE OF TRUTH for all KPIs
-      let ordersQuery = supabase
-        .from("orders")
-        .select("*, order_items(*)")
-        .gte("created_at", startDate.toISOString())
-        .lte("created_at", endDate.toISOString());
+      const buildOrdersQuery = (from: Date, to: Date) => {
+        let query = supabase
+          .from("orders")
+          .select("*, order_items(*)")
+          .gte("created_at", from.toISOString())
+          .lte("created_at", to.toISOString());
 
-      if (filters.channel === "catalog") {
-        ordersQuery = ordersQuery.is("live_event_id", null);
-      } else if (filters.channel === "live") {
-        ordersQuery = ordersQuery.not("live_event_id", "is", null);
-      }
-      if (filters.liveEventId) {
-        ordersQuery = ordersQuery.eq("live_event_id", filters.liveEventId);
-      }
-      if (filters.sellerId) {
-        ordersQuery = ordersQuery.eq("seller_id", filters.sellerId);
-      }
+        if (filters.channel === "catalog") {
+          query = query.is("live_event_id", null);
+        } else if (filters.channel === "live") {
+          query = query.not("live_event_id", "is", null);
+        }
+        if (filters.liveEventId) {
+          query = query.eq("live_event_id", filters.liveEventId);
+        }
+        if (filters.sellerId) {
+          query = query.eq("seller_id", filters.sellerId);
+        }
+
+        return query;
+      };
+
+      // Fetch orders for current period - SINGLE SOURCE OF TRUTH for all KPIs
+      const ordersQuery = buildOrdersQuery(startDate, endDate);
 
       // Fetch orders for previous period (for comparison)
-      let prevOrdersQuery = supabase
-        .from("orders")
-        .select("*, order_items(*)")
-        .gte("created_at", prevStartDate.toISOString())
-        .lte("created_at", prevEndDate.toISOString());
+      const prevOrdersQuery = buildOrdersQuery(prevStartDate, prevEndDate);
 
-      if (filters.channel === "catalog") {
-        prevOrdersQuery = prevOrdersQuery.is("live_event_id", null);
-      } else if (filters.channel === "live") {
-        prevOrdersQuery = prevOrdersQuery.not("live_event_id", "is", null);
-      }
-      if (filters.liveEventId) {
-        prevOrdersQuery = prevOrdersQuery.eq("live_event_id", filters.liveEventId);
-      }
-      if (filters.sellerId) {
-        prevOrdersQuery = prevOrdersQuery.eq("seller_id", filters.sellerId);
-      }
+      const todayEnd = endOfDay(endDate);
+      const todayStart = startOfDay(endDate);
+      const yesterdayStart = startOfDay(subDays(endDate, 1));
+      const yesterdayEnd = endOfDay(subDays(endDate, 1));
+      const last7Start = startOfDay(subDays(endDate, 6));
+      const last7End = endOfDay(endDate);
+      const previous7Start = startOfDay(subDays(endDate, 13));
+      const previous7End = endOfDay(subDays(endDate, 7));
+
+      const receitaHojeQuery = buildOrdersQuery(todayStart, todayEnd);
+      const receitaOntemQuery = buildOrdersQuery(yesterdayStart, yesterdayEnd);
+      const receita7dQuery = buildOrdersQuery(last7Start, last7End);
+      const receita7dPrevQuery = buildOrdersQuery(previous7Start, previous7End);
 
       // Fetch customers for top customers
       const customersQuery = supabase
@@ -284,15 +296,23 @@ export function useDashboardDataV2(filters: DashboardFilters) {
         .order("total_spent", { ascending: false })
         .limit(10);
 
-      const [ordersRes, prevOrdersRes, customersRes] = await Promise.all([
+      const [ordersRes, prevOrdersRes, customersRes, receitaHojeRes, receitaOntemRes, receita7dRes, receita7dPrevRes] = await Promise.all([
         ordersQuery,
         prevOrdersQuery,
         customersQuery,
+        receitaHojeQuery,
+        receitaOntemQuery,
+        receita7dQuery,
+        receita7dPrevQuery,
       ]);
 
       const orders = ordersRes.data || [];
       const prevOrders = prevOrdersRes.data || [];
       const customers = customersRes.data || [];
+      const receitaHojeOrders = receitaHojeRes.data || [];
+      const receitaOntemOrders = receitaOntemRes.data || [];
+      const receita7dOrders = receita7dRes.data || [];
+      const receita7dPrevOrders = receita7dPrevRes.data || [];
 
       // Debug logging for troubleshooting
       {
@@ -551,6 +571,24 @@ export function useDashboardDataV2(filters: DashboardFilters) {
         return { value: current, previousValue: previous, change, changePercent };
       };
 
+      const receitaHoje = calcKPIs(receitaHojeOrders);
+      const receitaOntem = calcKPIs(receitaOntemOrders);
+      const receita7d = calcKPIs(receita7dOrders);
+      const receita7dPrev = calcKPIs(receita7dPrevOrders);
+
+      setExecutivePulse({
+        receitaHoje: createKPI(receitaHoje.paidTotal, receitaOntem.paidTotal),
+        receita7d: createKPI(receita7d.paidTotal, receita7dPrev.paidTotal),
+        conversao: createKPI(
+          receita7d.reservedTotal > 0 ? (receita7d.paidTotal / receita7d.reservedTotal) * 100 : 0,
+          receita7dPrev.reservedTotal > 0 ? (receita7dPrev.paidTotal / receita7dPrev.reservedTotal) * 100 : 0
+        ),
+        ticketMedio: createKPI(
+          receita7d.paidCount > 0 ? receita7d.paidTotal / receita7d.paidCount : 0,
+          receita7dPrev.paidCount > 0 ? receita7dPrev.paidTotal / receita7dPrev.paidCount : 0
+        ),
+      });
+
       // Fetch new customers count
       const fetchNewCustomers = async (start: Date, end: Date) => {
         const { count } = await supabase
@@ -706,6 +744,7 @@ export function useDashboardDataV2(filters: DashboardFilters) {
 
   return {
     kpis,
+    executivePulse,
     intelligence,
     revenueCommand,
     channelComparison,

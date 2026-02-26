@@ -259,6 +259,7 @@ const AI_TO_FORM_COLOR: Record<string, string> = ERP_TO_FORM_COLOR;
 export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: ProductFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
 
   // Multi-image state
   const [images, setImages] = useState<string[]>([]);
@@ -296,11 +297,49 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
 
   // Build dynamic color list including the product's color if not in base list
   const [availableColors, setAvailableColors] = useState<string[]>(BASE_COLORS);
+  const [availableCategories, setAvailableCategories] = useState<string[]>(CATEGORIES);
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+
+  const loadAvailableCategories = async (currentCategory?: string | null) => {
+    try {
+      const [metaRes, productRes] = await Promise.all([
+        (supabase.from("categories" as any) as any)
+          .select("name")
+          .eq("user_id", userId),
+        supabase
+          .from("product_catalog")
+          .select("category")
+          .or(`user_id.eq.${userId},user_id.is.null`),
+      ]);
+
+      const values = new Set<string>(CATEGORIES);
+
+      (metaRes?.data || []).forEach((row: { name?: string | null }) => {
+        if (row?.name?.trim()) values.add(row.name.trim());
+      });
+
+      (productRes.data || []).forEach((row) => {
+        if (row?.category?.trim()) values.add(row.category.trim());
+      });
+
+      if (currentCategory?.trim()) values.add(currentCategory.trim());
+
+      setAvailableCategories(
+        Array.from(values).sort((a, b) => a.localeCompare(b, "pt-BR"))
+      );
+    } catch {
+      const fallback = new Set<string>(CATEGORIES);
+      if (currentCategory?.trim()) fallback.add(currentCategory.trim());
+      setAvailableCategories(Array.from(fallback));
+    }
+  };
 
   useEffect(() => {
     if (product) {
       // Normalize the color from ERP/DB to match form options
       const normalizedColor = normalizeColor(product.color);
+      const normalizedCategory = normalizeOptionalText(product.category);
 
       setFormData({
         ...product,
@@ -308,6 +347,7 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
         sku: product.sku || product.group_key || null,
         // Set normalized color
         color: normalizedColor,
+        category: normalizedCategory,
         occasion: normalizeOccasionValue(product.occasion),
         sizes: product.sizes || [],
         tags: product.tags || [],
@@ -330,6 +370,8 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
       } else {
         setAvailableColors(BASE_COLORS);
       }
+
+      loadAvailableCategories(normalizedCategory);
     } else {
       // Reset to defaults for new product
       setFormData({
@@ -360,6 +402,7 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
       setStockBySize({});
       setLockedStockBySize({});
       setAvailableColors(BASE_COLORS);
+      loadAvailableCategories();
     }
     clearAnalysis();
   }, [product, open]);
@@ -432,6 +475,38 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
 
     setFormData(prev => ({ ...prev, ...updates }));
     toast.success("Sugestões aplicadas!");
+  };
+
+  const handleCreateInlineCategory = async () => {
+    const categoryName = newCategoryName.trim();
+    if (!categoryName) {
+      toast.error("Informe o nome da categoria");
+      return;
+    }
+
+    setIsCreatingCategory(true);
+    try {
+      const { error } = await (supabase.from("categories" as any) as any).insert({
+        user_id: userId,
+        name: categoryName,
+        is_active: true,
+      });
+
+      if (error && error.code !== "23505") {
+        throw error;
+      }
+
+      await loadAvailableCategories(categoryName);
+      setFormData((prev) => ({ ...prev, category: categoryName }));
+      setCategoryModalOpen(false);
+      setNewCategoryName("");
+      toast.success("Categoria criada");
+    } catch (error) {
+      console.error("Error creating inline category:", error);
+      toast.error("Erro ao criar categoria");
+    } finally {
+      setIsCreatingCategory(false);
+    }
   };
 
   const handleGenerateDescription = async () => {
@@ -798,7 +873,8 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-serif">
@@ -897,15 +973,24 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
               <Label>Categoria</Label>
               <Select
                 value={formData.category || ""}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+                onValueChange={(value) => {
+                  if (value === "new_category") {
+                    setCategoryModalOpen(true);
+                    return;
+                  }
+                  setFormData(prev => ({ ...prev, category: value }));
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  {CATEGORIES.map(cat => (
+                  {availableCategories.map(cat => (
                     <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                   ))}
+                  <SelectItem value="new_category" className="font-medium text-primary">
+                    + Criar nova categoria
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1193,5 +1278,55 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
         </form>
       </DialogContent>
     </Dialog>
+
+    <Dialog
+      open={categoryModalOpen}
+      onOpenChange={(next) => {
+        setCategoryModalOpen(next);
+        if (!next) {
+          setNewCategoryName("");
+        }
+      }}
+    >
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Nova categoria</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div>
+            <Label htmlFor="new-category-name">Nome da categoria</Label>
+            <Input
+              id="new-category-name"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              placeholder="Ex: Blusas"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setCategoryModalOpen(false);
+                setNewCategoryName("");
+              }}
+              disabled={isCreatingCategory}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={handleCreateInlineCategory}
+              disabled={isCreatingCategory}
+            >
+              {isCreatingCategory ? "Salvando..." : "Criar categoria"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

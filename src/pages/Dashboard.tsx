@@ -1,34 +1,31 @@
-import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { User, Session } from "@supabase/supabase-js";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { User } from "@supabase/supabase-js";
 import {
-  Users,
+  Archive,
+  BadgeCheck,
+  Brain,
+  Crown,
+  FileSpreadsheet,
+  Gift,
   Image,
+  LayoutDashboard,
+  Link2,
   LogOut,
   Package,
-  Link2,
-  FileSpreadsheet,
-  ShoppingBag,
-  UserCheck,
   Radio,
-  Ticket,
-  LayoutDashboard,
-  UsersRound,
-  Crown,
-  Gift,
-  RefreshCw,
-  Tag,
-  Brain,
+  ShoppingBag,
   Sparkles,
+  Tag,
+  Ticket,
+  UserCheck,
+  UserRound,
+  UsersRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { ProductsManager } from "@/components/ProductsManager";
+import { ProductCategoriesManager } from "@/components/ProductCategoriesManager";
 import { PrintLinkProduct } from "@/components/PrintLinkProduct";
 import { OrdersManager } from "@/components/OrdersManager";
 import { CustomersManagerV2 } from "@/components/crm/CustomersManagerV2";
@@ -42,9 +39,9 @@ import { LoyaltyClubAdmin } from "@/components/admin/LoyaltyClubAdmin";
 import { PromotionalTablesManager } from "@/components/promotions/PromotionalTablesManager";
 import { ProfileManager } from "@/components/admin/ProfileManager";
 import { supabase } from "@/integrations/supabase/client";
-
 import { toast } from "sonner";
 import logoLepoa from "@/assets/logo-lepoa.png";
+import { cn } from "@/lib/utils";
 
 interface Customer {
   id: string;
@@ -74,21 +71,133 @@ interface Product {
   price: number;
 }
 
+type DashboardTabValue =
+  | "overview"
+  | "clientes"
+  | "products"
+  | "categories"
+  | "orders"
+  | "lives"
+  | "cupons"
+  | "promocoes"
+  | "brindes"
+  | "club"
+  | "equipe"
+  | "profiles"
+  | "prints";
+
+type SidebarItem = {
+  id: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  kind: "tab" | "route";
+  value: string;
+  showPrintCount?: boolean;
+};
+
+type SidebarSection = {
+  title: string;
+  items: SidebarItem[];
+};
+
+const SIDEBAR_SECTIONS: SidebarSection[] = [
+  {
+    title: "VISÃO GERAL",
+    items: [{ id: "overview", label: "Dashboard", icon: LayoutDashboard, kind: "tab", value: "overview" }],
+  },
+  {
+    title: "VENDAS",
+    items: [
+      { id: "orders", label: "Pedidos", icon: ShoppingBag, kind: "tab", value: "orders" },
+      { id: "lives", label: "Lives", icon: Radio, kind: "tab", value: "lives" },
+      { id: "cupons", label: "Cupons", icon: Ticket, kind: "tab", value: "cupons" },
+      { id: "promocoes", label: "Promoções", icon: Tag, kind: "tab", value: "promocoes" },
+      { id: "brindes", label: "Brindes", icon: Gift, kind: "tab", value: "brindes" },
+    ],
+  },
+  {
+    title: "CLIENTES",
+    items: [
+      { id: "clientes", label: "Clientes", icon: UserCheck, kind: "tab", value: "clientes" },
+      { id: "rfv", label: "RFV", icon: Brain, kind: "route", value: "/dashboard/rfv" },
+      { id: "club", label: "Club", icon: Crown, kind: "tab", value: "club" },
+    ],
+  },
+  {
+    title: "PRODUTOS",
+    items: [
+      { id: "products", label: "Produtos", icon: Package, kind: "tab", value: "products" },
+      { id: "importar-estoque", label: "Estoque", icon: Archive, kind: "route", value: "/importar-estoque" },
+      { id: "categorias", label: "Categorias", icon: BadgeCheck, kind: "tab", value: "categories" },
+      { id: "prints", label: "Prints", icon: Image, kind: "tab", value: "prints", showPrintCount: true },
+    ],
+  },
+  {
+    title: "GESTÃO",
+    items: [
+      { id: "equipe", label: "Equipe", icon: UsersRound, kind: "tab", value: "equipe" },
+      { id: "profiles", label: "Time & Acessos", icon: UsersRound, kind: "tab", value: "profiles" },
+      { id: "consultora", label: "Consultoria IA", icon: Sparkles, kind: "route", value: "/dashboard/consultora" },
+    ],
+  },
+];
+
+const DASHBOARD_TAB_VALUES: DashboardTabValue[] = [
+  "overview",
+  "clientes",
+  "products",
+  "categories",
+  "orders",
+  "lives",
+  "cupons",
+  "promocoes",
+  "brindes",
+  "club",
+  "equipe",
+  "profiles",
+  "prints",
+];
+
 const Dashboard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tabParam = searchParams.get("tab");
+  const tabParamRaw = searchParams.get("tab");
+  const tabParam = DASHBOARD_TAB_VALUES.includes(tabParamRaw as DashboardTabValue)
+    ? (tabParamRaw as DashboardTabValue)
+    : null;
   const filterParam = searchParams.get("filter");
-  const [activeTab, setActiveTab] = useState(tabParam || "overview");
+  const [activeTab, setActiveTab] = useState<DashboardTabValue>(tabParam || "overview");
 
   // Sync tab with URL params
   useEffect(() => {
     if (tabParam && tabParam !== activeTab) {
       setActiveTab(tabParam);
     }
-  }, [tabParam]);
+  }, [activeTab, tabParam]);
 
-  const handleTabChange = (value: string) => {
+  const handleTabChange = (value: DashboardTabValue) => {
+    setActiveTab(value);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set("tab", value);
+
+    if (value !== tabParam) {
+      newParams.delete("filter");
+    }
+
+    setSearchParams(newParams);
+  };
+
+  const handleSidebarItemSelect = (item: SidebarItem) => {
+    if (item.kind === "tab") {
+      handleTabChange(item.value as DashboardTabValue);
+      return;
+    }
+
+    navigate(item.value);
+  };
+
+  const handleMobileNavSelect = (value: string) => {
     if (value === "rfv") {
       navigate("/dashboard/rfv");
       return;
@@ -99,29 +208,23 @@ const Dashboard = () => {
       return;
     }
 
-    setActiveTab(value);
-    const newParams = new URLSearchParams(searchParams);
-    newParams.set("tab", value);
-    // Clear filter when changing tabs
-    if (value !== tabParam) {
-      newParams.delete("filter");
+    if (DASHBOARD_TAB_VALUES.includes(value as DashboardTabValue)) {
+      handleTabChange(value as DashboardTabValue);
     }
-    setSearchParams(newParams);
   };
 
   useEffect(() => {
-    if (tabParam === "rfv") {
+    if (tabParamRaw === "rfv") {
       navigate("/dashboard/rfv", { replace: true });
       return;
     }
 
-    if (tabParam === "consultora") {
+    if (tabParamRaw === "consultora") {
       navigate("/dashboard/consultora", { replace: true });
     }
-  }, [navigate, tabParam]);
+  }, [navigate, tabParamRaw]);
 
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [printRequests, setPrintRequests] = useState<PrintRequest[]>([]);
   const [products, setProducts] = useState<Record<string, Product>>({});
@@ -131,19 +234,17 @@ const Dashboard = () => {
   const [selectedCustomerPhone, setSelectedCustomerPhone] = useState("");
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
 
-        if (!session) {
-          navigate("/login");
-        }
+      if (!session) {
+        navigate("/login");
       }
-    );
+    });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
       setUser(session?.user ?? null);
 
       if (!session) {
@@ -178,9 +279,7 @@ const Dashboard = () => {
       if (printsError) throw printsError;
       setPrintRequests(printsData || []);
 
-      const linkedProductIds = (printsData || [])
-        .filter(p => p.linked_product_id)
-        .map(p => p.linked_product_id);
+      const linkedProductIds = (printsData || []).filter((p) => p.linked_product_id).map((p) => p.linked_product_id);
 
       if (linkedProductIds.length > 0) {
         const { data: productsData } = await supabase
@@ -190,7 +289,9 @@ const Dashboard = () => {
 
         if (productsData) {
           const productsMap: Record<string, Product> = {};
-          productsData.forEach(p => { productsMap[p.id] = p; });
+          productsData.forEach((p) => {
+            productsMap[p.id] = p;
+          });
           setProducts(productsMap);
         }
       }
@@ -229,10 +330,18 @@ const Dashboard = () => {
   };
 
   const handleOpenLinkModal = (print: PrintRequest) => {
-    const customer = customers.find(c => c.id === print.customer_id);
+    const customer = customers.find((c) => c.id === print.customer_id);
     setSelectedPrint(print);
     setSelectedCustomerPhone(customer?.phone || "");
     setLinkModalOpen(true);
+  };
+
+  const isRouteItemActive = (item: SidebarItem) => {
+    if (item.kind !== "route") return false;
+    if (item.value === "/dashboard/rfv") return location.pathname.startsWith("/dashboard/rfv");
+    if (item.value === "/dashboard/consultora") return location.pathname.startsWith("/dashboard/consultora");
+    if (item.value === "/importar-estoque") return location.pathname.startsWith("/importar-estoque");
+    return false;
   };
 
   if (!user) {
@@ -240,240 +349,223 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden w-full max-w-full">
-      {/* Custom Header for Dashboard */}
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b border-border">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 h-14 sm:h-16 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-            {/* Mobile Nav */}
-            <DashboardMobileNav
-              activeTab={activeTab}
-              onTabChange={handleTabChange}
-              onLogout={handleLogout}
-              onImportStock={() => navigate("/importar-estoque")}
-              printCount={printRequests.length}
-            />
-            <img src={logoLepoa} alt="LE.POÁ" className="h-6 sm:h-8 shrink-0 max-w-[100px]" />
-            <div className="hidden md:block h-6 w-px bg-border" />
-            <span className="hidden md:block text-sm font-medium text-muted-foreground truncate">
-              Painel de Controle
-            </span>
-          </div>
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            <Button variant="outline" onClick={() => navigate("/importar-estoque")} size="sm" className="gap-2 hidden sm:flex h-9">
-              <FileSpreadsheet className="h-4 w-4" />
-              <span className="hidden lg:inline">Importar Estoque</span>
-            </Button>
-            <Button variant="ghost" onClick={handleLogout} size="sm" className="gap-2 hidden md:flex h-9">
-              <LogOut className="h-4 w-4" />
-              <span className="hidden lg:inline">Sair</span>
-            </Button>
-          </div>
+    <div className="admin-theme min-h-screen bg-[#f7f3e9] text-[#141414]">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[272px] border-r border-[#c8aa6a33] bg-[#102820] lg:flex lg:flex-col">
+        <div className="px-5 pb-5 pt-6">
+          <img src={logoLepoa} alt="Le.Poá" className="h-10 w-auto max-w-[170px] object-contain" />
         </div>
-      </header>
 
-      <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6 overflow-x-hidden w-full">
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4 sm:space-y-6">
-          {/* Desktop Tabs - Hidden on mobile */}
-          <TabsList className="hidden md:flex flex-wrap bg-muted/50 p-1">
-            <TabsTrigger value="overview" className="gap-2">
-              <LayoutDashboard className="h-4 w-4" />
-              Visão Geral
-            </TabsTrigger>
-            <TabsTrigger value="clientes" className="gap-2">
-              <UserCheck className="h-4 w-4" />
-              Clientes
-            </TabsTrigger>
-            <TabsTrigger value="products" className="gap-2">
-              <Package className="h-4 w-4" />
-              Produtos
-            </TabsTrigger>
-            <TabsTrigger value="orders" className="gap-2">
-              <ShoppingBag className="h-4 w-4" />
-              Pedidos
-            </TabsTrigger>
-            <TabsTrigger value="lives" className="gap-2">
-              <Radio className="h-4 w-4" />
-              Lives
-            </TabsTrigger>
-            <TabsTrigger value="cupons" className="gap-2">
-              <Ticket className="h-4 w-4" />
-              Cupons
-            </TabsTrigger>
-            <TabsTrigger value="promocoes" className="gap-2">
-              <Tag className="h-4 w-4" />
-              Promoções
-            </TabsTrigger>
-            <TabsTrigger value="brindes" className="gap-2">
-              <Gift className="h-4 w-4" />
-              Brindes
-            </TabsTrigger>
-            <TabsTrigger value="club" className="gap-2">
-              <Crown className="h-4 w-4" />
-              Club
-            </TabsTrigger>
-            <TabsTrigger value="rfv" className="gap-2">
-              <Brain className="h-4 w-4" />
-              RFV
-            </TabsTrigger>
-            <TabsTrigger value="consultora" className="gap-2">
-              <Sparkles className="h-4 w-4" />
-              Consultora IA
-            </TabsTrigger>
-            <TabsTrigger value="equipe" className="gap-2">
-              <UsersRound className="h-4 w-4" />
-              Equipe
-            </TabsTrigger>
-            <TabsTrigger value="profiles" className="gap-2">
-              <UsersRound className="h-4 w-4" />
-              Time e Acessos
-            </TabsTrigger>
-            <TabsTrigger value="prints" className="gap-2">
+        <nav className="flex-1 overflow-y-auto px-3 pb-6">
+          {SIDEBAR_SECTIONS.map((section) => (
+            <div key={section.title} className="mb-5">
+              <p className="px-2 pb-2 text-[11px] font-semibold tracking-[0.16em] text-[#d8c18f]">{section.title}</p>
+              <div className="space-y-1">
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive =
+                    item.kind === "tab" ? activeTab === item.value : isRouteItemActive(item);
 
-              <Image className="h-4 w-4" />
-              Prints ({printRequests.length})
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Overview Tab - V2 */}
-          <TabsContent value="overview">
-            <DashboardOverviewV2 />
-          </TabsContent>
-
-          {/* Products Tab */}
-          <TabsContent value="products">
-            <ProductsManager userId={user.id} initialFilter={filterParam || undefined} />
-          </TabsContent>
-
-          {/* Orders Tab */}
-          <TabsContent value="orders">
-            <OrdersManager initialFilter={filterParam || undefined} />
-          </TabsContent>
-
-          {/* Prints Tab */}
-          <TabsContent value="prints">
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {printRequests.map((print) => {
-                const customer = customers.find(c => c.id === print.customer_id);
-                const linkedProduct = print.linked_product_id ? products[print.linked_product_id] : null;
-
-                return (
-                  <div key={print.id} className="bg-card rounded-xl border border-border overflow-hidden">
-                    <div className="aspect-square bg-secondary">
-                      <img
-                        src={getImageUrl(print.image_path)}
-                        alt="Print do story"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className={`text-xs px-2 py-1 rounded-full ${linkedProduct
-                            ? "bg-green-100 text-green-700"
-                            : "bg-amber-100 text-amber-700"
-                          }`}>
-                          {linkedProduct ? "Vinculado" : "Pendente"}
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleSidebarItemSelect(item)}
+                      className={cn(
+                        "relative flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d0b06b]/50",
+                        isActive
+                          ? "bg-[#17372e] font-medium text-[#f4e8c9]"
+                          : "text-[#d6cab1] hover:bg-[#153129] hover:text-[#f4e8c9]"
+                      )}
+                    >
+                      {isActive ? <span className="absolute left-0 top-1/2 h-5 w-[2px] -translate-y-1/2 rounded-full bg-[#d4b26f]" /> : null}
+                      <Icon className={cn("h-4 w-4", isActive ? "text-[#f0dfb2]" : "text-[#bfae8b]")} />
+                      <span className="truncate">{item.label}</span>
+                      {item.showPrintCount ? (
+                        <span className="ml-auto rounded-full border border-[#d4b26f66] bg-[#1a3a31] px-2 py-0.5 text-[11px] text-[#e8d7ad]">
+                          {printRequests.length}
                         </span>
-                        <span className="text-xs text-muted-foreground">
-                          {formatDate(print.created_at)}
-                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+      </aside>
+
+      <div className="lg:pl-[272px]">
+        <header className="sticky top-0 z-30 border-b border-[#ceb98a66] bg-[#f7f3e9]/95 backdrop-blur">
+          <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between gap-3 px-3 sm:px-6 lg:px-8">
+            <div className="flex min-w-0 items-center gap-2">
+              <DashboardMobileNav
+                activeTab={activeTab}
+                onTabChange={handleMobileNavSelect}
+                onLogout={handleLogout}
+                onImportStock={() => navigate("/importar-estoque")}
+                printCount={printRequests.length}
+              />
+              <img src={logoLepoa} alt="Le.Poá" className="h-8 w-auto object-contain lg:hidden" />
+            </div>
+
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate("/importar-estoque")}
+                className="h-9 gap-2 border-[#c6ab73] bg-[#f9f3e4] text-[#2a2a2a] hover:border-[#b59657] hover:bg-[#f6edd8]"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                <span className="hidden sm:inline">Importar Estoque</span>
+              </Button>
+
+              <div className="hidden items-center gap-2 rounded-md border border-[#d2be9366] bg-[#f9f4e7] px-3 py-1.5 text-sm text-[#3d3a33] sm:flex">
+                <UserRound className="h-4 w-4 text-[#7b6a4a]" />
+                <span className="max-w-[160px] truncate">{user.email}</span>
+              </div>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleLogout}
+                className="h-9 w-9 text-[#5c5345] hover:bg-[#efe4c9] hover:text-[#27231d]"
+                aria-label="Sair"
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        <main className="mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
+          <Tabs value={activeTab} onValueChange={(value) => handleTabChange(value as DashboardTabValue)} className="space-y-5">
+            <TabsContent value="overview">
+              <DashboardOverviewV2 />
+            </TabsContent>
+
+            <TabsContent value="products">
+              <ProductsManager userId={user.id} initialFilter={filterParam || undefined} />
+            </TabsContent>
+
+            <TabsContent value="categories">
+              <ProductCategoriesManager userId={user.id} />
+            </TabsContent>
+
+            <TabsContent value="orders">
+              <OrdersManager initialFilter={filterParam || undefined} />
+            </TabsContent>
+
+            <TabsContent value="prints">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {printRequests.map((print) => {
+                  const customer = customers.find((c) => c.id === print.customer_id);
+                  const linkedProduct = print.linked_product_id ? products[print.linked_product_id] : null;
+
+                  return (
+                    <div key={print.id} className="overflow-hidden rounded-xl border border-border bg-card">
+                      <div className="aspect-square bg-secondary">
+                        <img src={getImageUrl(print.image_path)} alt="Print do story" className="h-full w-full object-cover" />
                       </div>
 
-                      <div className="text-sm space-y-1">
-                        <p><strong>Tel:</strong> {customer?.phone || "-"}</p>
-                        <p><strong>Tamanho:</strong> {print.size || "-"}</p>
-                        <p><strong>Preferência:</strong> {print.preference === "ajustado" ? "Mais ajustado" : "Mais soltinho"}</p>
-                      </div>
+                      <div className="space-y-3 p-4">
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`rounded-full px-2 py-1 text-xs ${
+                              linkedProduct ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                            }`}
+                          >
+                            {linkedProduct ? "Vinculado" : "Pendente"}
+                          </span>
+                          <span className="text-xs text-muted-foreground">{formatDate(print.created_at)}</span>
+                        </div>
 
-                      {linkedProduct && (
-                        <div className="p-3 bg-secondary/50 rounded-lg">
-                          <p className="text-xs text-muted-foreground mb-2">Produto vinculado:</p>
-                          <div className="flex items-center gap-3">
-                            {linkedProduct.image_url ? (
-                              <img
-                                src={linkedProduct.image_url}
-                                alt={linkedProduct.name}
-                                className="w-10 h-10 object-cover rounded"
-                              />
-                            ) : (
-                              <div className="w-10 h-10 bg-secondary rounded flex items-center justify-center">
-                                <Package className="h-4 w-4 text-muted-foreground" />
+                        <div className="space-y-1 text-sm">
+                          <p>
+                            <strong>Tel:</strong> {customer?.phone || "-"}
+                          </p>
+                          <p>
+                            <strong>Tamanho:</strong> {print.size || "-"}
+                          </p>
+                          <p>
+                            <strong>Preferência:</strong> {print.preference === "ajustado" ? "Mais ajustado" : "Mais soltinho"}
+                          </p>
+                        </div>
+
+                        {linkedProduct ? (
+                          <div className="rounded-lg bg-secondary/50 p-3">
+                            <p className="mb-2 text-xs text-muted-foreground">Produto vinculado:</p>
+                            <div className="flex items-center gap-3">
+                              {linkedProduct.image_url ? (
+                                <img
+                                  src={linkedProduct.image_url}
+                                  alt={linkedProduct.name}
+                                  className="h-10 w-10 rounded object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-10 w-10 items-center justify-center rounded bg-secondary">
+                                  <Package className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">{linkedProduct.name}</p>
+                                <p className="text-xs text-muted-foreground">{formatPrice(linkedProduct.price)}</p>
                               </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{linkedProduct.name}</p>
-                              <p className="text-xs text-muted-foreground">{formatPrice(linkedProduct.price)}</p>
                             </div>
                           </div>
-                        </div>
-                      )}
+                        ) : null}
 
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full gap-2"
-                        onClick={() => handleOpenLinkModal(print)}
-                      >
-                        <Link2 className="h-4 w-4" />
-                        {linkedProduct ? "Alterar produto" : "Vincular a produto"}
-                      </Button>
+                        <Button variant="outline" size="sm" className="w-full gap-2" onClick={() => handleOpenLinkModal(print)}>
+                          <Link2 className="h-4 w-4" />
+                          {linkedProduct ? "Alterar produto" : "Vincular a produto"}
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-              {printRequests.length === 0 && (
-                <div className="col-span-full text-center py-12 text-muted-foreground">
-                  Nenhum print recebido ainda.
-                </div>
-              )}
-            </div>
-          </TabsContent>
+                  );
+                })}
 
-          {/* Clientes Tab */}
-          <TabsContent value="clientes">
-            <CustomersManagerV2 />
-          </TabsContent>
+                {printRequests.length === 0 ? (
+                  <div className="col-span-full py-12 text-center text-muted-foreground">Nenhum print recebido ainda.</div>
+                ) : null}
+              </div>
+            </TabsContent>
 
-          {/* Lives Tab */}
-          <TabsContent value="lives">
-            <LiveEventsList />
-          </TabsContent>
+            <TabsContent value="clientes">
+              <CustomersManagerV2 />
+            </TabsContent>
 
-          {/* Cupons Tab */}
-          <TabsContent value="cupons">
-            <CouponsManager />
-          </TabsContent>
+            <TabsContent value="lives">
+              <LiveEventsList />
+            </TabsContent>
 
-          {/* Promoções Tab */}
-          <TabsContent value="promocoes">
-            <PromotionalTablesManager />
-          </TabsContent>
+            <TabsContent value="cupons">
+              <CouponsManager />
+            </TabsContent>
 
-          {/* Brindes Tab */}
-          <TabsContent value="brindes">
-            <GiftsTabs />
-          </TabsContent>
+            <TabsContent value="promocoes">
+              <PromotionalTablesManager />
+            </TabsContent>
 
-          {/* Club Tab */}
-          <TabsContent value="club">
-            <LoyaltyClubAdmin />
-          </TabsContent>
+            <TabsContent value="brindes">
+              <GiftsTabs />
+            </TabsContent>
 
-          {/* Equipe Tab */}
-          <TabsContent value="equipe">
-            <SellersManager />
-          </TabsContent>
+            <TabsContent value="club">
+              <LoyaltyClubAdmin />
+            </TabsContent>
 
-          {/* Profiles Tab */}
-          <TabsContent value="profiles">
-            <ProfileManager />
-          </TabsContent>
+            <TabsContent value="equipe">
+              <SellersManager />
+            </TabsContent>
 
-        </Tabs>
-      </main>
+            <TabsContent value="profiles">
+              <ProfileManager />
+            </TabsContent>
+          </Tabs>
+        </main>
+      </div>
 
-      {/* Print Link Modal */}
-      {selectedPrint && (
+      {selectedPrint ? (
         <PrintLinkProduct
           open={linkModalOpen}
           onOpenChange={setLinkModalOpen}
@@ -481,7 +573,7 @@ const Dashboard = () => {
           customerPhone={selectedCustomerPhone}
           onSuccess={loadData}
         />
-      )}
+      ) : null}
     </div>
   );
 };

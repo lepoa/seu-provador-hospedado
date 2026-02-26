@@ -1,31 +1,26 @@
 import { useState } from "react";
 import {
-  LayoutDashboard,
-  UserCheck,
-  Package,
-  ShoppingBag,
-  Radio,
-  Ticket,
-  Gift,
-  Crown,
-  UsersRound,
-  Image,
-  Menu,
-  X,
-  LogOut,
-  FileSpreadsheet,
-  Tag,
+  BadgeCheck,
   Brain,
+  Crown,
+  FileSpreadsheet,
+  Gift,
+  Image,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Package,
+  Radio,
+  ShoppingBag,
   Sparkles,
+  Tag,
+  Ticket,
+  UserCheck,
+  UsersRound,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import logoLepoa from "@/assets/logo-lepoa.png";
 
@@ -41,6 +36,7 @@ const navItems = [
   { value: "overview", label: "Visão Geral", icon: LayoutDashboard },
   { value: "clientes", label: "Clientes", icon: UserCheck },
   { value: "products", label: "Produtos", icon: Package },
+  { value: "categories", label: "Categorias", icon: BadgeCheck },
   { value: "orders", label: "Pedidos", icon: ShoppingBag },
   { value: "lives", label: "Lives", icon: Radio },
   { value: "cupons", label: "Cupons", icon: Ticket },
@@ -48,7 +44,7 @@ const navItems = [
   { value: "brindes", label: "Brindes", icon: Gift },
   { value: "club", label: "Le.Poá Club", icon: Crown },
   { value: "rfv", label: "RFV", icon: Brain },
-  { value: "consultora", label: "Consultora IA", icon: Sparkles },
+  { value: "consultora", label: "Consultoria IA", icon: Sparkles },
   { value: "equipe", label: "Equipe", icon: UsersRound },
   { value: "prints", label: "Prints", icon: Image, showCount: true },
 ];
@@ -67,63 +63,60 @@ export function DashboardMobileNav({
     setOpen(false);
   };
 
-  const activeItem = navItems.find((item) => item.value === activeTab);
-
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="md:hidden shrink-0">
+        <Button variant="ghost" size="icon" className="shrink-0 md:hidden">
           <Menu className="h-5 w-5" />
           <span className="sr-only">Menu</span>
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" className="w-[min(92vw,320px)] p-0 overflow-hidden">
-        <SheetHeader className="p-4 border-b shrink-0">
+
+      <SheetContent side="left" className="w-[min(92vw,320px)] overflow-hidden border-r border-[#d0b06b55] bg-[#102820] p-0">
+        <SheetHeader className="shrink-0 border-b border-[#d0b06b44] p-4">
           <div className="flex items-center justify-between gap-2">
-            <img src={logoLepoa} alt="LE.POÁ" className="h-8 max-w-[120px] object-contain" />
+            <img src={logoLepoa} alt="Le.Poá" className="h-8 max-w-[120px] object-contain" />
             <Button variant="ghost" size="icon" onClick={() => setOpen(false)} className="shrink-0">
               <X className="h-5 w-5" />
             </Button>
           </div>
         </SheetHeader>
-        
-        <nav className="flex flex-col h-[calc(100vh-80px)] overflow-hidden">
+
+        <nav className="flex h-[calc(100vh-80px)] flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto py-2">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.value;
-              
+
               return (
                 <button
                   key={item.value}
+                  type="button"
                   onClick={() => handleSelect(item.value)}
                   className={cn(
-                    "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors",
-                    "hover:bg-muted/50 active:bg-muted",
-                    "min-h-[48px]", // 44px+ touch target
-                    isActive && "bg-primary/5 text-primary border-r-2 border-primary"
+                    "flex min-h-[48px] w-full items-center gap-3 px-4 py-3 text-left transition-colors",
+                    "hover:bg-[#17362d] active:bg-[#193d32]",
+                    isActive && "border-r-2 border-[#d4b26f] bg-[#17362d] text-[#f4e8c9]"
                   )}
                 >
-                  <Icon className={cn("h-5 w-5 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
-                  <span className={cn("text-sm font-medium truncate flex-1", isActive && "text-primary")}>
-                    {item.label}
-                  </span>
-                  {item.showCount && printCount > 0 && (
-                    <span className="shrink-0 text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full">
+                  <Icon className={cn("h-5 w-5 shrink-0", isActive ? "text-[#f0dfb2]" : "text-[#bfae8b]")} />
+                  <span className={cn("flex-1 truncate text-sm font-medium text-[#d6cab1]", isActive && "text-[#f4e8c9]")}>{item.label}</span>
+
+                  {item.showCount && printCount > 0 ? (
+                    <span className="shrink-0 rounded-full border border-[#d4b26f66] bg-[#1a3a31] px-2 py-0.5 text-xs text-[#e8d7ad]">
                       {printCount}
                     </span>
-                  )}
+                  ) : null}
                 </button>
               );
             })}
           </div>
-          
-          {/* Bottom actions */}
-          <div className="border-t p-4 space-y-2">
+
+          <div className="space-y-2 border-t border-[#d0b06b44] p-4">
             <Button
               variant="outline"
               size="sm"
-              className="w-full justify-start gap-2 h-11"
+              className="h-11 w-full justify-start gap-2 border-[#c8aa6a] bg-[#f6edd8] text-[#2a2a2a] hover:border-[#b59657] hover:bg-[#f3e7ca]"
               onClick={() => {
                 onImportStock();
                 setOpen(false);
@@ -132,10 +125,11 @@ export function DashboardMobileNav({
               <FileSpreadsheet className="h-4 w-4" />
               Importar Estoque
             </Button>
+
             <Button
               variant="ghost"
               size="sm"
-              className="w-full justify-start gap-2 h-11 text-muted-foreground"
+              className="h-11 w-full justify-start gap-2 text-[#d6cab1] hover:bg-[#17362d] hover:text-[#f4e8c9]"
               onClick={() => {
                 onLogout();
                 setOpen(false);

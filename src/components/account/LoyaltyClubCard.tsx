@@ -1,9 +1,8 @@
 import { Link } from "react-router-dom";
-import { Crown, Star, ChevronRight, Sparkles } from "lucide-react";
+import { ChevronRight, Crown, Sparkles, Star } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { useLoyalty, LOYALTY_TIERS } from "@/hooks/useLoyalty";
-import { cn } from "@/lib/utils";
+import { LOYALTY_TIERS, useLoyalty } from "@/hooks/useLoyalty";
 
 interface LoyaltyClubCardProps {
   variant?: "compact" | "full";
@@ -14,41 +13,38 @@ export function LoyaltyClubCard({ variant = "full" }: LoyaltyClubCardProps) {
 
   if (isLoading) {
     return (
-      <div className="bg-gradient-to-br from-primary/5 via-accent/5 to-primary/10 rounded-2xl p-6 animate-pulse">
-        <div className="h-6 bg-muted rounded w-32 mb-4" />
-        <div className="h-8 bg-muted rounded w-24 mb-4" />
-        <div className="h-2 bg-muted rounded mb-4" />
-        <div className="h-10 bg-muted rounded" />
+      <div className="animate-pulse rounded-2xl border border-[#ccb487]/45 bg-gradient-to-br from-[#fffaf0] via-[#f8efdd] to-[#f3e7cf] p-6">
+        <div className="mb-4 h-6 w-32 rounded bg-[#e3d3b3]" />
+        <div className="mb-4 h-8 w-24 rounded bg-[#e3d3b3]" />
+        <div className="mb-4 h-2 rounded bg-[#e3d3b3]" />
+        <div className="h-10 rounded bg-[#e3d3b3]" />
       </div>
     );
   }
 
   const currentTier = loyalty?.currentTier || "poa";
   const tierInfo = LOYALTY_TIERS[currentTier];
-  const { progress, pointsNeeded, nextTierName } = getProgressToNextTier(
-    loyalty?.annualPoints || 0,
-    currentTier
-  );
+  const { progress, pointsNeeded, nextTierName } = getProgressToNextTier(loyalty?.annualPoints || 0, currentTier);
 
   if (variant === "compact") {
     return (
       <Link to="/minha-conta/club">
-        <div className="bg-gradient-to-r from-primary/5 to-accent/10 border border-accent/20 rounded-xl p-4 hover:shadow-md transition-shadow">
+        <div className="rounded-xl border border-[#cbb488] bg-gradient-to-r from-[#fffaf0] to-[#f4e8d1] p-4 shadow-sm transition-shadow hover:shadow-md">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent/20 to-primary/20 flex items-center justify-center">
-                <Crown className="h-5 w-5 text-accent" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#dcc295]/55 to-[#ceb078]/45">
+                <Crown className="h-5 w-5 text-[#8a672d]" />
               </div>
               <div>
-                <p className="font-medium">Le.Poá Club</p>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-                  <span className="font-semibold text-amber-700">{loyalty?.currentPoints || 0}</span>
+                <p className="font-medium text-[#1f1d1a]">Le.Poá Club</p>
+                <div className="flex items-center gap-2 text-sm text-[#6f6759]">
+                  <Star className="h-3.5 w-3.5 fill-[#b48a3f] text-[#b48a3f]" />
+                  <span className="font-semibold text-[#8a672d]">{loyalty?.currentPoints || 0}</span>
                   <span>pontos</span>
                 </div>
               </div>
             </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            <ChevronRight className="h-5 w-5 text-[#6f6759]" />
           </div>
         </div>
       </Link>
@@ -56,55 +52,52 @@ export function LoyaltyClubCard({ variant = "full" }: LoyaltyClubCardProps) {
   }
 
   return (
-    <div className="bg-gradient-to-br from-card via-accent/5 to-card border border-accent/20 rounded-2xl p-6 shadow-sm">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-5">
-        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-accent/20 to-primary/20 flex items-center justify-center">
-          <Crown className="h-6 w-6 text-accent" />
+    <div className="rounded-2xl border border-[#ccb487]/45 bg-gradient-to-br from-[#fffaf0] via-[#f8efdd] to-[#f3e7cf] p-6 shadow-sm">
+      <div className="mb-5 flex items-center gap-3">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#dcc295]/55 to-[#ceb078]/45">
+          <Crown className="h-6 w-6 text-[#8a672d]" />
         </div>
         <div>
-          <h3 className="font-serif text-lg">Le.Poá Club</h3>
-          <p className="text-sm text-muted-foreground">
-            Nível <span className="font-medium text-foreground">{tierInfo.name}</span>
+          <h3 className="font-serif text-lg text-[#1f1d1a]">Le.Poá Club</h3>
+          <p className="text-sm text-[#6f6759]">
+            Nível <span className="font-medium text-[#1f1d1a]">{tierInfo.name}</span>
           </p>
         </div>
       </div>
 
-      {/* Points Display */}
-      <div className="bg-card/80 rounded-xl p-4 mb-5 border border-border/50">
+      <div className="mb-5 rounded-xl border border-[#d8c5a2] bg-[#fffaf0] p-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-muted-foreground mb-1">Seus pontos</p>
+            <p className="mb-1 text-sm text-[#6f6759]">Seus pontos</p>
             <div className="flex items-center gap-2">
-              <Star className="h-5 w-5 text-amber-500 fill-amber-500" />
-              <span className="font-serif text-2xl font-semibold text-amber-700">
-                {loyalty?.currentPoints || 0}
-              </span>
+              <Star className="h-5 w-5 fill-[#b48a3f] text-[#b48a3f]" />
+              <span className="font-serif text-2xl font-semibold text-[#8a672d]">{loyalty?.currentPoints || 0}</span>
             </div>
           </div>
           {nextTierName && (
             <div className="text-right">
-              <p className="text-xs text-muted-foreground">Próximo nível</p>
-              <p className="text-sm font-medium text-accent">{nextTierName}</p>
+              <p className="text-xs text-[#6f6759]">Próximo nível</p>
+              <p className="text-sm font-medium text-[#8a672d]">{nextTierName}</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Progress to next tier */}
       {nextTierName && (
         <div className="mb-5">
-          <div className="flex items-center justify-between text-xs mb-2">
-            <span className="text-muted-foreground">Progresso para {nextTierName}</span>
-            <span className="font-medium text-accent">{pointsNeeded} pts restantes</span>
+          <div className="mb-2 flex items-center justify-between text-xs">
+            <span className="text-[#6f6759]">Progresso para {nextTierName}</span>
+            <span className="font-medium text-[#8a672d]">{pointsNeeded} pts restantes</span>
           </div>
-          <Progress value={progress} className="h-2" />
+          <Progress value={progress} className="h-2 bg-[#e8dcc4]" />
         </div>
       )}
 
-      {/* CTA */}
       <Link to="/minha-conta/club">
-        <Button className="w-full gap-2" variant="outline">
+        <Button
+          className="w-full gap-2 border-[#c3a163] bg-[#fff4df] text-[#2f2a22] hover:bg-[#f4e6ca]"
+          variant="outline"
+        >
           <Sparkles className="h-4 w-4" />
           Ver Recompensas
           <ChevronRight className="h-4 w-4" />

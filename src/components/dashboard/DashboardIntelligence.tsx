@@ -1,13 +1,6 @@
-import { useMemo, useState } from "react";
+﻿import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  AlertTriangle,
-  Brain,
-  ShieldAlert,
-  Sparkles,
-  TrendingDown,
-  TrendingUp,
-} from "lucide-react";
+import { AlertTriangle, Brain, ShieldAlert, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,17 +47,17 @@ const formatCurrency = (value: number) =>
   });
 
 const classificationLabel: Record<string, string> = {
-  strong: "Operação Forte",
-  stable: "Operação Estável",
-  attention: "Ponto de Atenção",
-  risk: "Risco Operacional",
+  strong: "Operação forte",
+  stable: "Operação estável",
+  attention: "Ponto de atenção",
+  risk: "Risco operacional",
 };
 
 const classificationTone: Record<string, string> = {
-  strong: "bg-green-100 text-green-700 border-green-200",
-  stable: "bg-blue-100 text-blue-700 border-blue-200",
-  attention: "bg-amber-100 text-amber-700 border-amber-200",
-  risk: "bg-red-100 text-red-700 border-red-200",
+  strong: "border-[#cfb986] bg-[#f5ecd8] text-[#6e5a30]",
+  stable: "border-[#cfb986] bg-[#f5ecd8] text-[#6e5a30]",
+  attention: "border-[#c2ab7a] bg-[#f8f0de] text-[#7a6336]",
+  risk: "border-[#b99b63] bg-[#efe4cc] text-[#6b4f2b]",
 };
 
 const stabilityLabel: Record<string, string> = {
@@ -80,15 +73,15 @@ const operationalLabel: Record<string, string> = {
 };
 
 const operationalTone: Record<string, string> = {
-  strong: "bg-green-100 text-green-700 border-green-200",
-  attention: "bg-amber-100 text-amber-700 border-amber-200",
-  critical: "bg-red-100 text-red-700 border-red-200",
+  strong: "border-[#cfb986] bg-[#f5ecd8] text-[#6e5a30]",
+  attention: "border-[#c2ab7a] bg-[#f8f0de] text-[#7a6336]",
+  critical: "border-[#b99b63] bg-[#efe4cc] text-[#6b4f2b]",
 };
 
 const briefingByComponent: Record<ComponentKey, BriefingTemplate> = {
   conversion: {
     title: "Conversão abaixo do esperado",
-    cause: "Muitos pedidos reservados não estão virando pago no período.",
+    cause: "Muitos pedidos reservados não estão virando pagos no período.",
     impact: "Reduz receita realizada e pressiona caixa do dia.",
     action: "Reforçar follow-up de pagamento e remover travas no checkout.",
   },
@@ -213,23 +206,23 @@ export function DashboardIntelligence({ intelligence, onOpenActionCenter }: Dash
 
   return (
     <div className="space-y-4">
-      <Card className="border-amber-100/70">
+      <Card className="border-[#cfb98666]">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-amber-600" />
-            Alertas Estrategicos
+          <CardTitle className="flex items-center gap-2 text-sm text-[#6d6556]">
+            <AlertTriangle className="h-4 w-4 text-[#b18a40]" />
+            Alertas estratégicos
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           {alerts.length === 0 ? (
-            <div className="text-sm text-muted-foreground flex items-center gap-2">
-              <ShieldAlert className="h-4 w-4 text-green-600" />
+            <div className="flex items-center gap-2 text-sm text-[#6d6556]">
+              <ShieldAlert className="h-4 w-4 text-[#b18a40]" />
               Nenhum alerta crítico no momento
             </div>
           ) : (
             alerts.map((alert, index) => (
-              <div key={index} className="text-sm flex items-start gap-2">
-                <span className={alert.level === "high" ? "text-red-600" : "text-amber-600"}>
+              <div key={index} className="flex items-start gap-2 text-sm">
+                <span className={alert.level === "high" ? "text-[#7b5f2e]" : "text-[#a07a3d]"}>
                   {alert.level === "high" ? "!" : "-"}
                 </span>
                 <span>{alert.text}</span>
@@ -239,29 +232,29 @@ export function DashboardIntelligence({ intelligence, onOpenActionCenter }: Dash
         </CardContent>
       </Card>
 
-      <Card className="border-slate-200">
+      <Card className="border-[#cfb98666]">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
-            <Brain className="h-4 w-4 text-slate-600" />
+          <CardTitle className="flex items-center gap-2 text-sm text-[#6d6556]">
+            <Brain className="h-4 w-4 text-[#8a6e3a]" />
             Briefing Inteligente
           </CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+        <CardContent className="grid grid-cols-1 gap-3 xl:grid-cols-2">
           {briefingCards.map((card) => (
-            <div key={card.insightKey} className="rounded-md border p-3 space-y-2">
+            <div key={card.insightKey} className="space-y-2 rounded-md border border-[#cfb98666] p-3">
               <div className="flex items-start justify-between gap-2">
-                <h4 className="text-sm font-semibold text-slate-800">{card.title}</h4>
+                <h4 className="text-sm font-semibold text-[#102820]">{card.title}</h4>
                 <Badge variant="outline" className="text-xs">
                   {card.score.toFixed(0)}/100
                 </Badge>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-[#6d6556]">
                 <strong>Causa detectada:</strong> {card.cause}
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-[#6d6556]">
                 <strong>Impacto estimado:</strong> {card.impact}
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-[#6d6556]">
                 <strong>Ação recomendada:</strong> {card.action}
               </p>
 
@@ -304,40 +297,36 @@ export function DashboardRetailPulse({ intelligence }: DashboardRetailPulseProps
   const trendPositive = health.trend >= 0;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <Card className="lg:col-span-2 border-purple-100 shadow-sm">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <Card className="border-[#cfb98666] shadow-sm lg:col-span-2">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
-            <Brain className="h-4 w-4 text-purple-600" />
-            Retail Pulse™
+          <CardTitle className="flex items-center gap-2 text-sm text-[#6d6556]">
+            <Brain className="h-4 w-4 text-[#8a6e3a]" />
+            Retail Pulse
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-end justify-between gap-3">
-            <div className="text-3xl font-bold">{Math.round(health.score)} / 100</div>
+            <div className="text-3xl font-bold text-[#102820]">{Math.round(health.score)} / 100</div>
             <Badge variant="outline" className={classificationTone[health.classification]}>
               {classificationLabel[health.classification]}
             </Badge>
           </div>
 
-          <div className="text-sm text-muted-foreground flex items-center gap-1">
-            {trendPositive ? (
-              <TrendingUp className="h-4 w-4 text-green-600" />
-            ) : (
-              <TrendingDown className="h-4 w-4 text-red-600" />
-            )}
+          <div className="flex items-center gap-1 text-sm text-[#6d6556]">
+            {trendPositive ? <TrendingUp className="h-4 w-4 text-[#b18a40]" /> : <TrendingDown className="h-4 w-4 text-[#7b5f2e]" />}
             Tendência: {trendPositive ? "+" : ""}
             {health.trend.toFixed(1)} vs média 7 dias
           </div>
 
-          <div className="text-xs text-muted-foreground">
+          <div className="text-xs text-[#6d6556]">
             Volatilidade 7d: {health.volatility_index.toFixed(1)} ({stabilityLabel[health.stability_classification]})
           </div>
 
-          <div className="rounded-md border bg-slate-50 px-3 py-2">
-            <div className="text-xs text-muted-foreground">Operação Hoje</div>
+          <div className="rounded-md border border-[#cfb98666] bg-[#f8f2e4] px-3 py-2">
+            <div className="text-xs text-[#6d6556]">Operação hoje</div>
             <div className="mt-1 flex items-center justify-between gap-3">
-              <div className="text-lg font-semibold">{Math.round(operational.score)} / 100</div>
+              <div className="text-lg font-semibold text-[#102820]">{Math.round(operational.score)} / 100</div>
               <Badge variant="outline" className={operationalTone[operational.classification]}>
                 {operationalLabel[operational.classification]}
               </Badge>
@@ -346,21 +335,17 @@ export function DashboardRetailPulse({ intelligence }: DashboardRetailPulseProps
         </CardContent>
       </Card>
 
-      <Card className="border-blue-100 shadow-sm">
+      <Card className="border-[#cfb98666] shadow-sm">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-blue-600" />
+          <CardTitle className="flex items-center gap-2 text-sm text-[#6d6556]">
+            <Sparkles className="h-4 w-4 text-[#8a6e3a]" />
             Projeção próximos 7 dias
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <div className="text-3xl font-bold">{formatCurrency(projection.projected_7d_revenue)}</div>
-          <div className="text-xs text-muted-foreground">
-            Media diaria: {formatCurrency(projection.average_daily_7d)}
-          </div>
-          <div className="text-xs text-muted-foreground">
-            Impacto RFV pendente: {formatCurrency(projection.rfv_pending_impact_7d)}
-          </div>
+          <div className="text-3xl font-bold text-[#102820]">{formatCurrency(projection.projected_7d_revenue)}</div>
+          <div className="text-xs text-[#6d6556]">Média diária: {formatCurrency(projection.average_daily_7d)}</div>
+          <div className="text-xs text-[#6d6556]">Impacto RFV pendente: {formatCurrency(projection.rfv_pending_impact_7d)}</div>
         </CardContent>
       </Card>
     </div>
