@@ -486,7 +486,26 @@ Deno.serve(async (req) => {
             await supabase.from("order_items").insert(orderItems);
           }
 
-          // Use apply_paid_effects RPC for idempotent stock management
+          // CRITICAL: Confirm live_cart_items FIRST so RPC and triggers find them
+          await supabase
+            .from("live_cart_items")
+            .update({ status: "confirmado" })
+            .eq("live_cart_id", liveCartId)
+            .in("status", ["reservado", "confirmado"]);
+
+          // Apply live cart stock effects (increments committed_by_size)
+          const { data: liveEffectsResult, error: liveEffectsError } = await supabase
+            .rpc("apply_live_cart_paid_effects", {
+              p_live_cart_id: liveCartId,
+            });
+
+          if (liveEffectsError) {
+            logWebhook("error", "apply_live_cart_paid_effects error", { liveCartId, error: liveEffectsError.message });
+          } else {
+            logWebhook("info", "apply_live_cart_paid_effects result", liveEffectsResult);
+          }
+
+          // Apply order-level paid effects (sets status, stock_decremented_at)
           const { data: effectsResult, error: effectsError } = await supabase
             .rpc("apply_paid_effects", {
               p_order_id: newOrder.id,
@@ -501,6 +520,7 @@ Deno.serve(async (req) => {
             logWebhook("info", "apply_paid_effects result", effectsResult);
           }
 
+          // Update live_cart status to pago
           const { data: updatedCart, error: cartUpdateError } = await supabase
             .from("live_carts")
             .update({
@@ -519,12 +539,6 @@ Deno.serve(async (req) => {
           } else {
             logWebhook("info", "Live cart updated to pago", { liveCartId, status: updatedCart.status });
           }
-
-          await supabase
-            .from("live_cart_items")
-            .update({ status: "confirmado" })
-            .eq("live_cart_id", liveCartId)
-            .in("status", ["reservado", "confirmado"]);
 
           await supabase.from("payments").upsert({
             order_id: newOrder.id,
