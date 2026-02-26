@@ -559,6 +559,18 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
 
       // If marked as paid, trigger the stock effects RPC
       if (isPaidStatus) {
+        // CRITICAL: Confirm items FIRST so the RPC finds them
+        // Without this, items stay as 'reservado' and the RPC skips them
+        const { error: itemsError } = await supabase
+          .from("live_cart_items")
+          .update({ status: 'confirmado' })
+          .eq("live_cart_id", order.live_cart_id)
+          .eq("status", 'reservado');
+
+        if (itemsError) {
+          console.error("Error confirming live_cart_items:", itemsError);
+        }
+
         try {
           const { data: rpcData, error: rpcError } = await supabase.rpc('apply_live_cart_paid_effects', {
             p_live_cart_id: order.live_cart_id
