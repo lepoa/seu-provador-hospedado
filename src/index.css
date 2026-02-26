@@ -186,6 +186,35 @@
   .quiz-option-selected {
     @apply border-accent bg-accent/10;
   }
+
+  /* Admin luxury palette remap: neutraliza tons azuis/verdes/vermelhos no painel */
+  .admin-theme [class*="bg-blue-"],
+  .admin-theme [class*="bg-green-"],
+  .admin-theme [class*="bg-emerald-"],
+  .admin-theme [class*="bg-red-"] {
+    background-color: #f5ecd8 !important;
+  }
+
+  .admin-theme [class*="text-blue-"],
+  .admin-theme [class*="text-green-"],
+  .admin-theme [class*="text-emerald-"],
+  .admin-theme [class*="text-red-"] {
+    color: #7a6336 !important;
+  }
+
+  .admin-theme [class*="border-blue-"],
+  .admin-theme [class*="border-green-"],
+  .admin-theme [class*="border-emerald-"],
+  .admin-theme [class*="border-red-"] {
+    border-color: #cfb986 !important;
+  }
+
+  .admin-theme [class*="hover:bg-blue-"]:hover,
+  .admin-theme [class*="hover:bg-green-"]:hover,
+  .admin-theme [class*="hover:bg-emerald-"]:hover,
+  .admin-theme [class*="hover:bg-red-"]:hover {
+    background-color: #efe4cc !important;
+  }
 }
 
 @layer utilities {
@@ -239,6 +268,10 @@
     animation: pulseSoft 2.5s ease-in-out infinite;
   }
 
+  .animate-concierge-pulse {
+    animation: conciergePulse 30s ease-in-out infinite;
+  }
+
   @keyframes pulseSoft {
 
     0%,
@@ -250,6 +283,20 @@
     50% {
       opacity: 0.7;
       transform: scale(1.08);
+    }
+  }
+
+  @keyframes conciergePulse {
+    0%,
+    95%,
+    100% {
+      transform: scale(1);
+      box-shadow: 0 14px 35px -18px rgba(0, 0, 0, 0.8);
+    }
+
+    97% {
+      transform: scale(1.03);
+      box-shadow: 0 16px 38px -16px rgba(18, 49, 40, 0.65);
     }
   }
 

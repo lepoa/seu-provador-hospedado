@@ -1,19 +1,37 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { 
-  Phone, 
-  Sparkles, 
-  ShoppingBag, 
-  MessageCircle,
-  User,
-  Check,
+﻿import { useNavigate } from "react-router-dom";
+import {
   AlertCircle,
+  BookOpen,
+  Check,
+  CircleDashed,
+  Clock3,
   Eye,
-  BookOpen
+  MessageCircle,
+  Phone,
+  ShoppingBag,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+export type CustomerManualSegment = "none" | "vip" | "potencial" | "recuperar" | "inativo";
+
+export const MANUAL_SEGMENT_OPTIONS: Array<{ value: CustomerManualSegment; label: string }> = [
+  { value: "none", label: "Sem segmento" },
+  { value: "vip", label: "VIP" },
+  { value: "potencial", label: "Potencial" },
+  { value: "recuperar", label: "Recuperar" },
+  { value: "inativo", label: "Inativo" },
+];
 
 interface CustomerCardProps {
   customer: {
@@ -32,15 +50,18 @@ interface CustomerCardProps {
     city?: string | null;
     state?: string | null;
     zip_code?: string | null;
-    document?: string | null; // CPF
+    document?: string | null;
+    pending_orders?: number;
+    rfv_score?: number | null;
+    manual_segment?: CustomerManualSegment;
   };
   onOpenCatalog?: (customerId: string) => void;
+  onManualSegmentChange?: (customerId: string, segment: CustomerManualSegment) => void;
 }
 
-export function CustomerCard({ customer, onOpenCatalog }: CustomerCardProps) {
+export function CustomerCard({ customer, onOpenCatalog, onManualSegmentChange }: CustomerCardProps) {
   const navigate = useNavigate();
 
-  // Calculate completion percentage
   const fields = [
     customer.name,
     customer.phone,
@@ -50,6 +71,7 @@ export function CustomerCard({ customer, onOpenCatalog }: CustomerCardProps) {
     customer.city,
     customer.zip_code,
   ];
+
   const filledFields = fields.filter(Boolean).length;
   const completionPercentage = Math.round((filledFields / fields.length) * 100);
   const isComplete = completionPercentage === 100;
@@ -65,12 +87,11 @@ export function CustomerCard({ customer, onOpenCatalog }: CustomerCardProps) {
     return phone;
   };
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat("pt-BR", {
+  const formatPrice = (price: number) =>
+    new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
     }).format(price);
-  };
 
   const formatDate = (date: string | null) => {
     if (!date) return null;
@@ -85,42 +106,41 @@ export function CustomerCard({ customer, onOpenCatalog }: CustomerCardProps) {
     if (customer.name) {
       return customer.name
         .split(" ")
-        .map((n) => n[0])
+        .map((namePart) => namePart[0])
         .join("")
         .slice(0, 2)
         .toUpperCase();
     }
+
     return customer.phone?.slice(-2) || "?";
   };
 
   const whatsappNumber = customer.phone.replace(/\D/g, "");
-  const whatsappLink = `https://wa.me/${whatsappNumber.startsWith("55") ? whatsappNumber : `55${whatsappNumber}`}`;
+  const whatsappLink = `https://wa.me/${
+    whatsappNumber.startsWith("55") ? whatsappNumber : `55${whatsappNumber}`
+  }`;
+  const manualSegment = customer.manual_segment ?? "none";
+  const pendingOrders = customer.pending_orders ?? 0;
+  const rfvScore = customer.rfv_score ?? null;
 
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardContent className="p-4">
-        {/* Header: Avatar + Name + Status */}
         <div className="flex items-start gap-3 mb-3">
-          {/* Avatar */}
           <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <span className="text-sm font-semibold text-primary">
-              {getInitials()}
-            </span>
+            <span className="text-sm font-semibold text-primary">{getInitials()}</span>
           </div>
 
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <h3 className="font-medium text-sm line-clamp-1">
-                  {customer.name || "Sem nome"}
-                </h3>
+                <h3 className="font-medium text-sm line-clamp-1">{customer.name || "Sem nome"}</h3>
                 <div className="flex items-center gap-1 text-muted-foreground text-xs mt-0.5">
                   <Phone className="h-3 w-3" />
                   <span>{formatPhone(customer.phone)}</span>
                 </div>
               </div>
 
-              {/* Status badge */}
               {isComplete ? (
                 <Badge variant="default" className="bg-emerald-500 text-xs gap-0.5 flex-shrink-0">
                   <Check className="h-3 w-3" />
@@ -136,7 +156,6 @@ export function CustomerCard({ customer, onOpenCatalog }: CustomerCardProps) {
           </div>
         </div>
 
-        {/* Style & Size badges */}
         <div className="flex flex-wrap gap-1.5 mb-3">
           {customer.style_title && (
             <Badge variant="secondary" className="gap-1 text-xs">
@@ -151,7 +170,6 @@ export function CustomerCard({ customer, onOpenCatalog }: CustomerCardProps) {
           )}
         </div>
 
-        {/* Stats: Orders & Spent */}
         <div className="grid grid-cols-3 gap-2 mb-3 text-xs">
           <div className="bg-secondary/50 rounded-lg p-2 text-center">
             <div className="flex items-center justify-center gap-1 text-muted-foreground mb-0.5">
@@ -168,14 +186,46 @@ export function CustomerCard({ customer, onOpenCatalog }: CustomerCardProps) {
           </div>
         </div>
 
-        {/* Last order */}
+        <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+          <div className="rounded-lg border bg-background p-2">
+            <div className="text-muted-foreground flex items-center gap-1 mb-0.5">
+              <CircleDashed className="h-3 w-3" />
+              RFV
+            </div>
+            <p className="font-semibold">{rfvScore !== null ? rfvScore.toFixed(1) : "—"}</p>
+          </div>
+          <div className="rounded-lg border bg-background p-2">
+            <div className="text-muted-foreground flex items-center gap-1 mb-0.5">
+              <Clock3 className="h-3 w-3" />
+              Pendências
+            </div>
+            <p className="font-semibold">{pendingOrders}</p>
+          </div>
+        </div>
+
         {customer.last_order_at && (
-          <p className="text-xs text-muted-foreground mb-3">
-            Última compra: {formatDate(customer.last_order_at)}
-          </p>
+          <p className="text-xs text-muted-foreground mb-3">Última compra: {formatDate(customer.last_order_at)}</p>
         )}
 
-        {/* Action buttons */}
+        <div className="space-y-1 mb-3">
+          <Label className="text-[11px] font-medium text-muted-foreground">Segmentação manual</Label>
+          <Select
+            value={manualSegment}
+            onValueChange={(value) => onManualSegmentChange?.(customer.id, value as CustomerManualSegment)}
+          >
+            <SelectTrigger className="h-8">
+              <SelectValue placeholder="Selecionar segmento" />
+            </SelectTrigger>
+            <SelectContent>
+              {MANUAL_SEGMENT_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="flex gap-2">
           <Button
             size="sm"
@@ -197,12 +247,7 @@ export function CustomerCard({ customer, onOpenCatalog }: CustomerCardProps) {
             <Eye className="h-3.5 w-3.5" />
             Perfil
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1"
-            onClick={() => onOpenCatalog?.(customer.id)}
-          >
+          <Button size="sm" variant="outline" className="gap-1" onClick={() => onOpenCatalog?.(customer.id)}>
             <BookOpen className="h-3.5 w-3.5" />
             Catálogo
           </Button>
@@ -211,3 +256,4 @@ export function CustomerCard({ customer, onOpenCatalog }: CustomerCardProps) {
     </Card>
   );
 }
+

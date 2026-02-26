@@ -5,19 +5,23 @@ const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+const jsonHeaders = {
+    ...corsHeaders,
+    "Content-Type": "application/json; charset=utf-8",
+};
 
 // ========== AUTH HELPER ==========
 async function requireAuth(req: Request): Promise<{ userId: string; error?: undefined } | { userId?: undefined; error: Response }> {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-        return { error: new Response(JSON.stringify({ error: "Token de autorização ausente ou inválido" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }) };
+        return { error: new Response(JSON.stringify({ error: "Token de autorização ausente ou inválido" }), { status: 401, headers: jsonHeaders }) };
     }
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
         global: { headers: { Authorization: authHeader } },
     });
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
-        return { error: new Response(JSON.stringify({ error: "Sessão expirada ou inválida" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }) };
+        return { error: new Response(JSON.stringify({ error: "Sessão expirada ou inválida" }), { status: 401, headers: jsonHeaders }) };
     }
     return { userId: data.user.id };
 }
@@ -43,7 +47,7 @@ serve(async (req) => {
         if (!input_text) {
             return new Response(JSON.stringify({ error: "Input text is required" }), {
                 status: 400,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                headers: jsonHeaders,
             });
         }
 
@@ -71,7 +75,7 @@ serve(async (req) => {
         const systemPrompt = `Você é uma consultora de moda elegante da marca Le.Poá.
 Sua missão é ajudar a cliente a encontrar o visual perfeito e COLETAR dados estratégicos.
 
-LOGICA DE RESPOSTA (DEVE SER JSON):
+LÓGICA DE RESPOSTA (DEVE SER JSON):
 - Se for saudações: use type "chat", responda elegantemente e PERGUNTE que tipo de roupa ela gosta ou que tamanho ela veste.
 - Se a cliente pedir sugestão sem dizer o tamanho: use type "chat", sugira que você pode ser mais precisa se souber o TAMANHO (P, M, G, GG) que ela veste.
 - Se a cliente demonstrar intenção clara ou já tiver dito o tamanho: use type "look" e escolha os produtos.
@@ -160,15 +164,13 @@ FORMATO DE RETORNO OBRIGATÓRIO (JSON):
             generated_product_ids: isLook ? content.products : []
         });
 
-        return new Response(JSON.stringify({ success: true, data: content }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(JSON.stringify({ success: true, data: content }), { headers: jsonHeaders });
 
     } catch (error) {
         console.error("Error in generate-ai-look:", error);
         return new Response(JSON.stringify({ error: error.message }), {
             status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: jsonHeaders,
         });
     }
 });

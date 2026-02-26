@@ -295,7 +295,7 @@ const Catalog = () => {
     onChange,
     placeholder,
     options,
-    width = "w-[130px]",
+    width = "w-[140px]",
   }: {
     value: string | null;
     onChange: (v: string | null) => void;
@@ -307,10 +307,12 @@ const Catalog = () => {
       value={value || "_all"}
       onValueChange={(v) => onChange(v === "_all" ? null : v)}
     >
-      <SelectTrigger className={`${width} border-foreground/15 bg-transparent text-xs tracking-wide`}>
+      <SelectTrigger
+        className={`${width} border-[#ccb487] bg-[#fffaf0] text-xs tracking-wide text-[#2a2926] shadow-sm transition-colors hover:border-[#b99653]`}
+      >
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="border-[#cfb887] bg-[#fffdf7]">
         <SelectItem value="_all">{placeholder}</SelectItem>
         {options.map((opt) => (
           <SelectItem key={opt} value={opt}>
@@ -322,22 +324,22 @@ const Catalog = () => {
   );
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="min-h-screen flex flex-col bg-[#f8f3e8] text-[#171614]">
       <BenefitsBar />
       <Header />
 
       {/* ═══ 1. HERO BANNER ═══ */}
-      <section className="py-14 md:py-20 px-5 text-center">
+      <section className="border-b border-[#ccb487]/30 py-14 px-5 text-center md:py-20">
         <div className="max-w-2xl mx-auto">
-          <span className="text-xs tracking-[0.2em] uppercase text-accent font-medium">
+          <span className="text-xs font-semibold tracking-[0.2em] uppercase text-[#a37d38]">
             Coleção completa
           </span>
-          <h1 className="font-serif text-3xl md:text-4xl lg:text-5xl mt-3 mb-4 leading-[1.15]">
+          <h1 className="mt-3 mb-4 font-serif text-3xl leading-[1.15] text-[#12241e] md:text-4xl lg:text-5xl">
             Curadoria pensada para{" "}
-            <span className="text-accent italic">mulheres que não{" "}
+            <span className="italic text-[#b28a40]">mulheres que não{" "}
               <br className="hidden sm:block" />têm tempo a perder.</span>
           </h1>
-          <p className="text-muted-foreground font-light text-sm md:text-base max-w-lg mx-auto leading-relaxed">
+          <p className="mx-auto max-w-lg text-sm font-medium leading-relaxed text-[#6e675a] md:text-base">
             Cada peça foi escolhida a dedo para valorizar seu corpo,
             simplificar suas manhãs e fazer você se sentir incrível
             do escritório ao jantar.
@@ -346,9 +348,9 @@ const Catalog = () => {
       </section>
 
       {/* ═══ 2. OCCASION CHIPS ═══ */}
-      <section className="px-5 pb-10 md:pb-14">
+      <section className="px-5 pb-10 pt-10 md:pb-14 md:pt-14">
         <div className="max-w-3xl mx-auto">
-          <p className="text-center text-xs tracking-[0.15em] uppercase text-muted-foreground mb-6 font-medium">
+          <p className="mb-6 text-center text-xs font-semibold tracking-[0.15em] uppercase text-[#7d7568]">
             Para qual ocasião?
           </p>
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-4 md:gap-x-8">
@@ -362,8 +364,8 @@ const Catalog = () => {
                   className={`
                     font-serif text-base md:text-lg transition-colors duration-300
                     ${selectedOccasion === occ.query
-                      ? "text-foreground"
-                      : "text-foreground/50 hover:text-foreground/80"
+                      ? "text-[#171614]"
+                      : "text-[#171614]/55 hover:text-[#171614]/85"
                     }
                   `}
                 >
@@ -371,7 +373,7 @@ const Catalog = () => {
                 </span>
                 <span
                   className={`
-                    absolute -bottom-1 left-0 h-px bg-accent transition-all duration-500
+                    absolute -bottom-1 left-0 h-px bg-[#b28a40] transition-all duration-500
                     ${selectedOccasion === occ.query ? "w-full" : "w-0 group-hover:w-full"}
                   `}
                 />
@@ -382,17 +384,17 @@ const Catalog = () => {
       </section>
 
       {/* ═══ 3. FILTERS & SEARCH ═══ */}
-      <section className="border-y border-foreground/8 bg-secondary/20">
+      <section className="border-y border-[#ccb487]/35 bg-[#f3ecdd]">
         <div className="max-w-6xl mx-auto px-5 py-4">
           <div className="flex flex-col md:flex-row gap-3 items-center">
             {/* Search */}
             <div className="relative flex-1 w-full md:w-auto">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#85775f]" />
               <Input
                 placeholder="Buscar por nome..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-10 border-foreground/15 bg-transparent text-sm"
+                className="h-11 rounded-xl border-[#ccb487] bg-[#fffaf0] pl-10 text-sm text-[#25231f] shadow-sm placeholder:text-[#8b7f69] focus-visible:ring-[#c4a062]"
               />
             </div>
 
@@ -400,23 +402,27 @@ const Catalog = () => {
               {/* Mobile Filters */}
               <Sheet>
                 <SheetTrigger asChild>
-                  <Button variant="outline" size="sm" className="md:hidden gap-1.5 border-foreground/15 text-xs">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 border-[#c5ab78] bg-[#fff7e8] text-xs text-[#2f2a22] hover:bg-[#f3e6cb] md:hidden"
+                  >
                     <Filter className="h-3.5 w-3.5" />
                     Filtros
                     {activeFiltersCount > 0 && (
-                      <span className="bg-accent text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#a37d38] text-[10px] text-[#fff8e8]">
                         {activeFiltersCount}
                       </span>
                     )}
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="right">
+                <SheetContent side="right" className="border-l-[#ccb487]/40 bg-[#f8f2e5]">
                   <SheetHeader>
-                    <SheetTitle className="font-serif">Filtros</SheetTitle>
+                    <SheetTitle className="font-serif text-[#15251f]">Filtros</SheetTitle>
                   </SheetHeader>
                   <div className="space-y-6 mt-6">
                     <div>
-                      <label className="text-[10px] tracking-[0.15em] uppercase text-muted-foreground font-medium mb-2 block">
+                      <label className="mb-2 block text-[10px] font-semibold tracking-[0.15em] uppercase text-[#7d7568]">
                         Categoria
                       </label>
                       <FilterSelect
@@ -428,7 +434,7 @@ const Catalog = () => {
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] tracking-[0.15em] uppercase text-muted-foreground font-medium mb-2 block">
+                      <label className="mb-2 block text-[10px] font-semibold tracking-[0.15em] uppercase text-[#7d7568]">
                         Cor
                       </label>
                       <FilterSelect
@@ -440,7 +446,7 @@ const Catalog = () => {
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] tracking-[0.15em] uppercase text-muted-foreground font-medium mb-3 block">
+                      <label className="mb-3 block text-[10px] font-semibold tracking-[0.15em] uppercase text-[#7d7568]">
                         Tamanho
                       </label>
                       <div className="flex flex-wrap gap-2">
@@ -451,8 +457,8 @@ const Catalog = () => {
                             className={`
                               px-3 py-1.5 text-xs tracking-wide border rounded-full transition-all duration-200
                               ${selectedSizes.includes(size)
-                                ? "bg-foreground text-background border-foreground"
-                                : "border-foreground/20 text-foreground/70 hover:border-foreground/40"
+                                ? "border-[#a37d38] bg-[#15251f] text-[#f8f1de]"
+                                : "border-[#cdbd9d] text-[#5f594e] hover:border-[#aa8847]"
                               }
                             `}
                           >
@@ -462,7 +468,11 @@ const Catalog = () => {
                       </div>
                     </div>
                     {activeFiltersCount > 0 && (
-                      <Button variant="ghost" onClick={clearFilters} className="w-full text-xs tracking-wide">
+                      <Button
+                        variant="ghost"
+                        onClick={clearFilters}
+                        className="w-full text-xs tracking-wide text-[#6f6759] hover:bg-[#ece0c6] hover:text-[#3e372c]"
+                      >
                         Limpar filtros
                       </Button>
                     )}
@@ -478,16 +488,16 @@ const Catalog = () => {
                 {/* Size multi-select popover */}
                 <Popover>
                   <PopoverTrigger asChild>
-                    <button className="inline-flex items-center gap-1.5 h-10 px-3 border border-foreground/15 bg-transparent text-xs tracking-wide rounded-md hover:bg-secondary/50 transition-colors">
+                    <button className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#ccb487] bg-[#fffaf0] px-3 text-xs tracking-wide text-[#2f2a22] shadow-sm transition-colors hover:border-[#b99653]">
                       {selectedSizes.length > 0
                         ? `${selectedSizes.length} tam.`
                         : "Tamanho"
                       }
-                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                      <ChevronDown className="h-3.5 w-3.5 text-[#7f725b]" />
                     </button>
                   </PopoverTrigger>
-                  <PopoverContent align="start" className="w-auto p-3">
-                    <p className="text-[10px] tracking-[0.15em] uppercase text-muted-foreground font-medium mb-2">Tamanho</p>
+                  <PopoverContent align="start" className="w-auto border-[#ccb487]/60 bg-[#fffcf6] p-3">
+                    <p className="mb-2 text-[10px] font-semibold tracking-[0.15em] uppercase text-[#7d7568]">Tamanho</p>
                     <div className="flex flex-wrap gap-1.5 max-w-[220px]">
                       {SIZES.map((size) => (
                         <button
@@ -496,8 +506,8 @@ const Catalog = () => {
                           className={`
                             px-2.5 py-1 text-xs tracking-wide border rounded-full transition-all duration-200
                             ${selectedSizes.includes(size)
-                              ? "bg-foreground text-background border-foreground"
-                              : "border-foreground/20 text-foreground/70 hover:border-foreground/40"
+                              ? "border-[#a37d38] bg-[#15251f] text-[#f8f1de]"
+                              : "border-[#cdbd9d] text-[#5f594e] hover:border-[#aa8847]"
                             }
                           `}
                         >
@@ -508,7 +518,7 @@ const Catalog = () => {
                     {selectedSizes.length > 0 && (
                       <button
                         onClick={() => setSelectedSizes([])}
-                        className="mt-2 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                        className="mt-2 text-[10px] text-[#7d7568] transition-colors hover:text-[#3f392e]"
                       >
                         Limpar tamanhos
                       </button>
@@ -519,10 +529,10 @@ const Catalog = () => {
 
               {/* Sort */}
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-[130px] border-foreground/15 bg-transparent text-xs tracking-wide">
+                <SelectTrigger className="w-[138px] border-[#ccb487] bg-[#fffaf0] text-xs tracking-wide text-[#2f2a22] shadow-sm">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="border-[#cfb887] bg-[#fffdf7]">
                   <SelectItem value="recent">Mais recentes</SelectItem>
                   <SelectItem value="price_asc">Menor preço</SelectItem>
                   <SelectItem value="price_desc">Maior preço</SelectItem>
@@ -534,11 +544,11 @@ const Catalog = () => {
 
           {/* Active Filters Tags */}
           {(activeFiltersCount > 0 || selectedOccasion) && (
-            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-foreground/5">
+            <div className="mt-3 flex flex-wrap gap-2 border-t border-[#ccb487]/35 pt-3">
               {selectedOccasion && (
                 <button
                   onClick={() => handleOccasionClick("")}
-                  className="inline-flex items-center gap-1 px-3 py-1 text-[11px] tracking-wide border border-accent/30 text-accent rounded-full hover:bg-accent/5 transition-colors"
+                  className="inline-flex items-center gap-1 rounded-full border border-[#b99653]/45 px-3 py-1 text-[11px] tracking-wide text-[#8a672d] transition-colors hover:bg-[#eee0c5]"
                 >
                   {selectedOccasion}
                   <X className="h-3 w-3" />
@@ -547,7 +557,7 @@ const Catalog = () => {
               {selectedCategory && (
                 <button
                   onClick={() => setSelectedCategory(null)}
-                  className="inline-flex items-center gap-1 px-3 py-1 text-[11px] tracking-wide border border-foreground/15 rounded-full hover:bg-secondary transition-colors"
+                  className="inline-flex items-center gap-1 rounded-full border border-[#ccb487] px-3 py-1 text-[11px] tracking-wide text-[#5f594e] transition-colors hover:bg-[#ece0c6]"
                 >
                   {selectedCategory}
                   <X className="h-3 w-3" />
@@ -556,7 +566,7 @@ const Catalog = () => {
               {selectedColor && (
                 <button
                   onClick={() => setSelectedColor(null)}
-                  className="inline-flex items-center gap-1 px-3 py-1 text-[11px] tracking-wide border border-foreground/15 rounded-full hover:bg-secondary transition-colors"
+                  className="inline-flex items-center gap-1 rounded-full border border-[#ccb487] px-3 py-1 text-[11px] tracking-wide text-[#5f594e] transition-colors hover:bg-[#ece0c6]"
                 >
                   {selectedColor}
                   <X className="h-3 w-3" />
@@ -566,7 +576,7 @@ const Catalog = () => {
                 <button
                   key={size}
                   onClick={() => toggleSize(size)}
-                  className="inline-flex items-center gap-1 px-3 py-1 text-[11px] tracking-wide border border-foreground/15 rounded-full hover:bg-secondary transition-colors"
+                  className="inline-flex items-center gap-1 rounded-full border border-[#ccb487] px-3 py-1 text-[11px] tracking-wide text-[#5f594e] transition-colors hover:bg-[#ece0c6]"
                 >
                   Tam {size}
                   <X className="h-3 w-3" />
@@ -574,7 +584,7 @@ const Catalog = () => {
               ))}
               <button
                 onClick={clearFilters}
-                className="text-[11px] tracking-wide text-muted-foreground hover:text-foreground transition-colors"
+                className="text-[11px] tracking-wide text-[#746d61] transition-colors hover:text-[#40392d]"
               >
                 Limpar todos
               </button>
@@ -585,7 +595,7 @@ const Catalog = () => {
 
       {/* ═══ Results Count ═══ */}
       <div className="max-w-6xl mx-auto px-5 pt-6 pb-2">
-        <p className="text-[11px] tracking-[0.15em] uppercase text-muted-foreground font-medium">
+        <p className="text-[11px] font-semibold tracking-[0.15em] uppercase text-[#7d7568]">
           {filteredProducts.length} {filteredProducts.length === 1 ? "peça" : "peças"}
           {selectedOccasion ? ` para ${selectedOccasion}` : ""}
         </p>
@@ -597,19 +607,23 @@ const Catalog = () => {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
             {[...Array(8)].map((_, i) => (
               <div key={i} className="animate-pulse">
-                <div className="aspect-[3/4] bg-secondary mb-3" />
-                <div className="h-3 bg-secondary w-3/4 mb-2" />
-                <div className="h-3 bg-secondary w-1/2" />
+                <div className="mb-3 aspect-[3/4] rounded-xl bg-[#e9ddc6]" />
+                <div className="mb-2 h-3 w-3/4 rounded bg-[#e9ddc6]" />
+                <div className="h-3 w-1/2 rounded bg-[#e9ddc6]" />
               </div>
             ))}
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="text-center py-20">
-            <p className="font-serif text-xl mb-2">Nenhuma peça encontrada</p>
-            <p className="text-sm text-muted-foreground mb-6">
+            <p className="mb-2 font-serif text-xl text-[#14261f]">Nenhuma peça encontrada</p>
+            <p className="mb-6 text-sm font-medium text-[#6f685a]">
               Tente remover alguns filtros ou explorar outra ocasião.
             </p>
-            <Button variant="outline" onClick={clearFilters} className="text-xs tracking-wide">
+            <Button
+              variant="outline"
+              onClick={clearFilters}
+              className="border-[#c5ab78] bg-[#fff7e8] text-xs tracking-wide text-[#2f2a22] hover:bg-[#f3e6cb]"
+            >
               Limpar filtros
             </Button>
           </div>
@@ -622,30 +636,30 @@ const Catalog = () => {
 
             {/* ═══ 5. EDITORIAL MID-SECTION ═══ */}
             {filteredProducts.length > 3 && (
-              <section className="my-12 md:my-16 py-12 md:py-16 border-y border-foreground/8">
+              <section className="my-12 border-y border-[#ccb487]/35 bg-[#f4ebda]/70 py-12 md:my-16 md:py-16">
                 <div className="max-w-2xl mx-auto text-center">
-                  <div className="w-px h-10 bg-accent/40 mx-auto mb-6" />
-                  <span className="text-xs tracking-[0.2em] uppercase text-accent font-medium">
+                  <div className="mx-auto mb-6 h-10 w-px bg-[#c7aa6a]/70" />
+                  <span className="text-xs font-semibold tracking-[0.2em] uppercase text-[#a37d38]">
                     Precisa de ajuda?
                   </span>
-                  <h2 className="font-serif text-2xl md:text-3xl mt-2 mb-3 italic">
+                  <h2 className="mt-2 mb-3 font-serif text-2xl italic text-[#11251f] md:text-3xl">
                     Não sabe o que vestir?{" "}
                     <br className="hidden sm:block" />
                     A gente resolve.
                   </h2>
-                  <p className="text-muted-foreground font-light text-sm mb-8 max-w-md mx-auto leading-relaxed">
+                  <p className="mx-auto mb-8 max-w-md text-sm font-medium leading-relaxed text-[#6f685a]">
                     Responda 5 perguntas sobre seu estilo e tamanho. Em 2
                     minutos a gente monta um provador personalizado e envia
                     sugestões direto no seu WhatsApp.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <Link to="/meu-estilo">
-                      <button className="px-10 py-3.5 bg-foreground text-background text-xs tracking-[0.25em] uppercase font-medium transition-all duration-500 hover:bg-accent hover:text-white">
+                      <button className="bg-[#11251f] px-10 py-3.5 text-xs font-medium uppercase tracking-[0.25em] text-[#f3e5c1] transition-colors duration-300 hover:bg-[#183229]">
                         Fazer meu provador VIP
                       </button>
                     </Link>
                     <Link to="/enviar-print">
-                      <button className="px-10 py-3.5 border border-foreground/30 text-foreground text-xs tracking-[0.25em] uppercase font-medium transition-all duration-500 hover:border-accent hover:text-accent">
+                      <button className="border border-[#b99653]/55 bg-[#f9f3e3] px-10 py-3.5 text-xs font-medium uppercase tracking-[0.25em] text-[#2f2a22] transition-colors duration-300 hover:bg-[#f2e6cc]">
                         Buscar look por foto
                       </button>
                     </Link>
@@ -665,27 +679,27 @@ const Catalog = () => {
       </main>
 
       {/* ═══ 6. TRUST BADGES ═══ */}
-      <section className="py-14 md:py-20 px-5 bg-[hsl(35,30%,94%)]/60">
+      <section className="bg-[#f2ead9] py-14 px-5 md:py-20">
         <div className="max-w-4xl mx-auto text-center">
-          <span className="text-xs tracking-[0.2em] uppercase text-accent font-medium">
+          <span className="text-xs font-semibold tracking-[0.2em] uppercase text-[#a37d38]">
             Por que escolher a LE.POÁ
           </span>
-          <h2 className="font-serif text-2xl md:text-3xl mt-2 mb-3">
+          <h2 className="mt-2 mb-3 font-serif text-2xl text-[#11251f] md:text-3xl">
             Mais de 8 anos vestindo mulheres reais.
           </h2>
-          <p className="text-muted-foreground text-sm font-light mb-10 max-w-md mx-auto">
+          <p className="mx-auto mb-10 max-w-md text-sm font-medium text-[#6f685a]">
             Não somos só uma loja. Somos sua parceira de estilo para cada momento da sua vida.
           </p>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
             {TRUST_ITEMS.map((item) => (
               <div key={item.label} className="flex flex-col items-center gap-3 group">
-                <div className="w-14 h-14 rounded-full bg-card border border-border flex items-center justify-center shadow-sm group-hover:shadow-md group-hover:border-accent/40 transition-all duration-300">
-                  <item.icon className="h-6 w-6 text-accent" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[#d8c4a0] bg-[#fffaf0] shadow-sm transition-all duration-300 group-hover:border-[#b99653] group-hover:shadow-md">
+                  <item.icon className="h-6 w-6 text-[#a37d38]" />
                 </div>
                 <div>
-                  <p className="font-medium text-sm">{item.label}</p>
-                  <p className="text-xs text-muted-foreground">{item.desc}</p>
+                  <p className="text-sm font-semibold text-[#1e1d1a]">{item.label}</p>
+                  <p className="text-xs font-medium text-[#6f685a]">{item.desc}</p>
                 </div>
               </div>
             ))}
@@ -696,56 +710,56 @@ const Catalog = () => {
       {/* ═══ 7. FINAL CTA ═══ */}
       <section className="py-16 md:py-24 px-5">
         <div className="max-w-2xl mx-auto text-center">
-          <div className="w-px h-12 bg-accent/40 mx-auto mb-6" />
-          <h2 className="font-serif text-3xl md:text-4xl mb-4 italic">
+          <div className="mx-auto mb-6 h-12 w-px bg-[#c7aa6a]/70" />
+          <h2 className="mb-4 font-serif text-3xl italic text-[#11251f] md:text-4xl">
             Pronta para se sentir incrível?
           </h2>
-          <p className="text-muted-foreground font-light mb-8 max-w-md mx-auto">
+          <p className="mx-auto mb-8 max-w-md text-sm font-medium text-[#6f685a] md:text-base">
             Monte seu provador VIP em 2 minutos e receba sugestões
             personalizadas direto no seu WhatsApp.
           </p>
           <Link to="/meu-estilo">
-            <button className="px-12 py-4 bg-foreground text-background text-xs tracking-[0.25em] uppercase font-medium transition-all duration-500 hover:bg-accent hover:text-white">
+            <button className="bg-[#11251f] px-12 py-4 text-xs font-medium uppercase tracking-[0.25em] text-[#f3e5c1] transition-colors duration-300 hover:bg-[#183229]">
               Quero meu provador VIP
             </button>
           </Link>
-          <p className="text-[11px] text-muted-foreground mt-6 tracking-wide">
+          <p className="mt-6 text-[11px] font-medium tracking-wide text-[#7c7467]">
             Gratuito · Leva menos de 2 minutos
           </p>
         </div>
       </section>
 
       {/* ═══ FOOTER ═══ */}
-      <footer className="border-t border-border py-10 px-5">
+      <footer className="border-t border-[#d7c4a1]/80 py-10 px-5">
         <div className="max-w-5xl mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="text-center md:text-left">
-              <p className="font-serif text-lg mb-1">LE.POÁ</p>
-              <p className="text-xs text-muted-foreground">Curadoria de moda feminina • Anápolis, GO</p>
+              <p className="mb-1 font-serif text-lg text-[#11251f]">LE.POÁ</p>
+              <p className="text-xs font-medium text-[#6f685a]">Curadoria de moda feminina • Anápolis, GO</p>
             </div>
 
-            <div className="flex items-center gap-5 text-sm text-muted-foreground">
-              <Link to="/catalogo" className="hover:text-foreground transition-colors">Catálogo</Link>
-              <Link to="/meu-estilo" className="hover:text-foreground transition-colors">Provador VIP</Link>
-              <Link to="/enviar-print" className="hover:text-foreground transition-colors">Buscar por foto</Link>
+            <div className="flex items-center gap-5 text-sm font-medium text-[#6f685a]">
+              <Link to="/catalogo" className="transition-colors hover:text-[#1f1d1a]">Catálogo</Link>
+              <Link to="/meu-estilo" className="transition-colors hover:text-[#1f1d1a]">Provador VIP</Link>
+              <Link to="/enviar-print" className="transition-colors hover:text-[#1f1d1a]">Buscar por foto</Link>
               <a
                 href={buildWhatsAppLink("Olá! Gostaria de saber mais sobre a LE.POÁ 🌸")}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-foreground transition-colors"
+                className="transition-colors hover:text-[#1f1d1a]"
               >
                 WhatsApp
               </a>
             </div>
           </div>
 
-          <div className="border-t border-border mt-6 pt-6 flex flex-col sm:flex-row items-center justify-between gap-2">
-            <p className="text-xs text-muted-foreground">
+          <div className="mt-6 flex flex-col items-center justify-between gap-2 border-t border-[#d7c4a1]/60 pt-6 sm:flex-row">
+            <p className="text-xs font-medium text-[#7c7467]">
               © {new Date().getFullYear()} LE.POÁ. Todos os direitos reservados.
             </p>
             <Link
               to="/area-lojista"
-              className="text-[10px] text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+              className="text-[10px] text-[#7c7467]/70 transition-colors hover:text-[#5f594e]"
             >
               Área do Lojista
             </Link>

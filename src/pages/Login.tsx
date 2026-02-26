@@ -1,20 +1,20 @@
-import { useState, useEffect } from "react";
+﻿import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { z } from "zod";
+import logoLepoa from "@/assets/logo-lepoa.png";
 
 const authSchema = z.object({
   email: z.string().email("Email inválido"),
   password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
 });
 
-// Hidden merchant/admin login page - accessible only via direct URL
 const Login = () => {
   const navigate = useNavigate();
   const { user, isMerchant, isLoading: authLoading } = useAuth();
@@ -23,16 +23,15 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Redirect if already logged in as merchant
   useEffect(() => {
     if (!authLoading && user && isMerchant()) {
       navigate("/dashboard");
     }
-  }, [user, authLoading, isMerchant, navigate]);
+  }, [authLoading, isMerchant, navigate, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const result = authSchema.safeParse({ email, password });
     if (!result.success) {
       toast.error(result.error.errors[0].message);
@@ -47,15 +46,12 @@ const Login = () => {
       });
       if (error) throw error;
 
-      // Check if user has merchant role
       const { data: roles } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", (await supabase.auth.getUser()).data.user?.id);
 
-      const hasMerchantRole = roles?.some(
-        (r) => r.role === "merchant" || r.role === "admin"
-      );
+      const hasMerchantRole = roles?.some((r) => r.role === "merchant" || r.role === "admin");
 
       if (!hasMerchantRole) {
         await supabase.auth.signOut();
@@ -63,11 +59,11 @@ const Login = () => {
         return;
       }
 
-      toast.success("Bem-vinda de volta!");
+      toast.success("Bem-vinda de volta.");
       navigate("/dashboard");
     } catch (error: any) {
       console.error("Auth error:", error);
-      if (error.message.includes("Invalid login")) {
+      if (error.message?.includes("Invalid login")) {
         toast.error("Email ou senha incorretos.");
       } else {
         toast.error(error.message || "Erro ao autenticar. Tente novamente.");
@@ -79,26 +75,23 @@ const Login = () => {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex min-h-screen items-center justify-center bg-[#102820]">
+        <Loader2 className="h-8 w-8 animate-spin text-[#d4b26f]" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <h1 className="font-serif text-2xl mb-2">
-            Área do Lojista
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            Acesso restrito a lojistas autorizados
-          </p>
+    <div className="flex min-h-screen items-center justify-center bg-[#102820] px-4 py-10">
+      <div className="w-full max-w-md rounded-2xl border border-[#d1b37066] bg-[#f8f3e8] px-6 py-8 shadow-[0_16px_42px_rgba(0,0,0,0.35)] sm:px-8">
+        <div className="mb-8 text-center">
+          <img src={logoLepoa} alt="Le.Poá" className="mx-auto mb-5 h-14 w-auto object-contain" />
+          <h1 className="text-2xl font-semibold text-[#102820]">Área do lojista</h1>
+          <p className="mt-2 text-sm text-[#6f6658]">Acesso restrito para equipe autorizada.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
+          <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
               id="email"
@@ -107,10 +100,11 @@ const Login = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              className="border-[#c8aa6a80] bg-white"
             />
           </div>
 
-          <div>
+          <div className="space-y-2">
             <Label htmlFor="password">Senha</Label>
             <div className="relative">
               <Input
@@ -120,21 +114,26 @@ const Login = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                className="border-[#c8aa6a80] bg-white pr-10"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7b6b4d] transition-colors hover:text-[#102820]"
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
           </div>
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button
+            type="submit"
+            className="h-11 w-full border border-[#b18a40] bg-[#102820] text-[#f3e5c1] hover:bg-[#123129]"
+            disabled={isLoading}
+          >
             {isLoading ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Entrando...
               </>
             ) : (
@@ -143,9 +142,7 @@ const Login = () => {
           </Button>
         </form>
 
-        <p className="mt-6 text-center text-xs text-muted-foreground">
-          Cadastro de lojistas apenas por convite.
-        </p>
+        <p className="mt-6 text-center text-xs text-[#6f6658]">Cadastro de lojistas apenas por convite.</p>
       </div>
     </div>
   );
