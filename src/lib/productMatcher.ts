@@ -150,6 +150,27 @@ function normalizeValue(value: unknown): string {
   return "";
 }
 
+function toStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => normalizeValue(entry))
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    const normalized = normalizeValue(value);
+    return normalized ? [normalized] : [];
+  }
+
+  if (value && typeof value === "object") {
+    return Object.values(value as Record<string, unknown>)
+      .map((entry) => normalizeValue(entry))
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
 function normalizeSizeToken(value: string | null | undefined): string {
   if (!value) return "";
   return value
@@ -292,8 +313,8 @@ export function calculateProductScore(
   }
 
   // Tags/details matching
-  const analysisTags = analysis.tags_extras || [];
-  const productTags = product.tags || [];
+  const analysisTags = toStringList((analysis as { tags_extras?: unknown }).tags_extras);
+  const productTags = toStringList(product.tags);
   
   let tagMatchCount = 0;
   const maxTagMatches = 3;
