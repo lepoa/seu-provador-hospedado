@@ -29,7 +29,7 @@ export function useProductMatcher() {
       try {
         const { data: products, error } = await supabase
           .from("product_catalog")
-          .select("id, name, price, image_url, sizes, stock_by_size, is_active, category, color, style, occasion, modeling, tags, group_key")
+          .select("*")
           .eq("is_active", true);
 
         if (error) {
