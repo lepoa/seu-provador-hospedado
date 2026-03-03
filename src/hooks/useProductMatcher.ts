@@ -42,10 +42,37 @@ export function useProductMatcher() {
           return empty;
         }
 
-        const productsWithStock = products.map(p => ({
+        // Prefer normalized available stock from view (same source used in admin).
+        const { data: stockRows } = await supabase
+          .from("public_product_stock")
+          .select("product_id, size, available")
+          .gt("available", 0);
+
+        const availableByProduct = new Map<string, Record<string, number>>();
+        (stockRows || []).forEach((row) => {
+          if (!row.product_id || !row.size) return;
+          const size = row.size.trim();
+          const qty = Number(row.available ?? 0);
+          if (!Number.isFinite(qty) || qty <= 0) return;
+
+          if (!availableByProduct.has(row.product_id)) {
+            availableByProduct.set(row.product_id, {});
+          }
+          availableByProduct.get(row.product_id)![size] = qty;
+        });
+
+        const productsWithStock = products.map(p => {
+          const fallbackStock =
+            typeof p.stock_by_size === "object" && p.stock_by_size
+              ? (p.stock_by_size as Record<string, number>)
+              : null;
+          const viewStock = availableByProduct.get(p.id) || null;
+
+          return {
           ...p,
-          stock_by_size: typeof p.stock_by_size === 'object' ? p.stock_by_size as Record<string, number> : null
-        }));
+          stock_by_size: viewStock || fallbackStock
+        };
+        });
 
         const matchResult = findMatchingProductsWithFallback(productsWithStock, analysis, options);
         setResult(matchResult);
