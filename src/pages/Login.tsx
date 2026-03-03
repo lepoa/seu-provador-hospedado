@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -17,17 +17,49 @@ const authSchema = z.object({
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isMerchant, isLoading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [resolvedReturnTo, setResolvedReturnTo] = useState("/dashboard");
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const raw = params.get("returnTo");
+    if (!raw) {
+      setResolvedReturnTo("/dashboard");
+      return;
+    }
+
+    try {
+      const decoded = decodeURIComponent(raw).trim();
+      const isSafePath = decoded.startsWith("/") && !decoded.startsWith("//");
+      const isMerchantPath =
+        decoded.startsWith("/dashboard") ||
+        decoded.startsWith("/importar-estoque") ||
+        decoded.startsWith("/clientes/ranking");
+      const isLoginPath = decoded.startsWith("/login") || decoded.startsWith("/area-lojista");
+
+      if (isSafePath && isMerchantPath && !isLoginPath) {
+        setResolvedReturnTo(decoded);
+        return;
+      }
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error("[login] Invalid returnTo param", error);
+      }
+    }
+
+    setResolvedReturnTo("/dashboard");
+  }, [location.search]);
 
   useEffect(() => {
     if (!authLoading && user && isMerchant()) {
-      navigate("/dashboard");
+      navigate(resolvedReturnTo, { replace: true });
     }
-  }, [authLoading, isMerchant, navigate, user]);
+  }, [authLoading, isMerchant, navigate, resolvedReturnTo, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,7 +92,7 @@ const Login = () => {
       }
 
       toast.success("Bem-vinda de volta.");
-      navigate("/dashboard");
+      navigate(resolvedReturnTo, { replace: true });
     } catch (error: any) {
       console.error("Auth error:", error);
       if (error.message?.includes("Invalid login")) {

@@ -72,6 +72,7 @@ type FilterType = "active" | "archived" | "imported";
 export function ProductsManager({ userId, initialFilter }: ProductsManagerProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [availableStock, setAvailableStock] = useState<Map<string, Map<string, AvailableStockEntry>>>(new Map());
+  const [stockViewAccessBlocked, setStockViewAccessBlocked] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterType>(() => {
@@ -85,7 +86,7 @@ export function ProductsManager({ userId, initialFilter }: ProductsManagerProps)
 
   // Fetch available stock from the view
   const loadAvailableStock = useCallback(async (productIds: string[]) => {
-    if (productIds.length === 0) return;
+    if (productIds.length === 0 || stockViewAccessBlocked) return;
 
     try {
       const { data, error } = await supabase
@@ -114,9 +115,30 @@ export function ProductsManager({ userId, initialFilter }: ProductsManagerProps)
 
       setAvailableStock(stockMap);
     } catch (error) {
+      const err = error as { code?: string; message?: string };
+      const isOrdersPermissionError =
+        err?.code === "42501" &&
+        (err?.message || "").toLowerCase().includes("orders");
+
+      if (isOrdersPermissionError) {
+        // Fallback to stock_by_size only and stop retrying this view in this session.
+        setStockViewAccessBlocked(true);
+        setAvailableStock(new Map());
+        runtimeLog(
+          "products-manager",
+          "stock-view:blocked",
+          {
+            code: err.code,
+            message: err.message,
+          },
+          "warn",
+        );
+        return;
+      }
+
       console.error("Error loading available stock:", error);
     }
-  }, []);
+  }, [stockViewAccessBlocked]);
 
   const loadProducts = async () => {
     try {
@@ -153,7 +175,7 @@ export function ProductsManager({ userId, initialFilter }: ProductsManagerProps)
       });
 
       // Load available stock for these products
-      if (data && data.length > 0) {
+      if (data && data.length > 0 && !stockViewAccessBlocked) {
         loadAvailableStock(data.map((p: Product) => p.id));
       }
     } catch (error) {
@@ -171,7 +193,7 @@ export function ProductsManager({ userId, initialFilter }: ProductsManagerProps)
 
   useEffect(() => {
     loadProducts();
-  }, [userId, filter]);
+  }, [userId, filter, stockViewAccessBlocked]);
 
   const handleArchive = async (product: Product) => {
     try {

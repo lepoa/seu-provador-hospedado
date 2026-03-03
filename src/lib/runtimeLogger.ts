@@ -28,6 +28,8 @@ declare global {
 const TRACE_PREFIX = "[SAAS-TRACE]";
 const TRACE_STORAGE_KEY = "saas_trace_entries";
 const CHUNK_RELOAD_KEY = "saas_chunk_reload_once";
+const CHUNK_RELOAD_PARAM = "_chunk_retry";
+const LEGACY_CHUNK_RELOAD_PARAM = "chunk_retry";
 const TRACE_MAX_ENTRIES = 5000;
 const TRACE_MAX_STRING = 1200;
 const TRACE_MAX_KEYS = 40;
@@ -185,8 +187,18 @@ function shouldRecoverChunkError(message: string): boolean {
 
 function buildReloadUrlWithCacheBust(): string {
   const url = new URL(window.location.href);
-  url.searchParams.set("_chunk_retry", Date.now().toString());
+  url.searchParams.delete(CHUNK_RELOAD_PARAM);
+  url.searchParams.delete(LEGACY_CHUNK_RELOAD_PARAM);
+  url.searchParams.set(CHUNK_RELOAD_PARAM, Date.now().toString());
   return url.toString();
+}
+
+function buildChunkRouteKey(): string {
+  const url = new URL(window.location.href);
+  url.searchParams.delete(CHUNK_RELOAD_PARAM);
+  url.searchParams.delete(LEGACY_CHUNK_RELOAD_PARAM);
+  const search = url.searchParams.toString();
+  return `${url.pathname}${search ? `?${search}` : ""}${url.hash}`;
 }
 
 function attemptChunkErrorRecovery(reason: unknown): void {
@@ -195,14 +207,17 @@ function attemptChunkErrorRecovery(reason: unknown): void {
   const message = extractChunkErrorMessage(reason);
   if (!shouldRecoverChunkError(message)) return;
 
-  const currentKey = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  const hasChunkRetryParam =
+    window.location.search.includes(`${CHUNK_RELOAD_PARAM}=`) ||
+    window.location.search.includes(`${LEGACY_CHUNK_RELOAD_PARAM}=`);
+  const currentKey = buildChunkRouteKey();
   const previousKey = sessionStorage.getItem(CHUNK_RELOAD_KEY);
 
-  if (previousKey === currentKey) {
+  if (hasChunkRetryParam || previousKey === currentKey) {
     runtimeLog(
       "runtime",
       "chunk-load:recover:skipped",
-      { key: currentKey, message },
+      { key: currentKey, message, hasChunkRetryParam },
       "error",
     );
     return;

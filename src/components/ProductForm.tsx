@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -880,6 +881,9 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
           <DialogTitle className="font-serif">
             {product ? "Editar Produto" : "Novo Produto"}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Formulario para cadastrar ou editar produtos, incluindo imagens, video e estoque.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
@@ -1291,6 +1295,9 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Nova categoria</DialogTitle>
+          <DialogDescription className="sr-only">
+            Crie uma categoria personalizada para usar no produto atual.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">

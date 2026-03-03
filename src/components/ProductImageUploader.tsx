@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { Upload, X, Star, GripVertical, Play, Video } from "lucide-react";
+import { Upload, X, Star, GripVertical, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { compressImage, getEmbedUrl } from "@/lib/mediaUtils";
+import { Input } from "@/components/ui/input";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ProductImageUploaderProps {
   images: string[];
@@ -24,8 +26,12 @@ export function ProductImageUploader({
   userId,
 }: ProductImageUploaderProps) {
   const [isUploading, setIsUploading] = useState(false);
-  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [videoInput, setVideoInput] = useState("");
+
+  const normalizedVideoInput = videoInput.trim();
+  const parsedVideoEmbedUrl = normalizedVideoInput ? getEmbedUrl(normalizedVideoInput) : null;
+  const isVideoInputValid = Boolean(parsedVideoEmbedUrl);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -33,7 +39,7 @@ export function ProductImageUploader({
 
     const remainingSlots = MAX_IMAGES - images.length;
     if (remainingSlots <= 0) {
-      toast.error(`Máximo de ${MAX_IMAGES} imagens`);
+      toast.error(`Maximo de ${MAX_IMAGES} imagens`);
       return;
     }
 
@@ -44,10 +50,15 @@ export function ProductImageUploader({
       const uploadedUrls: string[] = [];
 
       for (const file of filesToUpload) {
-        const fileName = `${userId}/${Date.now()}-${file.name}`;
+        const compressedFile = await compressImage(file);
+
+        const fileName = `${userId}/${Date.now()}-${compressedFile.name}`;
         const { error: uploadError } = await supabase.storage
           .from("products")
-          .upload(fileName, file);
+          .upload(fileName, compressedFile, {
+            cacheControl: "3600000",
+            upsert: false,
+          });
 
         if (uploadError) throw uploadError;
 
@@ -69,50 +80,30 @@ export function ProductImageUploader({
     }
   };
 
-  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleVideoLinkSubmit = () => {
+    if (!normalizedVideoInput) return;
 
-    if (file.size > 50 * 1024 * 1024) {
-      toast.error("Vídeo muito grande (máx 50MB)");
+    const embedUrl = getEmbedUrl(normalizedVideoInput);
+    if (!embedUrl) {
+      toast.error("Link invalido. Use um link do YouTube (inclui Shorts) ou Vimeo.");
       return;
     }
 
-    setIsUploadingVideo(true);
-
-    try {
-      const fileName = `${userId}/videos/${Date.now()}-${file.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from("products")
-        .upload(fileName, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from("products")
-        .getPublicUrl(fileName);
-
-      onVideoChange(urlData.publicUrl);
-      toast.success("Vídeo enviado!");
-    } catch (error) {
-      console.error("Error uploading video:", error);
-      toast.error("Erro ao enviar vídeo");
-    } finally {
-      setIsUploadingVideo(false);
-      e.target.value = "";
-    }
+    onVideoChange(embedUrl);
+    setVideoInput("");
+    toast.success("Video vinculado!");
   };
 
   const removeImage = (index: number) => {
     const newImages = images.filter((_, i) => i !== index);
     let newMainIndex = mainImageIndex;
-    
+
     if (index === mainImageIndex) {
       newMainIndex = 0;
     } else if (index < mainImageIndex) {
       newMainIndex = mainImageIndex - 1;
     }
-    
+
     onImagesChange(newImages, Math.min(newMainIndex, newImages.length - 1));
   };
 
@@ -178,7 +169,6 @@ export function ProductImageUploader({
         />
       </div>
 
-      {/* Images Grid */}
       <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
         {images.map((url, index) => (
           <div
@@ -198,8 +188,7 @@ export function ProductImageUploader({
               alt={`Imagem ${index + 1}`}
               className="w-full h-full object-cover"
             />
-            
-            {/* Overlay controls */}
+
             <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
               <Button
                 type="button"
@@ -223,21 +212,18 @@ export function ProductImageUploader({
               </Button>
             </div>
 
-            {/* Main badge */}
             {index === mainImageIndex && (
               <span className="absolute top-1 left-1 text-[10px] bg-accent text-accent-foreground px-1.5 py-0.5 rounded">
                 Principal
               </span>
             )}
 
-            {/* Drag handle indicator */}
             <div className="absolute bottom-1 right-1 text-white/60">
               <GripVertical className="h-3 w-3" />
             </div>
           </div>
         ))}
 
-        {/* Add placeholder */}
         {images.length < MAX_IMAGES && (
           <button
             type="button"
@@ -249,37 +235,47 @@ export function ProductImageUploader({
         )}
       </div>
 
-      {/* Video Upload */}
       <div className="pt-4 border-t border-border">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex flex-col gap-2 mb-2">
           <span className="text-sm font-medium flex items-center gap-1.5">
             <Video className="h-4 w-4" />
-            Vídeo (opcional)
+            Video Externo (YouTube/Vimeo) - Opcional
           </span>
           {!videoUrl && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => document.getElementById("video-upload")?.click()}
-              disabled={isUploadingVideo}
-            >
-              <Upload className="h-4 w-4 mr-1" />
-              {isUploadingVideo ? "Enviando..." : "Adicionar vídeo"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Input
+                type="url"
+                placeholder="Cole o link do YouTube ou Vimeo"
+                value={videoInput}
+                onChange={(e) => setVideoInput(e.target.value)}
+                className="flex-1 text-sm bg-white"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleVideoLinkSubmit}
+                disabled={!isVideoInputValid}
+              >
+                Vincular
+              </Button>
+            </div>
           )}
-          <input
-            id="video-upload"
-            type="file"
-            accept="video/*"
-            onChange={handleVideoUpload}
-            className="hidden"
-          />
+          {!videoUrl && normalizedVideoInput && !isVideoInputValid && (
+            <p className="text-xs text-destructive">
+              Link invalido. Cole uma URL valida do YouTube (watch, youtu.be, shorts, embed) ou Vimeo.
+            </p>
+          )}
         </div>
 
         {videoUrl && (
-          <div className="relative aspect-video rounded-lg overflow-hidden bg-black">
-            <video src={videoUrl} controls className="w-full h-full object-contain" />
+          <div className="relative aspect-video rounded-lg overflow-hidden bg-black/5 border border-border">
+            <iframe
+              src={videoUrl}
+              className="w-full h-full"
+              allowFullScreen
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            />
             <Button
               type="button"
               size="icon"

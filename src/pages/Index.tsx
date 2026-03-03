@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/Header";
 import { BenefitsBar } from "@/components/BenefitsBar";
+import { Helmet } from "react-helmet-async";
 import { supabase } from "@/integrations/supabase/client";
 import { ProductCard } from "@/components/ProductCard";
 import { useEffectivePrices } from "@/hooks/useEffectivePrices";
@@ -48,6 +49,47 @@ interface RankedProductMetrics {
   quantity: number;
 }
 
+interface RankedCandidate {
+  productId: string;
+  revenue: number;
+  quantity: number;
+}
+
+const MAX_BEST_SELLERS = 8;
+const MIN_SALES_FOR_DIRECT_RANKING = 4;
+const AUTO_REFRESH_MS = 1000 * 60 * 60 * 24; // daily
+const PAID_ORDER_STATUSES = ["pago", "entregue", "preparar_envio", "etiqueta_gerada", "postado", "em_rota", "retirada"];
+
+const getIsoDaysAgo = (days: number) => {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return date.toISOString();
+};
+
+const extractProductIdFromMetadata = (metadata: unknown): string | null => {
+  if (!metadata || typeof metadata !== "object") return null;
+
+  const typed = metadata as Record<string, unknown>;
+  const directCandidates = ["product_id", "productId", "id"];
+
+  for (const key of directCandidates) {
+    const value = typed[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+
+  const nestedCandidates = [typed.product, typed.item, typed.payload];
+  for (const nested of nestedCandidates) {
+    if (!nested || typeof nested !== "object") continue;
+    const nestedObj = nested as Record<string, unknown>;
+    for (const key of directCandidates) {
+      const value = nestedObj[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+  }
+
+  return null;
+};
+
 const Index = () => {
   const [bestSellers, setBestSellers] = useState<Product[]>([]);
   const [rankingByProductId, setRankingByProductId] = useState<Record<string, RankedProductMetrics>>({});
@@ -56,82 +98,198 @@ const Index = () => {
   useEffect(() => {
     let isFirstLoad = true;
 
+    const fetchRevenueRanking = async (days: number): Promise<RankedCandidate[]> => {
+      const sinceIso = getIsoDaysAgo(days);
+
+      const { data: paidOrders, error: ordersError } = await supabase
+        .from("orders")
+        .select("id")
+        .gte("created_at", sinceIso)
+        .in("status", PAID_ORDER_STATUSES as any);
+
+      if (ordersError || !paidOrders?.length) {
+        return [];
+      }
+
+      const orderIds = paidOrders.map((order) => order.id);
+      const { data: orderItems, error: itemsError } = await supabase
+        .from("order_items")
+        .select("product_id, quantity, product_price, subtotal")
+        .in("order_id", orderIds);
+
+      if (itemsError || !orderItems?.length) {
+        return [];
+      }
+
+      const rankingMap = new Map<string, { revenue: number; quantity: number }>();
+
+      orderItems.forEach((item) => {
+        const productId = item.product_id;
+        const quantity = Number(item.quantity || 0);
+        const revenue = Number(item.subtotal ?? (item.product_price || 0) * quantity);
+        if (!productId || quantity <= 0 || revenue < 0) return;
+
+        const current = rankingMap.get(productId);
+        if (current) {
+          current.quantity += quantity;
+          current.revenue += revenue;
+        } else {
+          rankingMap.set(productId, { revenue, quantity });
+        }
+      });
+
+      return Array.from(rankingMap.entries())
+        .map(([productId, metrics]) => ({ productId, revenue: metrics.revenue, quantity: metrics.quantity }))
+        .sort((a, b) => b.revenue - a.revenue || b.quantity - a.quantity);
+    };
+
+    const fetchAnalyticsRanking = async (eventNames: string[], days: number): Promise<string[]> => {
+      const sinceIso = getIsoDaysAgo(days);
+
+      const query = (supabase.from("analytics_events" as any) as any)
+        .select("event_name, metadata, created_at")
+        .gte("created_at", sinceIso)
+        .in("event_name", eventNames);
+
+      const { data, error } = await query;
+      if (error || !Array.isArray(data) || data.length === 0) {
+        return [];
+      }
+
+      const countMap = new Map<string, number>();
+
+      for (const event of data as Array<Record<string, unknown>>) {
+        const productId = extractProductIdFromMetadata(event.metadata);
+        if (!productId) continue;
+        countMap.set(productId, (countMap.get(productId) || 0) + 1);
+      }
+
+      return Array.from(countMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([productId]) => productId);
+    };
+
+    const fetchFeaturedIds = async (): Promise<string[]> => {
+      const { data, error } = await supabase
+        .from("product_catalog")
+        .select("id, tags, created_at")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+
+      if (error || !data?.length) return [];
+
+      return data
+        .filter((product) =>
+          Array.isArray(product.tags) &&
+          product.tags.some((tag) => tag?.toString().trim().toLowerCase() === "destaque")
+        )
+        .map((product) => product.id);
+    };
+
+    const fetchLatestActiveIds = async (): Promise<string[]> => {
+      const { data, error } = await supabase
+        .from("product_catalog")
+        .select("id")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(MAX_BEST_SELLERS);
+
+      if (error || !data?.length) return [];
+      return data.map((product) => product.id);
+    };
+
     const loadBestSellers = async () => {
       if (isFirstLoad) {
         setIsLoading(true);
       }
 
       try {
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-        const { data: paidOrders, error: ordersError } = await supabase
-          .from("orders")
-          .select("id")
-          .gte("created_at", sevenDaysAgo.toISOString())
-          .or("status.eq.pago,status.eq.entregue,status.eq.Pago,status.eq.Entregue");
-
-        if (ordersError) {
-          throw ordersError;
-        }
-
-        const orderIds = (paidOrders || []).map((order) => order.id);
-        if (orderIds.length === 0) {
-          setBestSellers([]);
-          setRankingByProductId({});
-          return;
-        }
-
-        const { data: orderItems, error: itemsError } = await supabase
-          .from("order_items")
-          .select("product_id, quantity, product_price, subtotal")
-          .in("order_id", orderIds);
-
-        if (itemsError) {
-          throw itemsError;
-        }
-
-        const productRankingMap = new Map<string, { revenue: number; quantity: number }>();
-        (orderItems || []).forEach((item) => {
-          const quantity = Number(item.quantity || 0);
-          const revenue = Number(item.subtotal ?? (item.product_price || 0) * quantity);
-          if (!item.product_id || quantity <= 0 || revenue < 0) {
-            return;
-          }
-
-          const existing = productRankingMap.get(item.product_id);
-          if (existing) {
-            existing.quantity += quantity;
-            existing.revenue += revenue;
-          } else {
-            productRankingMap.set(item.product_id, { quantity, revenue });
-          }
-        });
-
-        const rankedProducts = Array.from(productRankingMap.entries())
-          .sort(([, a], [, b]) => b.revenue - a.revenue || b.quantity - a.quantity)
-          .slice(0, 8);
-
-        if (rankedProducts.length === 0) {
-          setBestSellers([]);
-          setRankingByProductId({});
-          return;
-        }
-
-        const rankedIds = rankedProducts.map(([productId]) => productId);
         const rankingMap: Record<string, RankedProductMetrics> = {};
-        rankedProducts.forEach(([productId, metrics], index) => {
-          rankingMap[productId] = {
+        const selectedIds: string[] = [];
+        const selectedSet = new Set<string>();
+
+        const appendIds = (ids: string[]) => {
+          for (const productId of ids) {
+            if (!productId || selectedSet.has(productId)) continue;
+            selectedSet.add(productId);
+            selectedIds.push(productId);
+            if (selectedIds.length >= MAX_BEST_SELLERS) break;
+          }
+        };
+
+        const sales7d = await fetchRevenueRanking(7);
+        sales7d.forEach((entry) => {
+          rankingMap[entry.productId] = {
+            rank: 0,
+            revenue: entry.revenue,
+            quantity: entry.quantity,
+          };
+        });
+        appendIds(sales7d.map((entry) => entry.productId));
+
+        if (sales7d.length < MIN_SALES_FOR_DIRECT_RANKING && selectedIds.length < MAX_BEST_SELLERS) {
+          const views7d = await fetchAnalyticsRanking(
+            ["product_view", "view_product", "product_viewed", "catalog_product_view", "produto_visualizado"],
+            7
+          );
+          appendIds(views7d);
+        }
+
+        if (sales7d.length < MIN_SALES_FOR_DIRECT_RANKING && selectedIds.length < MAX_BEST_SELLERS) {
+          const addToCart7d = await fetchAnalyticsRanking(
+            ["add_to_cart", "product_add_to_cart", "cart_add", "produto_adicionado_carrinho"],
+            7
+          );
+          appendIds(addToCart7d);
+        }
+
+        if (sales7d.length < MIN_SALES_FOR_DIRECT_RANKING && selectedIds.length < MAX_BEST_SELLERS) {
+          const sales30d = await fetchRevenueRanking(30);
+          sales30d.forEach((entry) => {
+            if (!rankingMap[entry.productId]) {
+              rankingMap[entry.productId] = {
+                rank: 0,
+                revenue: entry.revenue,
+                quantity: entry.quantity,
+              };
+            }
+          });
+          appendIds(sales30d.map((entry) => entry.productId));
+        }
+
+        if (sales7d.length < MIN_SALES_FOR_DIRECT_RANKING && selectedIds.length < MAX_BEST_SELLERS) {
+          const featuredIds = await fetchFeaturedIds();
+          appendIds(featuredIds);
+        }
+
+        if (selectedIds.length < MAX_BEST_SELLERS) {
+          const latestActiveIds = await fetchLatestActiveIds();
+          appendIds(latestActiveIds);
+        }
+
+        if (selectedIds.length === 0) {
+          const latestActiveIds = await fetchLatestActiveIds();
+          appendIds(latestActiveIds);
+        }
+
+        if (selectedIds.length === 0) {
+          return;
+        }
+
+        const finalRankingMap: Record<string, RankedProductMetrics> = {};
+        selectedIds.forEach((productId, index) => {
+          const metrics = rankingMap[productId];
+          finalRankingMap[productId] = {
             rank: index + 1,
-            revenue: metrics.revenue,
-            quantity: metrics.quantity,
+            revenue: metrics?.revenue || 0,
+            quantity: metrics?.quantity || 0,
           };
         });
 
         const { data: products, error: productsError } = await supabase
           .from("product_catalog")
           .select("id, name, price, image_url, images, main_image_index, category, stock_by_size")
-          .in("id", rankedIds)
+          .in("id", selectedIds)
           .eq("is_active", true);
 
         if (productsError) {
@@ -139,14 +297,41 @@ const Index = () => {
         }
 
         const productById = new Map((products || []).map((product) => [product.id, product]));
-        const orderedProducts = rankedIds
+        const orderedProducts = selectedIds
           .map((productId) => productById.get(productId))
           .filter((product): product is Product => Boolean(product));
 
         setBestSellers(orderedProducts);
-        setRankingByProductId(rankingMap);
+        setRankingByProductId(finalRankingMap);
       } catch (e) {
         console.error("Error loading products:", e);
+        try {
+          const latestActiveIds = await fetchLatestActiveIds();
+          if (latestActiveIds.length > 0) {
+            const { data: products } = await supabase
+              .from("product_catalog")
+              .select("id, name, price, image_url, images, main_image_index, category, stock_by_size")
+              .in("id", latestActiveIds)
+              .eq("is_active", true);
+
+            const fallbackRanking: Record<string, RankedProductMetrics> = {};
+            latestActiveIds.forEach((productId, index) => {
+              fallbackRanking[productId] = { rank: index + 1, revenue: 0, quantity: 0 };
+            });
+
+            const productById = new Map((products || []).map((product) => [product.id, product]));
+            const orderedProducts = latestActiveIds
+              .map((productId) => productById.get(productId))
+              .filter((product): product is Product => Boolean(product));
+
+            if (orderedProducts.length > 0) {
+              setBestSellers(orderedProducts);
+              setRankingByProductId(fallbackRanking);
+            }
+          }
+        } catch (fallbackError) {
+          console.error("Error loading emergency fallback products:", fallbackError);
+        }
       } finally {
         if (isFirstLoad) {
           setIsLoading(false);
@@ -158,10 +343,19 @@ const Index = () => {
     void loadBestSellers();
     const refreshInterval = window.setInterval(() => {
       void loadBestSellers();
-    }, 1000 * 60 * 60 * 6);
+    }, AUTO_REFRESH_MS);
+
+    const realtimeChannel = supabase
+      .channel("home-best-sellers-refresh")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => void loadBestSellers())
+      .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, () => void loadBestSellers())
+      .on("postgres_changes", { event: "*", schema: "public", table: "analytics_events" }, () => void loadBestSellers())
+      .on("postgres_changes", { event: "*", schema: "public", table: "product_catalog" }, () => void loadBestSellers())
+      .subscribe();
 
     return () => {
       window.clearInterval(refreshInterval);
+      supabase.removeChannel(realtimeChannel);
     };
   }, []);
 
@@ -191,6 +385,32 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f8f3e8] text-[#151515]">
+      <Helmet>
+        <title>Le.Poá | Curadoria de Moda Feminina</title>
+        <meta name="description" content="Nunca mais fique sem saber o que vestir. Curadoria estratégica para o trabalho, jantares e ocasiões especiais." />
+        <link rel="canonical" href="https://lepoa.com.br" />
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            "name": "Le.Poá",
+            "url": "https://lepoa.com.br",
+            "logo": "https://lepoa.com.br/logo.png",
+            "sameAs": [
+              "https://www.instagram.com/lepoa"
+            ]
+          })}
+        </script>
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            "name": "Le.Poá",
+            "url": "https://lepoa.com.br"
+          })}
+        </script>
+      </Helmet>
+
       <BenefitsBar />
       <Header />
 
@@ -305,13 +525,7 @@ const Index = () => {
                 </div>
               ))}
             </div>
-          ) : bestSellers.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[#c8ad76]/45 bg-[#fffaf0] px-6 py-10 text-center">
-              <p className="text-sm font-medium text-[#6f685a]">
-                Ainda não há vendas suficientes para gerar o ranking da semana.
-              </p>
-            </div>
-          ) : (
+           ) : (
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-6">
               {bestSellers.map((product, index) => {
                 const ranking = rankingByProductId[product.id];
@@ -320,11 +534,10 @@ const Index = () => {
                 return (
                   <div
                     key={product.id}
-                    className={`relative rounded-2xl transition-all duration-300 ${index >= 4 ? "hidden md:block" : ""} ${
-                      isTopOne
-                        ? "shadow-[0_0_0_1px_rgba(193,154,84,0.55),0_14px_28px_rgba(193,154,84,0.24)]"
-                        : "shadow-[0_10px_24px_rgba(16,40,32,0.08)]"
-                    }`}
+                    className={`relative rounded-2xl transition-all duration-300 ${index >= 4 ? "hidden md:block" : ""} ${isTopOne
+                      ? "shadow-[0_0_0_1px_rgba(193,154,84,0.55),0_14px_28px_rgba(193,154,84,0.24)]"
+                      : "shadow-[0_10px_24px_rgba(16,40,32,0.08)]"
+                      }`}
                   >
                     <span className="absolute left-3 top-3 z-10 rounded-full border border-[#c19a54] bg-[#f6e7c7] px-2.5 py-1 text-[11px] font-bold text-[#5f4725]">
                       #{ranking?.rank ?? "-"}
@@ -434,6 +647,9 @@ const Index = () => {
               <Link to="/enviar-print" className="transition-colors hover:text-[#1f1d1a]">
                 Buscar por foto
               </Link>
+              <Link to="/moda-feminina-elegante" className="transition-colors hover:text-[#1f1d1a]">
+                Moda Feminina Elegante
+              </Link>
               <a
                 href={buildWhatsAppLink("Olá! Gostaria de saber mais sobre a LE.POÁ 🌸")}
                 target="_blank"
@@ -475,18 +691,16 @@ function ActionCard({
   return (
     <Link to={to} className="group">
       <div
-        className={`relative h-full overflow-hidden rounded-2xl border p-7 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_34px_rgba(17,37,31,0.12)] md:p-8 ${
-          accent
-            ? "border-[#b99653]/45 bg-gradient-to-br from-[#fffaf0] to-[#f7ebd2]"
-            : "border-[#d9c4a1]/65 bg-[#fffcf6] hover:border-[#b99653]/45"
-        }`}
+        className={`relative h-full overflow-hidden rounded-2xl border p-7 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_34px_rgba(17,37,31,0.12)] md:p-8 ${accent
+          ? "border-[#b99653]/45 bg-gradient-to-br from-[#fffaf0] to-[#f7ebd2]"
+          : "border-[#d9c4a1]/65 bg-[#fffcf6] hover:border-[#b99653]/45"
+          }`}
       >
         <div
-          className={`mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl transition-colors duration-300 ${
-            accent
-              ? "bg-[#d9bd86]/35 text-[#8a672d]"
-              : "bg-[#efe2c8] text-[#5f594e] group-hover:bg-[#e5d2ac] group-hover:text-[#8a672d]"
-          }`}
+          className={`mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl transition-colors duration-300 ${accent
+            ? "bg-[#d9bd86]/35 text-[#8a672d]"
+            : "bg-[#efe2c8] text-[#5f594e] group-hover:bg-[#e5d2ac] group-hover:text-[#8a672d]"
+            }`}
         >
           {icon}
         </div>
@@ -505,3 +719,4 @@ function ActionCard({
 }
 
 export default Index;
+

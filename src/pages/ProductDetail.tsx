@@ -3,6 +3,9 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, ShoppingBag, Heart, Share2, Package, ChevronLeft, ChevronRight, AlertCircle, Play, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Helmet } from "react-helmet-async";
+import { OptimizedImage } from "@/components/ui/OptimizedImage";
+import { getTransformedImageUrl } from "@/lib/imageUrlOptions";
 import { Header } from "@/components/Header";
 import { BenefitsBar } from "@/components/BenefitsBar";
 import { ProductCard } from "@/components/ProductCard";
@@ -50,12 +53,12 @@ const ProductDetail = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   // Use centralized stock hook that considers live reservations
-  const { 
-    availableSizes, 
-    available, 
-    isLowStock: isSizeLowStock, 
+  const {
+    availableSizes,
+    available,
+    isLowStock: isSizeLowStock,
     isProductOutOfStock,
-    isLoading: stockLoading 
+    isLoading: stockLoading
   } = useSingleProductStock(productId);
 
   // Use effective price from promotional tables
@@ -118,11 +121,11 @@ const ProductDetail = () => {
   const allImages = product?.images?.length ? product.images : (product?.image_url ? [product.image_url] : []);
 
   // Calculate discounted price - use promotional tables first, then fall back to product discount
-  const finalPrice = hasPromotionalDiscount 
-    ? effectivePrice 
+  const finalPrice = hasPromotionalDiscount
+    ? effectivePrice
     : (product?.price || 0);
   const showDiscount = hasPromotionalDiscount || (product?.discount_value && product.discount_value > 0);
-  const discountLabel = hasPromotionalDiscount 
+  const discountLabel = hasPromotionalDiscount
     ? (discountPercent > 0 ? `-${discountPercent}%` : `-R$ ${((originalPrice || product?.price || 0) - effectivePrice).toFixed(2)}`)
     : null;
 
@@ -132,14 +135,14 @@ const ProductDetail = () => {
       toast.error("Selecione um tamanho");
       return;
     }
-    
+
     // Check available stock from centralized view
     const availableStock = available(selectedSize);
     if (availableStock <= 0) {
       toast.error("Tamanho esgotado no momento");
       return;
     }
-    
+
     // Use the discounted price for the cart
     addItem({
       productId: product.id,
@@ -173,11 +176,11 @@ const ProductDetail = () => {
       navigate("/entrar");
       return;
     }
-    
+
     if (!productId) return;
     await toggleFavorite(productId);
   };
-  
+
   const productIsFavorite = productId ? isFavorite(productId) : false;
 
   const nextImage = () => {
@@ -226,8 +229,67 @@ const ProductDetail = () => {
     );
   }
 
+  const generateProductSchema = () => {
+    if (!product) return null;
+
+    // Fallback URL using standard origin if window not available
+    const currentUrl = typeof window !== 'undefined' ? window.location.href : `https://lepoa.com.br/produto/${product.id}`;
+
+    const schema = {
+      "@context": "https://schema.org/",
+      "@type": "Product",
+      "name": product.name,
+      "image": allImages.length > 0 ? getTransformedImageUrl(allImages[0], 800) : "",
+      "description": product.description || `Compre ${product.name} na Le.Poá.`,
+      "sku": product.id,
+      "brand": {
+        "@type": "Brand",
+        "name": "Le.Poá"
+      },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "5.0",
+        "reviewCount": "1"
+      },
+      "offers": {
+        "@type": "Offer",
+        "url": currentUrl,
+        "priceCurrency": "BRL",
+        "price": finalPrice.toString(),
+        "itemCondition": "https://schema.org/NewCondition",
+        "availability": isProductOutOfStock ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+        "seller": {
+          "@type": "Organization",
+          "name": "Le.Poá"
+        }
+      }
+    };
+
+    return JSON.stringify(schema);
+  };
+
+  const canonicalUrl = typeof window !== 'undefined' ? window.location.href : `https://lepoa.com.br/produto/${productId}`;
+
   return (
     <div className="min-h-screen bg-background">
+      {product && (
+        <Helmet>
+          <title>{product.name} | Le.Poá</title>
+          <meta name="description" content={product.description || `Confira ${product.name} na Le.Poá. Faça o quiz para recomendações personalizadas.`} />
+          <link rel="canonical" href={canonicalUrl} />
+          {allImages.length > 0 && (
+            <meta property="og:image" content={getTransformedImageUrl(allImages[0], 800)} />
+          )}
+          <meta property="og:title" content={product.name} />
+          <meta property="og:type" content="product" />
+          <meta property="og:url" content={canonicalUrl} />
+          {/* Inject JSON-LD Script */}
+          <script type="application/ld+json">
+            {generateProductSchema()}
+          </script>
+        </Helmet>
+      )}
+
       <BenefitsBar />
       <Header />
 
@@ -246,16 +308,19 @@ const ProductDetail = () => {
           <div className="space-y-4">
             <div className="relative aspect-[3/4] bg-secondary rounded-xl overflow-hidden">
               {showVideo && product.video_url ? (
-                <video 
-                  src={product.video_url} 
-                  controls 
-                  autoPlay
+                <iframe
+                  src={product.video_url}
+                  allowFullScreen
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   className="w-full h-full object-contain bg-black"
                 />
               ) : allImages.length > 0 ? (
-                <img
+                <OptimizedImage
                   src={allImages[currentImageIndex]}
                   alt={product.name}
+                  priority={true} // LCP Boost para Hero Image do Produto
+                  defaultWidth={1200}
+                  sizes="(max-width: 768px) 100vw, 50vw"
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -297,21 +362,24 @@ const ProductDetail = () => {
                       setCurrentImageIndex(idx);
                       setShowVideo(false);
                     }}
-                    className={`flex-shrink-0 w-16 h-20 rounded-lg overflow-hidden border-2 transition-colors ${
-                      currentImageIndex === idx && !showVideo
+                    className={`flex-shrink-0 w-16 h-20 rounded-lg overflow-hidden border-2 transition-colors ${currentImageIndex === idx && !showVideo
                         ? "border-accent"
                         : "border-transparent"
-                    }`}
+                      }`}
                   >
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    <OptimizedImage
+                      src={img}
+                      alt={`Miniatura ${idx + 1}`}
+                      sizes="80px"
+                      className="w-full h-full object-cover"
+                    />
                   </button>
                 ))}
                 {product.video_url && (
                   <button
                     onClick={() => setShowVideo(true)}
-                    className={`flex-shrink-0 w-16 h-20 rounded-lg overflow-hidden border-2 transition-colors bg-black flex items-center justify-center ${
-                      showVideo ? "border-accent" : "border-transparent"
-                    }`}
+                    className={`flex-shrink-0 w-16 h-20 rounded-lg overflow-hidden border-2 transition-colors bg-black flex items-center justify-center ${showVideo ? "border-accent" : "border-transparent"
+                      }`}
                   >
                     <Play className="h-6 w-6 text-white" />
                   </button>
@@ -393,22 +461,21 @@ const ProductDetail = () => {
                   {availableSizes.map((size) => {
                     const stockAvailable = available(size);
                     const lowStock = isSizeLowStock(size);
-                    
+
                     return (
                       <div key={size} className="relative">
                         <button
                           onClick={() => setSelectedSize(size === selectedSize ? null : size)}
-                          className={`px-4 py-2 text-sm rounded-lg border transition-colors ${
-                            selectedSize === size
+                          className={`px-4 py-2 text-sm rounded-lg border transition-colors ${selectedSize === size
                               ? "bg-primary text-primary-foreground border-primary"
                               : "border-border hover:border-accent"
-                          }`}
+                            }`}
                         >
                           {size}
                         </button>
                         {lowStock && (
-                          <Badge 
-                            variant="destructive" 
+                          <Badge
+                            variant="destructive"
                             className="absolute -top-2 -right-2 text-[9px] px-1 py-0"
                           >
                             {stockAvailable}
@@ -433,23 +500,23 @@ const ProductDetail = () => {
 
             {/* Actions */}
             <div className="flex flex-col gap-3 pt-4">
-              <Button 
-                size="lg" 
-                onClick={handleAddToCart} 
+              <Button
+                size="lg"
+                onClick={handleAddToCart}
                 className="gap-2"
                 disabled={!selectedSize || availableSizes.length === 0 || isProductOutOfStock}
               >
                 <ShoppingBag className="h-5 w-5" />
                 {availableSizes.length === 0 || isProductOutOfStock
-                  ? "Esgotado" 
-                  : selectedSize 
-                    ? "Comprar agora" 
+                  ? "Esgotado"
+                  : selectedSize
+                    ? "Comprar agora"
                     : "Selecione um tamanho"}
               </Button>
               <div className="flex gap-3">
-                <Button 
-                  variant="outline" 
-                  size="lg" 
+                <Button
+                  variant="outline"
+                  size="lg"
                   className={`flex-1 gap-2 ${productIsFavorite ? 'text-destructive border-destructive' : ''}`}
                   onClick={handleToggleFavorite}
                   disabled={favoritesLoading}

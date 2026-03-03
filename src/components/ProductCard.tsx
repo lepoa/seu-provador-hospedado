@@ -1,5 +1,6 @@
 import { ShoppingBag, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { OptimizedImage } from "@/components/ui/OptimizedImage";
 import { cn } from "@/lib/utils";
 
 interface ProductCardProps {
@@ -20,6 +21,7 @@ interface ProductCardProps {
   discountValue?: number | null;
   showSizes?: boolean;
   discountBadgeVariant?: "default" | "subtle";
+  priority?: boolean;
 }
 
 export function ProductCard({
@@ -38,6 +40,7 @@ export function ProductCard({
   discountValue,
   showSizes = true,
   discountBadgeVariant = "default",
+  priority = false,
 }: ProductCardProps) {
   const formatPrice = (value: number) =>
     new Intl.NumberFormat("pt-BR", {
@@ -90,9 +93,12 @@ export function ProductCard({
           </span>
         )}
         {badge && <span className="badge-promo">{badge}</span>}
-        <img
+        <OptimizedImage
           src={imageUrl || "/placeholder.svg"}
           alt={name}
+          priority={priority}
+          defaultWidth={600}
+          sizes="(max-width: 400px) 400px, 400px"
           className={cn(
             "w-full h-full object-cover transition-transform duration-500",
             !isOutOfStock && "group-hover:scale-105"
@@ -103,16 +109,16 @@ export function ProductCard({
           isOutOfStock ? "opacity-30" : "opacity-0 group-hover:opacity-100"
         )} />
       </div>
-      
+
       <div className="p-3 md:p-4">
         <h3 className="mb-1 line-clamp-2 text-sm font-medium text-[#1d1b18] md:text-base">{name}</h3>
-        
+
         {showSizes && sizes.length > 0 && (
           <p className="mb-2 text-xs text-[#6d6658]">
             Tam: {sizes.slice(0, 4).join(", ")}{sizes.length > 4 ? "..." : ""}
           </p>
         )}
-        
+
         <div className="flex items-center justify-between gap-2">
           <div className="flex flex-col">
             {showDiscount ? (

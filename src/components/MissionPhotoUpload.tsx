@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { compressImage } from "@/lib/mediaUtils";
 
 interface PhotoAnalysis {
   estilo?: string;
@@ -60,7 +61,7 @@ export function MissionPhotoUpload({
     }
 
     setIsUploading(false);
-    
+
     // Clear file input
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -69,16 +70,19 @@ export function MissionPhotoUpload({
 
   const uploadAndAnalyzePhoto = async (file: File) => {
     try {
+      // Compress the image before uploading
+      const compressedFile = await compressImage(file);
+
       // Create unique filename
       const timestamp = Date.now();
-      const filename = `${timestamp}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+      const filename = `${timestamp}-${compressedFile.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
       const filePath = `${userId}/missions/${missionId}/${filename}`;
 
       // Upload to Supabase storage
       const { error: uploadError } = await supabase.storage
         .from("prints")
-        .upload(filePath, file, {
-          cacheControl: "3600",
+        .upload(filePath, compressedFile, {
+          cacheControl: "3600000",
           upsert: false,
         });
 
@@ -120,8 +124,8 @@ export function MissionPhotoUpload({
 
         // Update photo with analysis result
         setPhotos(prev => {
-          const updated = prev.map(p => 
-            p.url === imageUrl 
+          const updated = prev.map(p =>
+            p.url === imageUrl
               ? { ...p, analysis: analysisResult?.analysis || null, isAnalyzing: false }
               : p
           );
@@ -131,7 +135,7 @@ export function MissionPhotoUpload({
       } catch (err) {
         console.error("Failed to analyze:", err);
         setPhotos(prev => {
-          const updated = prev.map(p => 
+          const updated = prev.map(p =>
             p.url === imageUrl ? { ...p, isAnalyzing: false } : p
           );
           onPhotosChange(updated);
@@ -169,23 +173,23 @@ export function MissionPhotoUpload({
       {/* Photo Grid */}
       <div className="grid grid-cols-3 gap-3">
         {photos.map((photo, index) => (
-          <div 
-            key={photo.url} 
+          <div
+            key={photo.url}
             className="relative aspect-square rounded-xl overflow-hidden border-2 border-accent/30 bg-secondary"
           >
-            <img 
-              src={photo.url} 
-              alt={`Inspiração ${index + 1}`} 
+            <img
+              src={photo.url}
+              alt={`Inspiração ${index + 1}`}
               className="w-full h-full object-cover"
             />
-            
+
             {/* Analysis overlay */}
             {photo.isAnalyzing && (
               <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                 <Loader2 className="h-6 w-6 text-white animate-spin" />
               </div>
             )}
-            
+
             {photo.analysis && (
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
                 <div className="flex items-center gap-1 text-white text-xs">
@@ -196,7 +200,7 @@ export function MissionPhotoUpload({
                 </div>
               </div>
             )}
-            
+
             {/* Remove button */}
             <button
               onClick={() => removePhoto(photo.url)}
@@ -248,7 +252,7 @@ export function MissionPhotoUpload({
 
       {/* Counter */}
       <div className="text-center text-sm text-muted-foreground">
-        {photos.length}/{maxPhotos} fotos • 
+        {photos.length}/{maxPhotos} fotos •
         {photos.length > 0 && (
           <span className="text-amber-600 font-medium ml-1">
             +{photos.length * 50} pts

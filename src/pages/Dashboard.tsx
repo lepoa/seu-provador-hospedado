@@ -240,7 +240,7 @@ const Dashboard = () => {
       setUser(session?.user ?? null);
 
       if (!session) {
-        navigate("/login");
+        navigate("/login", { replace: true });
       }
     });
 
@@ -248,7 +248,7 @@ const Dashboard = () => {
       setUser(session?.user ?? null);
 
       if (!session) {
-        navigate("/login");
+        navigate("/login", { replace: true });
       }
     });
 
@@ -305,7 +305,7 @@ const Dashboard = () => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate("/login");
+    navigate("/login", { replace: true });
   };
 
   const getImageUrl = (path: string) => {

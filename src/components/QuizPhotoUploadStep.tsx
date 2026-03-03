@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { PHOTO_UPLOAD_BONUS } from "@/lib/quizDataV2";
+import { compressImage } from "@/lib/mediaUtils";
 
 interface PhotoAnalysis {
   categoria: { value: string | null; confidence: number };
@@ -77,11 +78,14 @@ export function QuizPhotoUploadStep({
       let addedPoints = 0;
 
       for (const file of filesToUpload) {
+        // Compress the image before uploading
+        const compressedFile = await compressImage(file);
+
         // Upload to Supabase storage
-        const fileName = `${userId}/inspiration/${Date.now()}-${file.name}`;
+        const fileName = `${userId}/inspiration/${Date.now()}-${compressedFile.name}`;
         const { error: uploadError } = await supabase.storage
           .from("prints")
-          .upload(fileName, file);
+          .upload(fileName, compressedFile, { cacheControl: "3600000" });
 
         if (uploadError) throw uploadError;
 
@@ -96,7 +100,7 @@ export function QuizPhotoUploadStep({
 
         newPhotos = [...newPhotos, newPhoto];
         addedPoints += PHOTO_UPLOAD_BONUS;
-        
+
         // Notify parent about new photo and points
         onPhotosChange(newPhotos, addedPoints);
         onPointsEarned(PHOTO_UPLOAD_BONUS);
@@ -104,8 +108,8 @@ export function QuizPhotoUploadStep({
 
         // Analyze photo with AI in background
         analyzePhoto(urlData.publicUrl).then(analysis => {
-          const updatedPhotos = newPhotos.map(p => 
-            p.url === urlData.publicUrl 
+          const updatedPhotos = newPhotos.map(p =>
+            p.url === urlData.publicUrl
               ? { ...p, analysis: analysis || undefined, isAnalyzing: false }
               : p
           );
@@ -141,14 +145,14 @@ export function QuizPhotoUploadStep({
               alt={`Inspiração ${index + 1}`}
               className="w-full h-full object-cover"
             />
-            
+
             {/* Analyzing overlay */}
             {photo.isAnalyzing && (
               <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                 <Loader2 className="h-5 w-5 text-white animate-spin" />
               </div>
             )}
-            
+
             {/* Analyzed badge */}
             {!photo.isAnalyzing && photo.analysis && (
               <div className="absolute top-1.5 left-1.5">
@@ -232,7 +236,7 @@ export function QuizPhotoUploadStep({
           "Opcional: envie até 5 fotos"
         ) : photos.length < MAX_PHOTOS ? (
           <>
-            <span className="font-medium text-accent">{photos.length}/{MAX_PHOTOS}</span> fotos • 
+            <span className="font-medium text-accent">{photos.length}/{MAX_PHOTOS}</span> fotos •
             Você pode ganhar mais <span className="font-medium text-amber-600">+{(MAX_PHOTOS - photos.length) * PHOTO_UPLOAD_BONUS} pontos</span>
           </>
         ) : (
