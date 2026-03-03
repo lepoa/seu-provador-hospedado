@@ -1,4 +1,4 @@
-import type { ImageAnalysisResult } from "@/hooks/useImageAnalysis";
+﻿import type { ImageAnalysisResult } from "@/hooks/useImageAnalysis";
 
 export interface MatchedProduct {
   id: string;
@@ -100,7 +100,7 @@ const WEIGHT_CONFIGS: Record<RefinementMode, {
     modeling: 20,
     details: 10,
     style: 25,
-    tagBonus: ["elegante", "alfaiataria", "sofisticado", "clássico", "chic"],
+    tagBonus: ["elegante", "alfaiataria", "sofisticado", "clÃ¡ssico", "chic"],
   },
   casual: {
     category: 25,
@@ -108,7 +108,7 @@ const WEIGHT_CONFIGS: Record<RefinementMode, {
     modeling: 20,
     details: 10,
     style: 25,
-    tagBonus: ["casual", "dia a dia", "básico", "confortável", "despojado"],
+    tagBonus: ["casual", "dia a dia", "bÃ¡sico", "confortÃ¡vel", "despojado"],
   },
   category: {
     category: 45,
@@ -126,6 +126,34 @@ function normalizeValue(value: string | null | undefined): string {
   return value.toLowerCase().trim().replace(/[_-]/g, " ");
 }
 
+function normalizeSizeToken(value: string | null | undefined): string {
+  if (!value) return "";
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .trim();
+}
+
+function normalizeStockMap(
+  stockBySize: Record<string, number> | null
+): Record<string, number> {
+  if (!stockBySize) return {};
+
+  const normalized: Record<string, number> = {};
+  for (const [rawSize, rawQty] of Object.entries(stockBySize)) {
+    const size = normalizeSizeToken(rawSize);
+    if (!size) continue;
+
+    const qty = Number(rawQty ?? 0);
+    if (!Number.isFinite(qty)) continue;
+
+    normalized[size] = (normalized[size] ?? 0) + qty;
+  }
+
+  return normalized;
+}
+
 function valuesMatch(a: string | null | undefined, b: string | null | undefined): boolean {
   const normalA = normalizeValue(a);
   const normalB = normalizeValue(b);
@@ -141,9 +169,9 @@ function colorsAreSimilar(a: string | null | undefined, b: string | null | undef
     neutro: ["preto", "branco", "cinza", "bege", "nude", "off white", "creme", "areia"],
     quente: ["vermelho", "laranja", "amarelo", "dourado", "coral", "terracota", "mostarda"],
     frio: ["azul", "verde", "roxo", "prata", "turquesa", "menta", "lavanda"],
-    rosa: ["rosa", "pink", "magenta", "coral", "salmão", "blush"],
-    marrom: ["marrom", "caramelo", "chocolate", "café", "terra", "camel"],
-    vinho: ["vinho", "bordô", "marsala", "burgundy", "cereja"],
+    rosa: ["rosa", "pink", "magenta", "coral", "salmÃ£o", "blush"],
+    marrom: ["marrom", "caramelo", "chocolate", "cafÃ©", "terra", "camel"],
+    vinho: ["vinho", "bordÃ´", "marsala", "burgundy", "cereja"],
   };
   
   const normalA = normalizeValue(a);
@@ -164,30 +192,28 @@ function hasStockInSizes(
   letterSizes: string[],
   numberSizes: string[]
 ): boolean {
-  if (!stockBySize) return false;
-  
-  // Check for "Tamanho Único" (UN/U) - always available
-  if ((stockBySize["UN"] && stockBySize["UN"] > 0) || 
-      (stockBySize["U"] && stockBySize["U"] > 0)) {
+  const stock = normalizeStockMap(stockBySize);
+  if (Object.keys(stock).length === 0) return false;
+  // Check for "Tamanho Unico" (UN/U) - always available
+  if ((stock["UN"] && stock["UN"] > 0) ||
+      (stock["U"] && stock["U"] > 0) ||
+      (stock["UNICO"] && stock["UNICO"] > 0)) {
     return true;
   }
-  
   // Check all selected letter sizes
   for (const size of letterSizes) {
-    const normalizedSize = size.toUpperCase().trim();
-    if (stockBySize[normalizedSize] && stockBySize[normalizedSize] > 0) {
+    const normalizedSize = normalizeSizeToken(size);
+    if (stock[normalizedSize] && stock[normalizedSize] > 0) {
       return true;
     }
   }
-  
   // Check all selected number sizes
   for (const size of numberSizes) {
-    const normalizedSize = size.trim();
-    if (stockBySize[normalizedSize] && stockBySize[normalizedSize] > 0) {
+    const normalizedSize = normalizeSizeToken(size);
+    if (stock[normalizedSize] && stock[normalizedSize] > 0) {
       return true;
     }
   }
-  
   return false;
 }
 
@@ -417,13 +443,13 @@ export function findMatchingProductsWithFallback(
     identifiedProduct = identified;
 
     if (bestOverall._hasStock) {
-      // Identified product has stock → it's the top result, alternatives are the rest with stock
+      // Identified product has stock â†’ it's the top result, alternatives are the rest with stock
       alternatives = withStock
         .filter(p => p.id !== bestOverall.id)
         .slice(0, limit - 1)
         .map(({ _hasStock: _, ...p }) => p);
     } else {
-      // Identified product is out of stock → alternatives are all with stock
+      // Identified product is out of stock â†’ alternatives are all with stock
       alternatives = withStock
         .slice(0, limit)
         .map(({ _hasStock: _, ...p }) => p);
@@ -432,3 +458,4 @@ export function findMatchingProductsWithFallback(
 
   return { identifiedProduct, alternatives, hasStockAvailable };
 }
+

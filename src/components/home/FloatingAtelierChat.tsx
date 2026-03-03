@@ -479,7 +479,7 @@ export function FloatingAtelierChat() {
               <p className="text-xs text-[#5a5348]">
                 Entre para liberar recomendações completas de looks e produtos.
               </p>
-              <Link to="/auth" onClick={() => setIsOpen(false)}>
+              <Link to="/entrar" onClick={() => setIsOpen(false)}>
                 <Button className="h-9 w-full bg-[#123128] text-[#f5ebd2] hover:bg-[#183e32]">Entrar na minha conta</Button>
               </Link>
             </div>

@@ -190,7 +190,7 @@ export function AILookConsultant() {
                                 Inicie sua jornada de estilo personalizada agora. Faça login para acessar nossa curadoria guiada por IA.
                             </p>
                             <div className="flex flex-col sm:flex-row gap-4 w-full max-w-xs">
-                                <Link to="/auth" className="flex-1">
+                                <Link to="/entrar" className="flex-1">
                                     <Button className="btn-gold w-full rounded-full h-14">
                                         ENTRAR NO MEU ATELIER
                                     </Button>

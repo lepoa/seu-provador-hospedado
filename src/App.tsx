@@ -262,6 +262,7 @@ const App = () => (
 
               {/* Customer account routes */}
               <Route path="/entrar" element={withRouteSuspense(Auth)} />
+              <Route path="/auth" element={<Navigate to="/entrar" replace />} />
               <Route path="/auth/callback" element={withRouteSuspense(AuthCallback)} />
               <Route path="/esqueci-senha" element={withRouteSuspense(EsqueciSenha)} />
               <Route path="/redefinir-senha" element={withRouteSuspense(RedefinirSenha)} />
