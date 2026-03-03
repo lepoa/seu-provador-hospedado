@@ -121,9 +121,33 @@ const WEIGHT_CONFIGS: Record<RefinementMode, {
 
 export const MIN_SCORE_THRESHOLD = 25;
 
-function normalizeValue(value: string | null | undefined): string {
-  if (!value) return "";
-  return value.toLowerCase().trim().replace(/[_-]/g, " ");
+function normalizeValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+
+  if (typeof value === "string") {
+    return value.toLowerCase().trim().replace(/[_-]/g, " ");
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value).toLowerCase().trim();
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => normalizeValue(entry)).filter(Boolean).join(" ");
+  }
+
+  if (typeof value === "object") {
+    try {
+      return Object.values(value as Record<string, unknown>)
+        .map((entry) => normalizeValue(entry))
+        .filter(Boolean)
+        .join(" ");
+    } catch {
+      return "";
+    }
+  }
+
+  return "";
 }
 
 function normalizeSizeToken(value: string | null | undefined): string {
@@ -154,7 +178,7 @@ function normalizeStockMap(
   return normalized;
 }
 
-function valuesMatch(a: string | null | undefined, b: string | null | undefined): boolean {
+function valuesMatch(a: unknown, b: unknown): boolean {
   const normalA = normalizeValue(a);
   const normalB = normalizeValue(b);
   if (!normalA || !normalB) return false;
@@ -162,7 +186,7 @@ function valuesMatch(a: string | null | undefined, b: string | null | undefined)
 }
 
 // Color family matching
-function colorsAreSimilar(a: string | null | undefined, b: string | null | undefined): boolean {
+function colorsAreSimilar(a: unknown, b: unknown): boolean {
   if (valuesMatch(a, b)) return true;
   
   const colorFamilies: Record<string, string[]> = {
