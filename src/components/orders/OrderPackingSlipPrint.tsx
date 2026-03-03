@@ -14,6 +14,8 @@ interface OrderItem {
   color: string | null;
   image_url: string | null;
   product_sku: string | null;
+  live_item_status?: string | null;
+  live_item_cancelled?: boolean;
 }
 
 interface Order {
@@ -51,6 +53,11 @@ const getDeliveryLabel = (method: string | null) => {
     default: return "Não definido";
   }
 };
+
+const isCancelledItem = (item: OrderItem) =>
+  item.live_item_cancelled === true ||
+  item.live_item_status === "cancelado" ||
+  item.live_item_status === "removido";
 
 const getPackingSlipStyles = () => `
   * {
@@ -329,11 +336,12 @@ const getPackingSlipStyles = () => `
 `;
 
 const generatePackingSlipHtml = (order: Order, items: OrderItem[], logoDataUrl?: string) => {
+  const printableItems = items.filter((item) => !isCancelledItem(item) && item.quantity > 0);
   const orderNumber = order.id.slice(0, 8).toUpperCase();
   const orderDate = format(new Date(order.created_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR });
   const deliveryClass = order.delivery_method === 'motoboy' ? 'motoboy' : order.delivery_method === 'pickup' ? 'pickup' : '';
   
-  const itemsHtml = items.map(item => `
+  const itemsHtml = printableItems.map(item => `
     <tr>
       <td class="checkbox-col"><span class="checkbox"></span></td>
       <td class="item-photo-col">
@@ -350,7 +358,7 @@ const generatePackingSlipHtml = (order: Order, items: OrderItem[], logoDataUrl?:
     </tr>
   `).join('');
 
-  const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+  const totalItems = printableItems.reduce((sum, item) => sum + item.quantity, 0);
 
   return `
     <div class="packing-slip">
@@ -469,8 +477,9 @@ const loadImageAsDataUrl = async (src: string): Promise<string> => {
 
 export function OrderPackingSlipPrint({ order, items, variant = "button" }: OrderPackingSlipPrintProps) {
   const handlePrint = async () => {
-    if (items.length === 0) {
-      toast.error("Nenhum item no pedido.");
+    const printableItems = items.filter((item) => !isCancelledItem(item) && item.quantity > 0);
+    if (printableItems.length === 0) {
+      toast.error("Nenhum item ativo para imprimir no romaneio.");
       return;
     }
 
@@ -491,7 +500,7 @@ export function OrderPackingSlipPrint({ order, items, variant = "button" }: Orde
           <style>${getPackingSlipStyles()}</style>
         </head>
         <body>
-          ${generatePackingSlipHtml(order, items, logoDataUrl)}
+          ${generatePackingSlipHtml(order, printableItems, logoDataUrl)}
           <script>
             setTimeout(() => { window.print(); }, 500);
           <\/script>
@@ -542,7 +551,14 @@ interface BatchPackingSlipPrintProps {
 
 export function BatchPackingSlipPrint({ orders }: BatchPackingSlipPrintProps) {
   const handleBatchPrint = async () => {
-    if (orders.length === 0) {
+    const ordersWithPrintableItems = orders
+      .map(({ order, items }) => ({
+        order,
+        items: items.filter((item) => !isCancelledItem(item) && item.quantity > 0),
+      }))
+      .filter(({ items }) => items.length > 0);
+
+    if (ordersWithPrintableItems.length === 0) {
       toast.error("Nenhum pedido selecionado");
       return;
     }
@@ -556,7 +572,7 @@ export function BatchPackingSlipPrint({ orders }: BatchPackingSlipPrintProps) {
       return;
     }
 
-    const allSlipsHtml = orders
+    const allSlipsHtml = ordersWithPrintableItems
       .map(({ order, items }) => generatePackingSlipHtml(order, items, logoDataUrl))
       .join('<div style="page-break-before: always;"></div>');
 
@@ -564,7 +580,7 @@ export function BatchPackingSlipPrint({ orders }: BatchPackingSlipPrintProps) {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Romaneios - ${orders.length} pedidos</title>
+          <title>Romaneios - ${ordersWithPrintableItems.length} pedidos</title>
           <style>${getPackingSlipStyles()}</style>
         </head>
         <body>

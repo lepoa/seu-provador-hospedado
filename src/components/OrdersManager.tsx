@@ -117,6 +117,8 @@ interface OrderItem {
   color: string | null;
   image_url: string | null;
   product_sku: string | null;
+  live_item_status?: string | null;
+  live_item_cancelled?: boolean;
 }
 
 const statusConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
@@ -216,6 +218,21 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
 
   const { sellers } = useSellers();
 
+  const isOrderItemCancelled = (item: OrderItem): boolean =>
+    item.live_item_cancelled === true ||
+    item.live_item_status === "cancelado" ||
+    item.live_item_status === "removido";
+
+  const splitOrderItemsByCancellation = (items: OrderItem[] | undefined) => {
+    const all = items || [];
+    const activeItems = all.filter((item) => !isOrderItemCancelled(item) && item.quantity > 0);
+    const cancelledItems = all.filter((item) => isOrderItemCancelled(item));
+    return { allItems: all, activeItems, cancelledItems };
+  };
+
+  const getPrintableOrderItems = (items: OrderItem[] | undefined): OrderItem[] =>
+    (items || []).filter((item) => !isOrderItemCancelled(item) && item.quantity > 0);
+
   // Toggle single order selection
   const toggleOrderSelection = (orderId: string) => {
     setSelectedOrders(prev => {
@@ -243,7 +260,7 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
     return Array.from(selectedOrders)
       .map(orderId => {
         const order = orders.find(o => o.id === orderId);
-        const items = orderItems[orderId] || [];
+        const items = getPrintableOrderItems(orderItems[orderId]);
         return order ? { order, items } : null;
       })
       .filter((item): item is { order: Order; items: OrderItem[] } => item !== null);
@@ -288,6 +305,7 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
     if (!items) return [];
     return items.map((item) => {
       const variant = (item.variante as Record<string, string>) || {};
+      const status = item.status || null;
       return {
         id: item.id,
         product_name: item.product?.name || variant.nome || "Produto da Live",
@@ -297,6 +315,8 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
         color: item.product?.color || variant.cor || null,
         image_url: item.product?.image_url || null,
         product_sku: item.product?.sku || null,
+        live_item_status: status,
+        live_item_cancelled: status === "cancelado" || status === "removido",
       };
     });
   };
@@ -330,6 +350,7 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
             id,
             qtd,
             preco_unitario,
+            status,
             variante,
             product:product_catalog(id, name, image_url, color, sku, price)
           )
@@ -451,12 +472,40 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
   };
 
   const loadOrderItems = async (orderId: string) => {
-    if (orderItems[orderId]?.length) return;
-
     const order = orders.find((o) => o.id === orderId);
     if (!order) return;
+    const isLiveOrder = Boolean(order.live_cart_id || order.source === "live" || order.live_event_id);
+
+    // For non-live orders we can use the existing cache.
+    if (!isLiveOrder && orderItems[orderId]?.length) return;
 
     try {
+      const liveCartId = order.live_cart_id || (order.source === "live" ? order.id : null);
+      if (liveCartId) {
+        const { data: liveItems, error: liveError } = await supabase
+          .from("live_cart_items")
+          .select(`
+            id,
+            qtd,
+            preco_unitario,
+            status,
+            variante,
+            product:product_catalog(id, name, image_url, color, sku, price)
+          `)
+          .eq("live_cart_id", liveCartId);
+
+        if (!liveError && liveItems) {
+          const mappedItems = mapLiveCartItemsToOrderItems(liveItems);
+          setOrderItems((prev) => ({ ...prev, [orderId]: mappedItems }));
+          return;
+        }
+
+        if (liveError) {
+          console.error("Erro ao buscar itens da live:", liveError);
+        }
+      }
+
+      // Fallback for legacy/non-live orders.
       const { data: regularItems, error: regularError } = await supabase
         .from("order_items")
         .select("*")
@@ -466,36 +515,7 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
         console.error("Erro ao buscar itens do pedido:", regularError);
       }
 
-      if (regularItems && regularItems.length > 0) {
-        setOrderItems((prev) => ({ ...prev, [orderId]: regularItems }));
-        return;
-      }
-
-      const liveCartId = order.live_cart_id || (order.source === "live" ? order.id : null);
-      if (!liveCartId) {
-        setOrderItems((prev) => ({ ...prev, [orderId]: [] }));
-        return;
-      }
-
-      const { data: liveItems, error: liveError } = await supabase
-        .from("live_cart_items")
-        .select(`
-          id,
-          qtd,
-          preco_unitario,
-          variante,
-          product:product_catalog(id, name, image_url, color, sku, price)
-        `)
-        .eq("live_cart_id", liveCartId);
-
-      if (liveError) {
-        console.error("Erro ao buscar itens da live:", liveError);
-        setOrderItems((prev) => ({ ...prev, [orderId]: [] }));
-        return;
-      }
-
-      const mappedItems = mapLiveCartItemsToOrderItems(liveItems || []);
-      setOrderItems((prev) => ({ ...prev, [orderId]: mappedItems }));
+      setOrderItems((prev) => ({ ...prev, [orderId]: regularItems || [] }));
     } catch (error) {
       console.error("Erro ao carregar itens do pedido:", error);
       toast.error("Erro ao carregar itens do pedido");
@@ -1061,6 +1081,7 @@ Qualquer dúvida estamos à disposição! \u{1F495}`;
             const isExpanded = expandedOrder === order.id;
             const sellerName = getSellerName(order.seller_id);
             const expiryInfo = getReservationExpiryInfo(order);
+            const { allItems, activeItems, cancelledItems } = splitOrderItemsByCancellation(orderItems[order.id]);
 
             return (
               <Collapsible
@@ -1265,41 +1286,96 @@ Qualquer dúvida estamos à disposição! \u{1F495}`;
                       <div>
                         <h4 className="font-medium mb-3 text-sm">Itens do pedido</h4>
                         <div className="space-y-2">
-                          {orderItems[order.id]?.map((item) => (
-                            <div
-                              key={item.id}
-                              className="flex items-center gap-3 p-2 bg-background rounded-lg"
-                            >
-                              {item.image_url ? (
-                                <img
-                                  src={item.image_url}
-                                  alt={item.product_name}
-                                  className="w-10 h-10 object-cover rounded"
-                                />
+                          {!orderItems[order.id] ? (
+                            <p className="text-sm text-muted-foreground">Carregando...</p>
+                          ) : (
+                            <>
+                              {activeItems.length > 0 ? (
+                                activeItems.map((item) => (
+                                  <div
+                                    key={item.id}
+                                    className="flex items-center gap-3 p-2 bg-background rounded-lg"
+                                  >
+                                    {item.image_url ? (
+                                      <img
+                                        src={item.image_url}
+                                        alt={item.product_name}
+                                        className="w-10 h-10 object-cover rounded"
+                                      />
+                                    ) : (
+                                      <div className="w-10 h-10 bg-secondary rounded flex items-center justify-center">
+                                        <Package className="h-4 w-4 text-muted-foreground" />
+                                      </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium truncate">
+                                        {item.product_name}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {item.size}
+                                        {item.color && ` • ${item.color}`} • x
+                                        {item.quantity}
+                                      </p>
+                                    </div>
+                                    <span className="text-sm font-medium">
+                                      {formatPrice(item.product_price * item.quantity)}
+                                    </span>
+                                  </div>
+                                ))
                               ) : (
-                                <div className="w-10 h-10 bg-secondary rounded flex items-center justify-center">
-                                  <Package className="h-4 w-4 text-muted-foreground" />
+                                <p className="text-sm text-muted-foreground">
+                                  Sem itens ativos no pedido.
+                                </p>
+                              )}
+
+                              {cancelledItems.length > 0 && (
+                                <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-800">
+                                    Itens cancelados - retirar da sacola
+                                  </p>
+                                  <div className="space-y-2">
+                                    {cancelledItems.map((item) => (
+                                      <div
+                                        key={`${item.id}-cancelled`}
+                                        className="flex items-center gap-3 rounded-lg bg-white/60 p-2"
+                                      >
+                                        {item.image_url ? (
+                                          <img
+                                            src={item.image_url}
+                                            alt={item.product_name}
+                                            className="h-10 w-10 rounded object-cover opacity-70"
+                                          />
+                                        ) : (
+                                          <div className="flex h-10 w-10 items-center justify-center rounded bg-secondary">
+                                            <Package className="h-4 w-4 text-muted-foreground" />
+                                          </div>
+                                        )}
+                                        <div className="min-w-0 flex-1">
+                                          <p className="truncate text-sm font-medium line-through text-muted-foreground">
+                                            {item.product_name}
+                                          </p>
+                                          <p className="text-xs text-muted-foreground">
+                                            {item.size}
+                                            {item.color && ` • ${item.color}`} • x
+                                            {item.quantity}
+                                          </p>
+                                        </div>
+                                        <Badge variant="destructive" className="text-[10px]">
+                                          Cancelado
+                                        </Badge>
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
                               )}
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">
-                                  {item.product_name}
+
+                              {allItems.length === 0 && (
+                                <p className="text-sm text-muted-foreground">
+                                  Nenhum item encontrado.
                                 </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {item.size}
-                                  {item.color && ` • ${item.color}`} • x
-                                  {item.quantity}
-                                </p>
-                              </div>
-                              <span className="text-sm font-medium">
-                                {formatPrice(item.product_price * item.quantity)}
-                              </span>
-                            </div>
-                          )) || (
-                              <p className="text-sm text-muted-foreground">
-                                Carregando...
-                              </p>
-                            )}
+                              )}
+                            </>
+                          )}
                         </div>
 
                         <Separator className="my-4" />
@@ -1565,7 +1641,7 @@ Qualquer dúvida estamos à disposição! \u{1F495}`;
                         <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-dashed border-border">
                           <OrderPackingSlipPrint
                             order={order}
-                            items={orderItems[order.id] || []}
+                            items={getPrintableOrderItems(orderItems[order.id])}
                           />
                           <OrderShippingLabelPrint
                             order={order}
