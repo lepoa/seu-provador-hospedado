@@ -6,6 +6,7 @@ import { PasswordResetEmail } from './_templates/password-reset.tsx'
 
 const resend = new Resend(Deno.env.get('RESEND_API_KEY') as string)
 const hookSecret = Deno.env.get('SEND_EMAIL_HOOK_SECRET') as string
+const DEFAULT_MAIL_FROM = 'Provador VIP Le.Poá <noreply@lepoa.online>'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -67,7 +68,7 @@ Deno.serve(async (req) => {
       console.log('Sending password reset email via Resend')
 
       const { error } = await resend.emails.send({
-        from: 'Provador VIP Le.Poá <noreply@lightcoral-cod-859891.hostingersite.com>',
+        from: Deno.env.get('MAIL_FROM') || DEFAULT_MAIL_FROM,
         to: [user.email],
         subject: 'Redefinir sua senha – Provador VIP Le.Poá',
         html,

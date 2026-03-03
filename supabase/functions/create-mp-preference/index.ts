@@ -8,6 +8,37 @@ const corsHeaders = {
 // Regex patterns
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DEFAULT_SITE_URL = "https://lepoa.online";
+
+function normalizePublicSiteUrl(input: string | null | undefined): string | null {
+  if (!input) return null;
+  try {
+    const url = new URL(input);
+    const host = url.hostname.toLowerCase();
+    const isLocalHost =
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "::1";
+
+    if (url.protocol !== "https:" || isLocalHost) return null;
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return null;
+  }
+}
+
+function resolveSiteUrl(req: Request): string {
+  const envUrl = normalizePublicSiteUrl(Deno.env.get("SITE_URL"));
+  if (envUrl) return envUrl;
+
+  const originUrl = normalizePublicSiteUrl(req.headers.get("origin"));
+  if (originUrl) return originUrl;
+
+  const refererUrl = normalizePublicSiteUrl(req.headers.get("referer"));
+  if (refererUrl) return refererUrl;
+
+  return DEFAULT_SITE_URL;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -134,11 +165,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // === URL Construction Logic (SAFE MODE) ===
-    // MUST match the deployed app URL - NOT the old lepoa.com.br site
-    const baseUrl = "https://lightcoral-cod-859891.hostingersite.com";
-
-    console.log(`[create-mp-preference] Using Fixed Base URL: ${baseUrl}`);
+    // Use environment/site origin for payment callbacks.
+    const baseUrl = resolveSiteUrl(req);
+    console.log(`[create-mp-preference] Using Base URL: ${baseUrl}`);
 
     const backUrls = {
       success: `${baseUrl}/pedido/sucesso?order_id=${order_id}`,

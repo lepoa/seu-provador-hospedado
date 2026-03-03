@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-const SITE_URL = "https://lepoa.com.br";
+const SITE_URL = "https://lepoa.online";
 
 export const Sitemap = () => {
     useEffect(() => {

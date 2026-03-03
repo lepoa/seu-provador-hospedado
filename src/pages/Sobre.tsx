@@ -14,7 +14,7 @@ const Sobre = () => {
                     name="description"
                     content="Conheça a história da Le.Poá, marca de moda feminina elegante criada para mulheres modernas que valorizam sofisticação e identidade."
                 />
-                <link rel="canonical" href="https://lepoa.com.br/sobre" />
+                <link rel="canonical" href="https://lepoa.online/sobre" />
                 <meta property="og:title" content="Nossa História | Le.Poá Moda Feminina Elegante" />
                 <meta property="og:description" content="Conheça a história da Le.Poá, marca de moda feminina elegante criada para mulheres modernas que valorizam sofisticação e identidade." />
                 <meta property="og:type" content="website" />
@@ -23,8 +23,8 @@ const Sobre = () => {
                         "@context": "https://schema.org",
                         "@type": "ClothingStore",
                         "name": "Le.Poá",
-                        "url": "https://lepoa.com.br",
-                        "logo": "https://lepoa.com.br/logo.png",
+                        "url": "https://lepoa.online",
+                        "logo": "https://lepoa.online/logo.png",
                         "founders": [
                             {
                                 "@type": "Person",

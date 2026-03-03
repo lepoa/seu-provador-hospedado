@@ -233,7 +233,7 @@ const ProductDetail = () => {
     if (!product) return null;
 
     // Fallback URL using standard origin if window not available
-    const currentUrl = typeof window !== 'undefined' ? window.location.href : `https://lepoa.com.br/produto/${product.id}`;
+    const currentUrl = typeof window !== 'undefined' ? window.location.href : `https://lepoa.online/produto/${product.id}`;
 
     const schema = {
       "@context": "https://schema.org/",
@@ -268,7 +268,7 @@ const ProductDetail = () => {
     return JSON.stringify(schema);
   };
 
-  const canonicalUrl = typeof window !== 'undefined' ? window.location.href : `https://lepoa.com.br/produto/${productId}`;
+  const canonicalUrl = typeof window !== 'undefined' ? window.location.href : `https://lepoa.online/produto/${productId}`;
 
   return (
     <div className="min-h-screen bg-background">

@@ -2,7 +2,7 @@
 
 ## Informações do Projeto
 
-**Site Oficial**: [https://lightcoral-cod-859891.hostingersite.com/](https://lightcoral-cod-859891.hostingersite.com/)
+**Site Oficial**: [https://lepoa.online/](https://lepoa.online/)
 **Repositório**: [seu-provador-hospedado](https://github.com/lepoa/seu-provador-hospedado)
 
 ## Como rodar localmente

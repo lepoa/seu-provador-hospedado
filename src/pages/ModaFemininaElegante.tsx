@@ -14,7 +14,7 @@ const ModaFemininaElegante = () => {
                     name="description"
                     content="Descubra o verdadeiro significado da moda feminina elegante com a Le.Poá. Roupas sofisticadas com curadoria autoral para mulheres modernas e confiantes."
                 />
-                <link rel="canonical" href="https://lepoa.com.br/moda-feminina-elegante" />
+                <link rel="canonical" href="https://lepoa.online/moda-feminina-elegante" />
                 <meta property="og:title" content="Moda Feminina Elegante | Le.Poá" />
                 <meta property="og:description" content="Descubra o verdadeiro significado da moda feminina elegante com a Le.Poá. Roupas sofisticadas com curadoria autoral para mulheres modernas e confiantes." />
                 <meta property="og:type" content="article" />

@@ -9,6 +9,7 @@ const corsHeaders = {
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CPF_REGEX = /^\d{11}$/;
+const DEFAULT_SITE_URL = "https://lepoa.online";
 
 interface CreateLivePaymentRequest {
   live_cart_id: string;
@@ -37,6 +38,36 @@ function errorResponse(code: string, message: string, status: number, field?: st
     JSON.stringify({ error_code: code, message, field, action, details }),
     { status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );
+}
+
+function normalizePublicSiteUrl(input: string | null | undefined): string | null {
+  if (!input) return null;
+  try {
+    const url = new URL(input);
+    const host = url.hostname.toLowerCase();
+    const isLocalHost =
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "::1";
+
+    if (url.protocol !== "https:" || isLocalHost) return null;
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return null;
+  }
+}
+
+function resolveSiteUrl(req: Request): string {
+  const envUrl = normalizePublicSiteUrl(Deno.env.get("SITE_URL"));
+  if (envUrl) return envUrl;
+
+  const originUrl = normalizePublicSiteUrl(req.headers.get("origin"));
+  if (originUrl) return originUrl;
+
+  const refererUrl = normalizePublicSiteUrl(req.headers.get("referer"));
+  if (refererUrl) return refererUrl;
+
+  return DEFAULT_SITE_URL;
 }
 
 Deno.serve(async (req) => {
@@ -234,10 +265,8 @@ Deno.serve(async (req) => {
     }
 
     const baseUrl = SUPABASE_URL.replace("/rest/v1", "");
-    // FORCE PRODUCTION URL: Mercado Pago rejects localhost/http URLs for back_urls.
-    // Switched to user's staging domain to ensure correct redirects and validation.
-    // IMPORTANT: No trailing slash!
-    const siteUrl = "https://lightcoral-cod-859891.hostingersite.com";
+    // Mercado Pago requires public HTTPS back_urls.
+    const siteUrl = resolveSiteUrl(req);
 
     const preferencePayload: Record<string, unknown> = {
       items: mpItems,

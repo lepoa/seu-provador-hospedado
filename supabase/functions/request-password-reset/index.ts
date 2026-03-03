@@ -5,6 +5,9 @@ import { renderAsync } from 'npm:@react-email/components@0.0.22'
 import { PasswordResetEmail } from './_templates/password-reset.tsx'
 
 const resend = new Resend(Deno.env.get('RESEND_API_KEY') as string)
+const DEFAULT_SITE_URL = 'https://lepoa.online'
+const DEFAULT_ALLOWED_REDIRECT_ORIGINS = ['https://lepoa.online', 'https://www.lepoa.online']
+const DEFAULT_MAIL_FROM = 'Provador VIP Le.Poá <noreply@lepoa.online>'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,6 +19,50 @@ function generateToken(): string {
   const array = new Uint8Array(32)
   crypto.getRandomValues(array)
   return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+function normalizeOrigin(input: string | null | undefined): string | null {
+  if (!input) return null
+  try {
+    const parsed = new URL(input)
+    return `${parsed.protocol}//${parsed.host}`.toLowerCase()
+  } catch {
+    return null
+  }
+}
+
+function getAllowedRedirectOrigins(): Set<string> {
+  const envValue = Deno.env.get('ALLOWED_REDIRECT_ORIGINS') ?? ''
+  const envOrigins = envValue
+    .split(',')
+    .map((origin) => normalizeOrigin(origin.trim()))
+    .filter((origin): origin is string => Boolean(origin))
+
+  const defaults = DEFAULT_ALLOWED_REDIRECT_ORIGINS
+    .map((origin) => normalizeOrigin(origin))
+    .filter((origin): origin is string => Boolean(origin))
+
+  return new Set([...(envOrigins.length ? envOrigins : defaults)])
+}
+
+function isAllowedRedirectUrl(url: string, allowedOrigins: Set<string>): boolean {
+  const origin = normalizeOrigin(url)
+  if (!origin) return false
+  return allowedOrigins.has(origin)
+}
+
+function resolveSiteBaseUrl(redirectUrl?: string): string {
+  if (redirectUrl) {
+    const parsed = normalizeOrigin(redirectUrl)
+    if (parsed) return parsed
+  }
+
+  const envSiteUrl = normalizeOrigin(Deno.env.get('SITE_URL'))
+  return envSiteUrl || DEFAULT_SITE_URL
+}
+
+function resolveMailFrom(): string {
+  return Deno.env.get('MAIL_FROM') || DEFAULT_MAIL_FROM
 }
 
 Deno.serve(async (req) => {
@@ -61,8 +108,10 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Validate redirectUrl if provided (must be same domain)
-    if (redirectUrl && !redirectUrl.startsWith('https://lightcoral-cod-859891.hostingersite.com/')) {
+    const allowedRedirectOrigins = getAllowedRedirectOrigins()
+
+    // Validate redirectUrl if provided.
+    if (redirectUrl && !isAllowedRedirectUrl(redirectUrl, allowedRedirectOrigins)) {
       return new Response(
         JSON.stringify({ error: 'URL de redirecionamento inválida' }),
         { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
@@ -138,7 +187,7 @@ Deno.serve(async (req) => {
     console.log('Token saved, sending email...')
 
     // Build reset URL
-    const baseUrl = redirectUrl || Deno.env.get('SITE_URL') || 'https://lightcoral-cod-859891.hostingersite.com/'
+    const baseUrl = resolveSiteBaseUrl(redirectUrl)
     const resetUrl = `${baseUrl}/resetar-senha?token=${token}`
 
     // Render email template
@@ -151,7 +200,7 @@ Deno.serve(async (req) => {
 
     // Send email via Resend
     const { error: emailError } = await resend.emails.send({
-      from: 'Provador VIP Le.Poá <noreply@lightcoral-cod-859891.hostingersite.com>',
+      from: resolveMailFrom(),
       to: [email],
       subject: '🔐 Recuperação de senha — Provador VIP Le.Poá',
       html,

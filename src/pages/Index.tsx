@@ -388,14 +388,14 @@ const Index = () => {
       <Helmet>
         <title>Le.Poá | Curadoria de Moda Feminina</title>
         <meta name="description" content="Nunca mais fique sem saber o que vestir. Curadoria estratégica para o trabalho, jantares e ocasiões especiais." />
-        <link rel="canonical" href="https://lepoa.com.br" />
+        <link rel="canonical" href="https://lepoa.online" />
         <script type="application/ld+json">
           {JSON.stringify({
             "@context": "https://schema.org",
             "@type": "Organization",
             "name": "Le.Poá",
-            "url": "https://lepoa.com.br",
-            "logo": "https://lepoa.com.br/logo.png",
+            "url": "https://lepoa.online",
+            "logo": "https://lepoa.online/logo.png",
             "sameAs": [
               "https://www.instagram.com/lepoa"
             ]
@@ -406,7 +406,7 @@ const Index = () => {
             "@context": "https://schema.org",
             "@type": "WebSite",
             "name": "Le.Poá",
-            "url": "https://lepoa.com.br"
+            "url": "https://lepoa.online"
           })}
         </script>
       </Helmet>

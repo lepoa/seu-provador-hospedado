@@ -9,7 +9,7 @@
     "security_update_password_require_reauthentication":  false,
     "refresh_token_rotation_enabled":  true,
     "security_refresh_token_reuse_interval":  10,
-    "site_url":  "http://localhost:3000",
+    "site_url":  "https://lepoa.online",
     "mfa_max_enrolled_factors":  10,
     "mfa_allow_low_aal":  false,
     "rate_limit_anonymous_users":  30,
