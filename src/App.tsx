@@ -1,4 +1,4 @@
-import { Toaster } from "@/components/ui/toaster";
+﻿import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import RuntimeLoggerPanel from "@/components/RuntimeLoggerPanel";
@@ -21,15 +21,13 @@ import Login from "./pages/Login";
 const Auth = lazy(() => import("./pages/Auth"));
 const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 const EsqueciSenha = lazy(() => import("./pages/EsqueciSenha"));
-const RedefinirSenha = lazy(() => import("./pages/RedefinirSenha"));
+const ReiniciarSenha = lazy(() => import("./pages/ReiniciarSenha"));
 const ResetarSenha = lazy(() => import("./pages/ResetarSenha"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Catalog = lazy(() => import("./pages/Catalog"));
 const ProductDetail = lazy(() => import("./pages/ProductDetail"));
 const Cart = lazy(() => import("./pages/Cart"));
 const Checkout = lazy(() => import("./pages/Checkout"));
-const ImportarEstoque = lazy(() => import("./pages/ImportarEstoque"));
-const CustomerDetail = lazy(() => import("./pages/CustomerDetail"));
 const CatalogView = lazy(() => import("./pages/CatalogView"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Sitemap = lazy(() => import("./pages/Sitemap").then(m => ({ default: m.Sitemap })));
@@ -48,20 +46,8 @@ const MeusFavoritos = lazy(() => import("./pages/conta/MeusFavoritos"));
 const PedidoSucesso = lazy(() => import("./pages/PedidoSucesso"));
 const PedidoPendente = lazy(() => import("./pages/PedidoPendente"));
 const PedidoErro = lazy(() => import("./pages/PedidoErro"));
-const LivePlanningPage = lazy(() => import("./pages/LivePlanningPage"));
-const LiveBackstagePage = lazy(() => import("./pages/LiveBackstagePage"));
-const LiveReportsPage = lazy(() => import("./pages/LiveReportsPage"));
-const LiveReportsPeriodPage = lazy(() => import("./pages/LiveReportsPeriodPage"));
-const LiveSeparationPage = lazy(() => import("./pages/LiveSeparationPage"));
 const LiveCheckout = lazy(() => import("./pages/LiveCheckout"));
 const BagDetails = lazy(() => import("./pages/BagDetails"));
-const BagTrackerPage = lazy(() => import("./pages/BagTrackerPage"));
-const LiveOrdersPage = lazy(() => import("./pages/LiveOrdersPage"));
-const LivePendenciasPage = lazy(() => import("./pages/LivePendenciasPage"));
-const InsightsPage = lazy(() => import("./pages/InsightsPage"));
-const CopilotoRFV = lazy(() => import("./pages/CopilotoRFV"));
-const DashboardConsultoraPage = lazy(() => import("./pages/DashboardConsultoraPage"));
-const ClientesRankingPage = lazy(() => import("./pages/ClientesRankingPage"));
 
 const queryClient = new QueryClient();
 
@@ -76,13 +62,13 @@ type RouteErrorBoundaryState = { hasError: boolean; message: string };
 class RouteErrorBoundary extends Component<{ children: ReactNode }, RouteErrorBoundaryState> {
   constructor(props: { children: ReactNode }) {
     super(props);
-    this.state = { hasError: false, message: "Erro ao carregar página." };
+    this.state = { hasError: false, message: "Erro ao carregar pagina." };
   }
 
   static getDerivedStateFromError(error: unknown): RouteErrorBoundaryState {
     const message = error instanceof Error && error.message.includes("dynamically imported module")
       ? "Erro ao carregar login."
-      : "Erro ao carregar página.";
+      : "Erro ao carregar pagina.";
     return { hasError: true, message };
   }
 
@@ -96,8 +82,15 @@ class RouteErrorBoundary extends Component<{ children: ReactNode }, RouteErrorBo
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex min-h-[220px] items-center justify-center px-4 text-center text-sm text-muted-foreground">
-          {this.state.message}
+        <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 px-4 text-center text-sm text-muted-foreground">
+          <p>{this.state.message}</p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="rounded-md border border-border px-3 py-1.5 text-foreground transition-opacity hover:opacity-85"
+          >
+            Clique para recarregar
+          </button>
         </div>
       );
     }
@@ -152,7 +145,10 @@ function resolveMerchantReturnTo(search: string): string {
   try {
     const decoded = decodeURIComponent(raw).trim();
     if (!decoded.startsWith("/") || decoded.startsWith("//")) return "/dashboard";
-    if (decoded.startsWith("/login") || decoded.startsWith("/area-lojista")) return "/dashboard";
+    if (
+      decoded.startsWith("/login") ||
+      decoded.startsWith("/area-lojista")
+    ) return "/dashboard";
     return isMerchantRoute(decoded) ? decoded : "/dashboard";
   } catch {
     return "/dashboard";
@@ -223,10 +219,6 @@ const withMerchantProtection = <T extends ComponentType<any>>(Component: LazyExo
   <MerchantProtectedRoute>{withRouteSuspense(Component)}</MerchantProtectedRoute>
 );
 
-const withMerchantGuestOnly = <T extends ComponentType<any>>(Component: LazyExoticComponent<T>) => (
-  <MerchantLoginRoute>{withRouteSuspense(Component)}</MerchantLoginRoute>
-);
-
 const RouteChangeLogger = () => {
   const location = useLocation();
 
@@ -265,7 +257,8 @@ const App = () => (
               <Route path="/auth" element={<Navigate to="/entrar" replace />} />
               <Route path="/auth/callback" element={withRouteSuspense(AuthCallback)} />
               <Route path="/esqueci-senha" element={withRouteSuspense(EsqueciSenha)} />
-              <Route path="/redefinir-senha" element={withRouteSuspense(RedefinirSenha)} />
+              <Route path="/redefinir-senha" element={withRouteSuspense(ReiniciarSenha)} />
+              <Route path="/reiniciar-senha" element={withRouteSuspense(ReiniciarSenha)} />
               <Route path="/resetar-senha" element={withRouteSuspense(ResetarSenha)} />
               <Route path="/minha-conta" element={withRouteSuspense(AccountOverview)} />
               <Route path="/minha-conta/club" element={withRouteSuspense(LepoaClub)} />
@@ -289,6 +282,7 @@ const App = () => (
                   </MerchantLoginRoute>
                 )}
               />
+              <Route path="/admin/login" element={<Navigate to="/login" replace />} />
               <Route
                 path="/area-lojista"
                 element={(
@@ -299,21 +293,22 @@ const App = () => (
                   </MerchantLoginRoute>
                 )}
               />
+              <Route path="/admin" element={withMerchantProtection(Dashboard)} />
               <Route path="/dashboard" element={withMerchantProtection(Dashboard)} />
-              <Route path="/dashboard/clientes/:id" element={withMerchantProtection(CustomerDetail)} />
-              <Route path="/dashboard/lives/relatorio" element={withMerchantProtection(LiveReportsPeriodPage)} />
-              <Route path="/dashboard/lives/rastreador" element={withMerchantProtection(BagTrackerPage)} />
-              <Route path="/dashboard/lives/:eventId/planejar" element={withMerchantProtection(LivePlanningPage)} />
-              <Route path="/dashboard/lives/:eventId/backstage" element={withMerchantProtection(LiveBackstagePage)} />
-              <Route path="/dashboard/lives/:eventId/relatorio" element={withMerchantProtection(LiveReportsPage)} />
-              <Route path="/dashboard/lives/:eventId/pedidos" element={withMerchantProtection(LiveOrdersPage)} />
-              <Route path="/dashboard/lives/:eventId/pendencias" element={withMerchantProtection(LivePendenciasPage)} />
-              <Route path="/dashboard/lives/:eventId/separacao" element={withMerchantProtection(LiveSeparationPage)} />
-              <Route path="/dashboard/insights" element={withMerchantProtection(InsightsPage)} />
-              <Route path="/dashboard/rfv" element={withMerchantProtection(CopilotoRFV)} />
-              <Route path="/dashboard/consultora" element={withMerchantProtection(DashboardConsultoraPage)} />
-              <Route path="/clientes/ranking" element={withMerchantProtection(ClientesRankingPage)} />
-              <Route path="/importar-estoque" element={withMerchantProtection(ImportarEstoque)} />
+              <Route path="/dashboard/clientes/:id" element={<Navigate to="/dashboard?tab=clientes" replace />} />
+              <Route path="/dashboard/lives/relatorio" element={<Navigate to="/dashboard?tab=lives" replace />} />
+              <Route path="/dashboard/lives/rastreador" element={<Navigate to="/dashboard?tab=lives" replace />} />
+              <Route path="/dashboard/lives/:eventId/planejar" element={<Navigate to="/dashboard?tab=lives" replace />} />
+              <Route path="/dashboard/lives/:eventId/backstage" element={<Navigate to="/dashboard?tab=lives" replace />} />
+              <Route path="/dashboard/lives/:eventId/relatorio" element={<Navigate to="/dashboard?tab=lives" replace />} />
+              <Route path="/dashboard/lives/:eventId/pedidos" element={<Navigate to="/dashboard?tab=lives" replace />} />
+              <Route path="/dashboard/lives/:eventId/pendencias" element={<Navigate to="/dashboard?tab=lives" replace />} />
+              <Route path="/dashboard/lives/:eventId/separacao" element={<Navigate to="/dashboard?tab=lives" replace />} />
+              <Route path="/dashboard/insights" element={<Navigate to="/dashboard?tab=insights" replace />} />
+              <Route path="/dashboard/rfv" element={<Navigate to="/dashboard?tab=rfv" replace />} />
+              <Route path="/dashboard/consultora" element={<Navigate to="/dashboard?tab=consultora" replace />} />
+              <Route path="/clientes/ranking" element={<Navigate to="/dashboard?tab=clientes" replace />} />
+              <Route path="/importar-estoque" element={<Navigate to="/dashboard?tab=products" replace />} />
 
               {/* E-commerce routes */}
               <Route path="/catalogo" element={withRouteSuspense(Catalog)} />
@@ -338,11 +333,12 @@ const App = () => (
               <Route path="/sitemap.xml" element={withRouteSuspense(Sitemap)} />
               <Route path="/moda-feminina-elegante" element={withRouteSuspense(ModaFemininaElegante)} />
               <Route path="/sobre" element={withRouteSuspense(Sobre)} />
+              <Route path="/admin/*" element={<Navigate to="/admin" replace />} />
 
               <Route path="*" element={withRouteSuspense(NotFound)} />
             </Routes>
             <FloatingAtelierChat />
-            <RuntimeLoggerPanel />
+            {import.meta.env.DEV && <RuntimeLoggerPanel />}
           </BrowserRouter>
         </TooltipProvider>
       </CartProvider>
@@ -351,3 +347,4 @@ const App = () => (
 );
 
 export default App;
+

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { User } from "@supabase/supabase-js";
 import {
   Archive,
@@ -38,6 +38,7 @@ import { GiftsTabs } from "@/components/gifts/GiftsTabs";
 import { LoyaltyClubAdmin } from "@/components/admin/LoyaltyClubAdmin";
 import { PromotionalTablesManager } from "@/components/promotions/PromotionalTablesManager";
 import { ProfileManager } from "@/components/admin/ProfileManager";
+import { AILookConsultant } from "@/components/home/AILookConsultant";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import logoLepoa from "@/assets/logo-lepoa.png";
@@ -78,6 +79,9 @@ type DashboardTabValue =
   | "categories"
   | "orders"
   | "lives"
+  | "rfv"
+  | "insights"
+  | "consultora"
   | "cupons"
   | "promocoes"
   | "brindes"
@@ -90,7 +94,7 @@ type SidebarItem = {
   id: string;
   label: string;
   icon: typeof LayoutDashboard;
-  kind: "tab" | "route";
+  kind: "tab";
   value: string;
   showPrintCount?: boolean;
 };
@@ -119,7 +123,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     title: "CLIENTES",
     items: [
       { id: "clientes", label: "Clientes", icon: UserCheck, kind: "tab", value: "clientes" },
-      { id: "rfv", label: "RFV", icon: Brain, kind: "route", value: "/dashboard/rfv" },
+      { id: "rfv", label: "RFV", icon: Brain, kind: "tab", value: "rfv" },
       { id: "club", label: "Club", icon: Crown, kind: "tab", value: "club" },
     ],
   },
@@ -127,7 +131,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     title: "PRODUTOS",
     items: [
       { id: "products", label: "Produtos", icon: Package, kind: "tab", value: "products" },
-      { id: "importar-estoque", label: "Estoque", icon: Archive, kind: "route", value: "/importar-estoque" },
+      { id: "importar-estoque", label: "Estoque", icon: Archive, kind: "tab", value: "products" },
       { id: "categorias", label: "Categorias", icon: BadgeCheck, kind: "tab", value: "categories" },
       { id: "prints", label: "Prints", icon: Image, kind: "tab", value: "prints", showPrintCount: true },
     ],
@@ -137,7 +141,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     items: [
       { id: "equipe", label: "Equipe", icon: UsersRound, kind: "tab", value: "equipe" },
       { id: "profiles", label: "Time & Acessos", icon: UsersRound, kind: "tab", value: "profiles" },
-      { id: "consultora", label: "Consultoria IA", icon: Sparkles, kind: "route", value: "/dashboard/consultora" },
+      { id: "consultora", label: "Consultoria IA", icon: Sparkles, kind: "tab", value: "consultora" },
     ],
   },
 ];
@@ -149,6 +153,9 @@ const DASHBOARD_TAB_VALUES: DashboardTabValue[] = [
   "categories",
   "orders",
   "lives",
+  "rfv",
+  "insights",
+  "consultora",
   "cupons",
   "promocoes",
   "brindes",
@@ -160,11 +167,16 @@ const DASHBOARD_TAB_VALUES: DashboardTabValue[] = [
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParamRaw = searchParams.get("tab");
-  const tabParam = DASHBOARD_TAB_VALUES.includes(tabParamRaw as DashboardTabValue)
-    ? (tabParamRaw as DashboardTabValue)
+  const tabAliases: Record<string, DashboardTabValue> = {
+    customers: "clientes",
+    team: "equipe",
+    settings: "profiles",
+  };
+  const normalizedTabParamRaw = tabParamRaw ? (tabAliases[tabParamRaw] ?? tabParamRaw) : null;
+  const tabParam = DASHBOARD_TAB_VALUES.includes(normalizedTabParamRaw as DashboardTabValue)
+    ? (normalizedTabParamRaw as DashboardTabValue)
     : null;
   const filterParam = searchParams.get("filter");
   const [activeTab, setActiveTab] = useState<DashboardTabValue>(tabParam || "overview");
@@ -175,6 +187,17 @@ const Dashboard = () => {
       setActiveTab(tabParam);
     }
   }, [activeTab, tabParam]);
+
+  useEffect(() => {
+    if (tabParamRaw && !tabParam) {
+      navigate("/dashboard", { replace: true });
+      return;
+    }
+
+    if (tabParamRaw && tabParam && tabParamRaw !== tabParam) {
+      navigate(`/dashboard?tab=${tabParam}`, { replace: true });
+    }
+  }, [navigate, tabParam, tabParamRaw]);
 
   const handleTabChange = (value: DashboardTabValue) => {
     setActiveTab(value);
@@ -189,40 +212,14 @@ const Dashboard = () => {
   };
 
   const handleSidebarItemSelect = (item: SidebarItem) => {
-    if (item.kind === "tab") {
-      handleTabChange(item.value as DashboardTabValue);
-      return;
-    }
-
-    navigate(item.value);
+    handleTabChange(item.value as DashboardTabValue);
   };
 
   const handleMobileNavSelect = (value: string) => {
-    if (value === "rfv") {
-      navigate("/dashboard/rfv");
-      return;
-    }
-
-    if (value === "consultora") {
-      navigate("/dashboard/consultora");
-      return;
-    }
-
     if (DASHBOARD_TAB_VALUES.includes(value as DashboardTabValue)) {
       handleTabChange(value as DashboardTabValue);
     }
   };
-
-  useEffect(() => {
-    if (tabParamRaw === "rfv") {
-      navigate("/dashboard/rfv", { replace: true });
-      return;
-    }
-
-    if (tabParamRaw === "consultora") {
-      navigate("/dashboard/consultora", { replace: true });
-    }
-  }, [navigate, tabParamRaw]);
 
   const [user, setUser] = useState<User | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -336,14 +333,6 @@ const Dashboard = () => {
     setLinkModalOpen(true);
   };
 
-  const isRouteItemActive = (item: SidebarItem) => {
-    if (item.kind !== "route") return false;
-    if (item.value === "/dashboard/rfv") return location.pathname.startsWith("/dashboard/rfv");
-    if (item.value === "/dashboard/consultora") return location.pathname.startsWith("/dashboard/consultora");
-    if (item.value === "/importar-estoque") return location.pathname.startsWith("/importar-estoque");
-    return false;
-  };
-
   if (!user) {
     return null;
   }
@@ -362,8 +351,7 @@ const Dashboard = () => {
               <div className="space-y-1">
                 {section.items.map((item) => {
                   const Icon = item.icon;
-                  const isActive =
-                    item.kind === "tab" ? activeTab === item.value : isRouteItemActive(item);
+                  const isActive = activeTab === item.value;
 
                   return (
                     <button
@@ -403,7 +391,7 @@ const Dashboard = () => {
                 activeTab={activeTab}
                 onTabChange={handleMobileNavSelect}
                 onLogout={handleLogout}
-                onImportStock={() => navigate("/importar-estoque")}
+                onImportStock={() => handleTabChange("products")}
                 printCount={printRequests.length}
               />
               <img src={logoLepoa} alt="Le.Poá" className="h-8 w-auto object-contain lg:hidden" />
@@ -413,7 +401,7 @@ const Dashboard = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => navigate("/importar-estoque")}
+                onClick={() => handleTabChange("products")}
                 className="h-9 gap-2 border-[#c6ab73] bg-[#f9f3e4] text-[#2a2a2a] hover:border-[#b59657] hover:bg-[#f6edd8]"
               >
                 <FileSpreadsheet className="h-4 w-4" />
@@ -536,6 +524,40 @@ const Dashboard = () => {
 
             <TabsContent value="lives">
               <LiveEventsList />
+            </TabsContent>
+
+            <TabsContent value="rfv">
+              <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
+                <h2 className="text-lg font-semibold">RFV</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Acesse o copiloto RFV sem sair do container do dashboard.
+                </p>
+                <div className="mt-4">
+                  <Button variant="outline" onClick={() => navigate("/dashboard/rfv")}>
+                    Abrir RFV completo
+                  </Button>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="insights">
+              <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
+                <h2 className="text-lg font-semibold">Insights</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Acesse os insights sem sair do container do dashboard.
+                </p>
+                <div className="mt-4">
+                  <Button variant="outline" onClick={() => navigate("/dashboard/insights")}>
+                    Abrir insights completos
+                  </Button>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="consultora">
+              <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
+                <AILookConsultant />
+              </div>
             </TabsContent>
 
             <TabsContent value="cupons">

@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     fs: {
-      allow: [path.resolve(__dirname)],
+      allow: ["."],
     },
     hmr: {
       overlay: false,

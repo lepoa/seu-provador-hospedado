@@ -40,7 +40,9 @@ const Login = () => {
         decoded.startsWith("/dashboard") ||
         decoded.startsWith("/importar-estoque") ||
         decoded.startsWith("/clientes/ranking");
-      const isLoginPath = decoded.startsWith("/login") || decoded.startsWith("/area-lojista");
+      const isLoginPath =
+        decoded.startsWith("/login") ||
+        decoded.startsWith("/area-lojista");
 
       if (isSafePath && isMerchantPath && !isLoginPath) {
         setResolvedReturnTo(decoded);

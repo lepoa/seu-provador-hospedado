@@ -28,8 +28,6 @@ declare global {
 const TRACE_PREFIX = "[SAAS-TRACE]";
 const TRACE_STORAGE_KEY = "saas_trace_entries";
 const CHUNK_RELOAD_KEY = "saas_chunk_reload_once";
-const CHUNK_RELOAD_PARAM = "_chunk_retry";
-const LEGACY_CHUNK_RELOAD_PARAM = "chunk_retry";
 const TRACE_MAX_ENTRIES = 5000;
 const TRACE_MAX_STRING = 1200;
 const TRACE_MAX_KEYS = 40;
@@ -185,20 +183,27 @@ function shouldRecoverChunkError(message: string): boolean {
   );
 }
 
-function buildReloadUrlWithCacheBust(): string {
-  const url = new URL(window.location.href);
-  url.searchParams.delete(CHUNK_RELOAD_PARAM);
-  url.searchParams.delete(LEGACY_CHUNK_RELOAD_PARAM);
-  url.searchParams.set(CHUNK_RELOAD_PARAM, Date.now().toString());
-  return url.toString();
-}
-
 function buildChunkRouteKey(): string {
   const url = new URL(window.location.href);
-  url.searchParams.delete(CHUNK_RELOAD_PARAM);
-  url.searchParams.delete(LEGACY_CHUNK_RELOAD_PARAM);
+  url.searchParams.delete("_chunk_retry");
+  url.searchParams.delete("chunk_retry");
   const search = url.searchParams.toString();
   return `${url.pathname}${search ? `?${search}` : ""}${url.hash}`;
+}
+
+function cleanupLegacyChunkRetryQueryParam(): void {
+  if (typeof window === "undefined") return;
+
+  const url = new URL(window.location.href);
+  const hadLegacyParam = url.searchParams.has("_chunk_retry") || url.searchParams.has("chunk_retry");
+  if (!hadLegacyParam) return;
+
+  url.searchParams.delete("_chunk_retry");
+  url.searchParams.delete("chunk_retry");
+  const next = `${url.pathname}${url.search ? `${url.search}` : ""}${url.hash}`;
+  window.history.replaceState(window.history.state, "", next);
+
+  runtimeLog("runtime", "chunk-load:legacy-param-removed", { next }, "info");
 }
 
 function attemptChunkErrorRecovery(reason: unknown): void {
@@ -207,31 +212,27 @@ function attemptChunkErrorRecovery(reason: unknown): void {
   const message = extractChunkErrorMessage(reason);
   if (!shouldRecoverChunkError(message)) return;
 
-  const hasChunkRetryParam =
-    window.location.search.includes(`${CHUNK_RELOAD_PARAM}=`) ||
-    window.location.search.includes(`${LEGACY_CHUNK_RELOAD_PARAM}=`);
   const currentKey = buildChunkRouteKey();
   const previousKey = sessionStorage.getItem(CHUNK_RELOAD_KEY);
 
-  if (hasChunkRetryParam || previousKey === currentKey) {
+  if (previousKey === currentKey) {
     runtimeLog(
       "runtime",
       "chunk-load:recover:skipped",
-      { key: currentKey, message, hasChunkRetryParam },
+      { key: currentKey, message },
       "error",
     );
     return;
   }
 
   sessionStorage.setItem(CHUNK_RELOAD_KEY, currentKey);
-  const reloadUrl = buildReloadUrlWithCacheBust();
   runtimeLog(
     "runtime",
     "chunk-load:recover:reload",
-    { key: currentKey, reloadUrl, message },
+    { key: currentKey, message },
     "warn",
   );
-  window.location.replace(reloadUrl);
+  window.location.reload();
 }
 
 export function runtimeLog(scope: string, action: string, details: unknown = {}, level: LogLevel = "info"): RuntimeLogEntry {
@@ -279,6 +280,7 @@ export function installRuntimeDiagnostics(): void {
 
   state.installed = true;
   window.__SAAS_TRACE__ = state;
+  cleanupLegacyChunkRetryQueryParam();
 
   runtimeLog("diagnostics", "install", {
     href: window.location.href,

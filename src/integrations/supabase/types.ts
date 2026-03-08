@@ -2885,6 +2885,8 @@ export type Database = {
           avoid_items: string[] | null
           city: string | null
           color_palette: string[] | null
+          consent_ip: string | null
+          consent_user_agent: string | null
           completed_missions: string[] | null
           cpf: string | null
           created_at: string
@@ -2896,6 +2898,9 @@ export type Database = {
           name: string | null
           personal_tip: string | null
           preferred_sizes: string[] | null
+          privacy_accepted: boolean | null
+          privacy_accepted_at: string | null
+          privacy_version: string | null
           quiz_completed_at: string | null
           quiz_level: number | null
           quiz_points: number | null
@@ -2907,6 +2912,9 @@ export type Database = {
           style_preferences: string | null
           style_title: string | null
           suggestions_updated_at: string | null
+          terms_accepted: boolean | null
+          terms_accepted_at: string | null
+          terms_version: string | null
           updated_at: string
           user_id: string
           whatsapp: string | null
@@ -2919,6 +2927,8 @@ export type Database = {
           avoid_items?: string[] | null
           city?: string | null
           color_palette?: string[] | null
+          consent_ip?: string | null
+          consent_user_agent?: string | null
           completed_missions?: string[] | null
           cpf?: string | null
           created_at?: string
@@ -2930,6 +2940,9 @@ export type Database = {
           name?: string | null
           personal_tip?: string | null
           preferred_sizes?: string[] | null
+          privacy_accepted?: boolean | null
+          privacy_accepted_at?: string | null
+          privacy_version?: string | null
           quiz_completed_at?: string | null
           quiz_level?: number | null
           quiz_points?: number | null
@@ -2941,6 +2954,9 @@ export type Database = {
           style_preferences?: string | null
           style_title?: string | null
           suggestions_updated_at?: string | null
+          terms_accepted?: boolean | null
+          terms_accepted_at?: string | null
+          terms_version?: string | null
           updated_at?: string
           user_id: string
           whatsapp?: string | null
@@ -2953,6 +2969,8 @@ export type Database = {
           avoid_items?: string[] | null
           city?: string | null
           color_palette?: string[] | null
+          consent_ip?: string | null
+          consent_user_agent?: string | null
           completed_missions?: string[] | null
           cpf?: string | null
           created_at?: string
@@ -2964,6 +2982,9 @@ export type Database = {
           name?: string | null
           personal_tip?: string | null
           preferred_sizes?: string[] | null
+          privacy_accepted?: boolean | null
+          privacy_accepted_at?: string | null
+          privacy_version?: string | null
           quiz_completed_at?: string | null
           quiz_level?: number | null
           quiz_points?: number | null
@@ -2975,6 +2996,9 @@ export type Database = {
           style_preferences?: string | null
           style_title?: string | null
           suggestions_updated_at?: string | null
+          terms_accepted?: boolean | null
+          terms_accepted_at?: string | null
+          terms_version?: string | null
           updated_at?: string
           user_id?: string
           whatsapp?: string | null

@@ -39,6 +39,7 @@ const navItems = [
   { value: "categories", label: "Categorias", icon: BadgeCheck },
   { value: "orders", label: "Pedidos", icon: ShoppingBag },
   { value: "lives", label: "Lives", icon: Radio },
+  { value: "insights", label: "Insights", icon: Brain },
   { value: "cupons", label: "Cupons", icon: Ticket },
   { value: "promocoes", label: "Promoções", icon: Tag },
   { value: "brindes", label: "Brindes", icon: Gift },

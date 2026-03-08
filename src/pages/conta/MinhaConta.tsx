@@ -4,16 +4,20 @@ import { Eye, EyeOff, Loader2, Package, Camera, User, ChevronRight, Sparkles, Ta
 import { Header } from "@/components/Header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { MissionsList } from "@/components/MissionsList";
 import { VipProgressSection } from "@/components/VipProgressSection";
+import { ModalPrivacidade } from "@/components/account/ModalPrivacidade";
+import { ModalTermos } from "@/components/account/ModalTermos";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { z } from "zod";
 import { getAvailableMissions, getMissionById } from "@/lib/missionsData";
+import { sendEmail } from "@/lib/sendEmail";
 
 const authSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -30,20 +34,87 @@ interface ProfileData {
   last_mission_completed_at: string | null;
 }
 
+function formatPhone(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
 export default function MinhaConta() {
   const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [instagram, setInstagram] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
+  const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [inProgressMissionId, setInProgressMissionId] = useState<string | null>(null);
 
+  const CONSENT_TERMS_VERSION = "v1";
+  const CONSENT_PRIVACY_VERSION = "v1";
+
+  const saveConsentOnProfile = async (userId: string) => {
+    const now = new Date().toISOString();
+    const { error } = await supabase.from("profiles").upsert(
+      {
+        user_id: userId,
+        terms_accepted: true,
+        privacy_accepted: true,
+        terms_accepted_at: now,
+        privacy_accepted_at: now,
+        terms_version: CONSENT_TERMS_VERSION,
+        privacy_version: CONSENT_PRIVACY_VERSION,
+        consent_user_agent: navigator.userAgent,
+      },
+      {
+        onConflict: "user_id",
+        ignoreDuplicates: false,
+      },
+    );
+
+    if (error) throw error;
+  };
+
+  const loadCustomerProfile = async (userId: string) => {
+    const { data, error } = await supabase
+      .from("customers")
+      .select("*")
+      .eq("user_id", userId)
+      .single();
+
+    if (error) {
+      console.warn("Erro ao carregar perfil:", error);
+      return;
+    }
+
+    if (data) {
+      setName(data.name ?? "");
+      setPhone(data.phone ?? "");
+      setInstagram(data.instagram ?? "");
+      setBirthDate(data.birth_date ?? "");
+    }
+  };
+
   const handleGoogleLogin = async () => {
+    if (!isLogin && !termsAccepted) {
+      toast.error("Voce precisa aceitar os termos para criar sua conta.");
+      return;
+    }
+
     setIsGoogleLoading(true);
     try {
       sessionStorage.setItem("oauth_return_to", "/minha-conta");
@@ -65,6 +136,9 @@ export default function MinhaConta() {
   useEffect(() => {
     if (user) {
       loadProfileData();
+      if (user.id) {
+        loadCustomerProfile(user.id);
+      }
     } else {
       setLoadingProfile(false);
     }
@@ -354,14 +428,67 @@ export default function MinhaConta() {
         if (error) throw error;
         toast.success("Bem-vinda de volta!");
       } else {
-        const { error } = await supabase.auth.signUp({
+        if (!name) {
+          toast.error("Informe seu nome.");
+          return;
+        }
+
+        if (!phone) {
+          toast.error("Informe seu telefone.");
+          return;
+        }
+
+        const normalizedPhone = phone.replace(/\D/g, "");
+        if (normalizedPhone.length < 10) {
+          toast.error("Informe um telefone válido.");
+          return;
+        }
+
+        if (!termsAccepted) {
+          toast.error("Voce precisa aceitar os termos para criar sua conta.");
+          return;
+        }
+
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/minha-conta`,
+            data: {
+              terms_accepted: true,
+              privacy_accepted: true,
+              terms_version: CONSENT_TERMS_VERSION,
+              privacy_version: CONSENT_PRIVACY_VERSION,
+              consent_user_agent: navigator.userAgent,
+            },
           },
         });
-        if (error) throw error;
+        if (error) {
+          if (error.message?.includes("already registered")) {
+            toast.error("Este e-mail ja esta cadastrado. Faca login.");
+            return;
+          }
+
+          toast.error("Nao foi possivel criar a conta.");
+          console.error(error);
+          return;
+        }
+
+        if (data.user?.id) {
+          const { error: customerError } = await supabase.from("customers").insert({
+            user_id: data.user.id,
+            name,
+            email,
+            phone: normalizedPhone,
+          });
+
+          if (customerError) {
+            console.warn("Erro ao criar registro em customers:", customerError);
+          }
+
+          await saveConsentOnProfile(data.user.id);
+        }
+
         toast.success("Conta criada com sucesso!");
       }
     } catch (error: unknown) {
@@ -449,6 +576,20 @@ export default function MinhaConta() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {!isLogin && (
+            <div>
+              <Label htmlFor="name">Nome</Label>
+              <Input
+                id="name"
+                type="text"
+                placeholder="Seu nome"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
+          )}
+
           <div>
             <Label htmlFor="email">Email</Label>
             <Input
@@ -460,6 +601,20 @@ export default function MinhaConta() {
               required
             />
           </div>
+
+          {!isLogin && (
+            <div>
+              <Label htmlFor="phone">Telefone</Label>
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="(11) 99999-9999"
+                value={phone}
+                onChange={(e) => setPhone(formatPhone(e.target.value))}
+                required
+              />
+            </div>
+          )}
 
           <div>
             <Label htmlFor="password">Senha</Label>
@@ -492,7 +647,37 @@ export default function MinhaConta() {
             )}
           </div>
 
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {!isLogin && (
+            <div className="rounded-md border border-border p-3 space-y-2">
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="terms-acceptance"
+                  checked={termsAccepted}
+                  onCheckedChange={(checked) => setTermsAccepted(checked === true)}
+                />
+                <Label htmlFor="terms-acceptance" className="text-sm leading-5 cursor-pointer">
+                  Li e concordo com os{" "}
+                  <button
+                    type="button"
+                    onClick={() => setIsTermsModalOpen(true)}
+                    className="underline underline-offset-4 hover:text-foreground"
+                  >
+                    Termos de Uso
+                  </button>{" "}
+                  e{" "}
+                  <button
+                    type="button"
+                    onClick={() => setIsPrivacyModalOpen(true)}
+                    className="underline underline-offset-4 hover:text-foreground"
+                  >
+                    Politica de Privacidade
+                  </button>
+                </Label>
+              </div>
+            </div>
+          )}
+
+          <Button type="submit" className="w-full" disabled={isSubmitting || (!isLogin && !termsAccepted)}>
             {isSubmitting ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -502,11 +687,18 @@ export default function MinhaConta() {
               isLogin ? "Entrar" : "Criar conta"
             )}
           </Button>
+
         </form>
 
         <div className="mt-6 text-center">
           <button
-            onClick={() => setIsLogin(!isLogin)}
+            onClick={() => {
+              const nextIsLogin = !isLogin;
+              setIsLogin(nextIsLogin);
+              if (nextIsLogin) {
+                setTermsAccepted(false);
+              }
+            }}
             className="text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             {isLogin
@@ -514,6 +706,16 @@ export default function MinhaConta() {
               : "Já tem conta? Fazer login"}
           </button>
         </div>
+        <ModalTermos
+          open={isTermsModalOpen}
+          onOpenChange={setIsTermsModalOpen}
+          onAgree={() => setTermsAccepted(true)}
+        />
+        <ModalPrivacidade
+          open={isPrivacyModalOpen}
+          onOpenChange={setIsPrivacyModalOpen}
+          onAgree={() => setTermsAccepted(true)}
+        />
       </main>
     </div>
   );

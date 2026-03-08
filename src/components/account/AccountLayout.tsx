@@ -118,7 +118,7 @@ export function AccountLayout({ children, title, showBackButton }: AccountLayout
           <div className="mx-auto flex max-w-6xl gap-8">
             {/* Sidebar */}
             <aside className="w-64 shrink-0">
-              <div className="sticky top-24 rounded-2xl border border-[#ccb487]/45 bg-[#fffaf0] p-4 shadow-[0_8px_24px_rgba(16,37,31,0.08)]">
+              <div className="sticky top-24 flex h-[calc(100vh-7rem)] flex-col overflow-y-auto rounded-2xl border border-[#ccb487]/45 bg-[#fffaf0] p-4 shadow-[0_8px_24px_rgba(16,37,31,0.08)]">
                 {/* User greeting */}
                 <div className="mb-6 px-2">
                   <p className="text-sm font-medium text-[#7d7568]">Olá,</p>
@@ -126,7 +126,7 @@ export function AccountLayout({ children, title, showBackButton }: AccountLayout
                 </div>
 
                 {/* Navigation */}
-                <nav className="space-y-1">
+                <nav className="flex-1 space-y-1">
                   {accountNavItems.map((item) => {
                     const isActive = location.pathname === item.href;
                     const Icon = item.icon;
@@ -158,7 +158,7 @@ export function AccountLayout({ children, title, showBackButton }: AccountLayout
                 </nav>
 
                 {/* Logout */}
-                <div className="mt-8 border-t border-[#ccb487]/45 pt-6">
+                <div className="mt-auto border-t border-[#ccb487]/45 pt-6">
                   <Button
                     variant="ghost"
                     className="w-full justify-start text-[#6f6759] hover:bg-[#f0e5cc] hover:text-[#3f392e]"
@@ -190,6 +190,50 @@ export function AccountLayout({ children, title, showBackButton }: AccountLayout
       <Header />
 
       <main className="container mx-auto px-4 py-6">
+        <section className="mb-5 flex h-[calc(100vh-12rem)] min-h-[360px] flex-col overflow-y-auto rounded-2xl border border-[#ccb487]/45 bg-[#fffaf0] p-3 shadow-[0_8px_24px_rgba(16,37,31,0.08)]">
+          <nav className="flex-1 space-y-1">
+            {accountNavItems.map((item) => {
+              const isActive = location.pathname === item.href;
+              const Icon = item.icon;
+
+              return (
+                <Link
+                  key={item.href}
+                  to={item.href}
+                  className={cn(
+                    "group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors",
+                    isActive
+                      ? "bg-[#15251f] text-[#f5e8c8]"
+                      : "text-[#292823] hover:bg-[#f0e5cc]",
+                    item.highlight && !isActive && "text-[#a37d38]"
+                  )}
+                >
+                  <Icon className={cn(
+                    "h-5 w-5 shrink-0",
+                    item.highlight && !isActive && "text-[#a37d38]"
+                  )} />
+                  <span className="font-medium">{item.label}</span>
+                  <ChevronRight className={cn(
+                    "h-4 w-4 ml-auto opacity-0 group-hover:opacity-100 transition-opacity",
+                    isActive && "opacity-100"
+                  )} />
+                </Link>
+              );
+            })}
+          </nav>
+
+          <div className="mt-auto border-t border-[#ccb487]/45 pt-4">
+            <Button
+              variant="ghost"
+              className="w-full justify-start text-[#6f6759] hover:bg-[#f0e5cc] hover:text-[#3f392e]"
+              onClick={handleLogout}
+            >
+              <LogOut className="h-5 w-5 mr-3" />
+              Sair da conta
+            </Button>
+          </div>
+        </section>
+
         {showBackButton && (
           <button
             onClick={() => navigate(-1)}
@@ -235,3 +279,4 @@ export function AccountLayout({ children, title, showBackButton }: AccountLayout
     </div>
   );
 }
+
