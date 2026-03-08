@@ -22,3 +22,15 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Local temporary/audit files
+.tmp_*
+tmp_*.sql
+
+# Supabase local temp artifacts
+supabase/.temp/
