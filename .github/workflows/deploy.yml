@@ -7,39 +7,38 @@ on:
 
 jobs:
   web-deploy:
-    name: 🎉 Deploy
+    name: Deploy
     runs-on: ubuntu-latest
     steps:
-      - name: 🚚 Get latest code
+      - name: Get latest code
         uses: actions/checkout@v4
 
-      - name: 🟢 Setup Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
 
-      - name: 📦 Install dependencies
+      - name: Install dependencies
         run: npm ci
 
-      - name: 🏗️ Build Project
+      - name: Build Project
         run: |
           npm run build
-          echo "Build ID: ${{ github.run_id }} - Root Fix - $(date)" > dist/deploy_debug.txt
-          echo "📂 Listing build directory contents:"
+          echo "Build ID: ${{ github.run_id }} - FTPS - $(date)" > dist/deploy_debug.txt
+          echo "Listing build directory contents:"
           ls -R dist/
 
-      - name: 📂 Sync files (FTP)
+      - name: Sync files (FTP)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
           port: 21
           local-dir: ./dist/
-          # FTP account already lands in the site webroot.
-          # Using domains/.../public_html creates a nested folder and leaves root stale.
-          server-dir: ./
+          server-dir: ./public_html/
           timeout: 600000
           log-level: verbose
           state-name: .ftp-deploy-sync-state-webroot.json
