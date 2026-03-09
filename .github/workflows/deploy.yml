@@ -38,7 +38,7 @@ jobs:
           protocol: ftps
           port: 21
           local-dir: ./dist/
-          server-dir: ./
+          server-dir: ./public_html/
           timeout: 600000
           log-level: verbose
-          state-name: .ftp-deploy-sync-state-webroot.json
+          state-name: .ftp-deploy-sync-state-public-html.json
