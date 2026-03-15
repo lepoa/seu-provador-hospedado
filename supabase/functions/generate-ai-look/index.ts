@@ -278,14 +278,17 @@ Você DEVE retornar APENAS este formato JSON:
         writerContent.title = filters.occasion ? filters.occasion.toUpperCase() : "SUGESTÃO LE.POÁ";
 
         if (authenticatedUserId && finalIds.length > 0) {
-            await supabase.from("ai_look_sessions").insert({
+            const { error: insertError } = await supabase.from("ai_look_sessions").insert({
                 user_id: authenticatedUserId,
                 session_id: session_id || null,
                 input_text,
                 generated_title: writerContent.title,
                 generated_description: writerContent.text,
                 generated_product_ids: writerContent.products
-            }).catch(e => console.error("Error saving session:", e));
+            });
+            if (insertError) {
+                console.error("Error saving session:", insertError);
+            }
         }
 
         return new Response(JSON.stringify({ success: true, data: writerContent }), { headers: jsonHeaders });
