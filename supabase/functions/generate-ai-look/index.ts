@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { scoreProductPriority } from "./stylingRules.ts";
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -10,167 +11,294 @@ const jsonHeaders = {
     "Content-Type": "application/json; charset=utf-8",
 };
 
-// ========== AUTH HELPER ==========
-async function requireAuth(req: Request): Promise<{ userId: string; error?: undefined } | { userId?: undefined; error: Response }> {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-        return { error: new Response(JSON.stringify({ error: "Token de autorização ausente ou inválido" }), { status: 401, headers: jsonHeaders }) };
-    }
-    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
-        global: { headers: { Authorization: authHeader } },
-    });
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) {
-        return { error: new Response(JSON.stringify({ error: "Sessão expirada ou inválida" }), { status: 401, headers: jsonHeaders }) };
-    }
-    return { userId: data.user.id };
-}
-
 serve(async (req) => {
     if (req.method === "OPTIONS") {
         return new Response(null, { headers: corsHeaders });
     }
 
-    // ========== AUTH CHECK ==========
-    const auth = await requireAuth(req);
-    if (auth.error) return auth.error;
-    const authenticatedUserId = auth.userId;
+    let authenticatedUserId: string | undefined;
+
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+        const supabaseAuth = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+            global: { headers: { Authorization: authHeader } },
+        });
+        const { data } = await supabaseAuth.auth.getUser();
+        if (data?.user) {
+            authenticatedUserId = data.user.id;
+        }
+    }
 
     try {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-        const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         const supabase = createClient(supabaseUrl, supabaseKey);
 
         const body = await req.json().catch(() => ({}));
-        const { input_text, session_id, history = [] } = body;
+        const { input_text = "", session_id, history = [] } = body;
 
-        if (!input_text) {
+        if (!input_text.trim()) {
             return new Response(JSON.stringify({ error: "Input text is required" }), {
                 status: 400,
                 headers: jsonHeaders,
             });
         }
 
-        // 1. Fetch 50 active products
-        console.log("Fetching products...");
-        const { data: products, error: productsError } = await supabase
-            .from("product_catalog")
-            .select("id, name, price, category, occasion")
-            .eq("is_active", true)
-            .limit(50);
-
-        if (productsError) {
-            console.error("Database Error (Fetch Products):", productsError);
-            throw new Error(`Erro ao buscar catálogo: ${productsError.message}`);
+        let userProfile = { name: "", size_letter: "", size_number: "", style_title: "" };
+        if (authenticatedUserId) {
+            const { data: customer, error: customerError } = await supabase
+                .from("customers")
+                .select("name, size_letter, size_number, style_title")
+                .eq("user_id", authenticatedUserId)
+                .maybeSingle();
+            
+            if (customerError && customerError.code !== 'PGRST116') {
+                 console.error("Customer fetch error:", customerError);
+            }
+            if (customer) userProfile = customer;
         }
-
-        console.log(`Found ${products?.length || 0} products.`);
 
         const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-        if (!OPENAI_API_KEY) {
-            console.error("Critical Error: OPENAI_API_KEY is not set.");
-            throw new Error("Configuração da OpenAI ausente (OPENAI_API_KEY).");
+        if (!OPENAI_API_KEY) throw new Error("Configuração da OpenAI ausente.");
+
+        const previouslySuggestedIds = new Set<string>();
+        for (const msg of history) {
+            if (msg.products && Array.isArray(msg.products)) {
+                for (const pid of msg.products) {
+                    previouslySuggestedIds.add(pid);
+                }
+            }
         }
 
-        const systemPrompt = `Você é uma consultora de moda elegante da marca Le.Poá.
-Sua missão é ajudar a cliente a encontrar o visual perfeito e COLETAR dados estratégicos.
-
-LÓGICA DE RESPOSTA (DEVE SER JSON):
-- Se for saudações: use type "chat", responda elegantemente e PERGUNTE que tipo de roupa ela gosta ou que tamanho ela veste.
-- Se a cliente pedir sugestão sem dizer o tamanho: use type "chat", sugira que você pode ser mais precisa se souber o TAMANHO (P, M, G, GG) que ela veste.
-- Se a cliente demonstrar intenção clara ou já tiver dito o tamanho: use type "look" e escolha os produtos.
-
-ESTRATÉGIA:
-- Seja curiosa sobre o estilo dela (clássico, moderno, romântico).
-- Sempre tente descobrir o TAMANHO se ela ainda não mencionou.
-- Se ela mencionar uma ocasião, priorize produtos que tenham essa ocasião em suas tags ou campo 'occasion'.
-
-REGRAS PARA LOOKS (type: "look"):
-- Use APENAS os IDs de produtos abaixo.
-- Escolha de 2 a 4 produtos.
-- O campo "text" deve ser o seu comentário de Stylist.
-
-PRODUTOS DISPONÍVEIS:
-${JSON.stringify(products)}
-
-FORMATO DE RETORNO OBRIGATÓRIO (JSON):
-{
-  "type": "chat" ou "look",
-  "text": "Sua resposta elegante",
-  "title": "Título sofisticado do look",
-  "products": ["ID1", "ID2"]
-}`;
-
-        // Map history to OpenAI format, filtering out the current processing message if sent
         const historyMessages = history
             .filter((m: any) => m.text !== input_text)
             .map((m: any) => ({
                 role: m.type === "user" ? "user" : "assistant",
-                content: m.text
+                content: m.text ? String(m.text) : " "
             }));
 
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        // PASSO 1: O Extrator de Contexto (Router)
+        const routerSystemPrompt = `Você é a Consultora de Imagem Senior da marca feminina Le.Poá.
+Sua missão é interpretar a solicitação da cliente e decidir se já temos informações suficientes para montar um look, ou se precisamos de mais contexto.
+
+Aja com extrema inteligência para inferir intenções implícitas.
+Exemplos de inferência:
+- "advogada" -> Ocasião: trabalho. Estilo provável: elegante/clássico.
+- "noivado", "casamento" -> Ocasião: eventos. Estilo provável: romântico/elegante.
+- "praia" -> Ocasião: viagem/dia a dia. Estilo: casual/resort.
+
+**PERFIS SUPORTADOS PELO NOSSO SISTEMA (MAPEIE PARA ESSES TERMOS SE POSSÍVEL):**
+- Ocasiões Suportadas: trabalho, jantar, eventos, igreja, viagem, dia a dia.
+- Estilos Suportados: elegante, clássico, romântico, moderno, sexy chic, minimal, casual, fashion.
+- Modelagens Suportadas: soltinho, ajustado, acinturado.
+- Numerações: PP, P, M, G, GG, EXG, 34, 36, 38, 40, 42, 44, 46, 48, U.
+
+**DADOS DA CLIENTE LOGADA:**
+- Numeração cadastrada dela: ${userProfile.size_letter || userProfile.size_number || "Desconhecido"}
+
+**REGRA DE OURO MÁXIMA E ABSOLUTA:**
+**Se houver QUALQUER MENSAGEM NO HISTÓRICO da cliente informando a ocasião (ex: "casamento", "trabalho") e ela já respondeu sua primeira pergunta sobre estilo ou modelagem, VOCÊ É OBRIGADA A RETORNAR "status": "search". NUNCA, SOB HIPÓTESE ALGUMA, FAÇA UMA SEGUNDA PERGUNTA.**
+Nosso sistema NÃO SUPORTA conversas longas de triagem. Apenas 1 (UMA) pergunta é permitida em toda a sessão de consultoria.
+
+**QUANDO O STATUS É "ask":**
+USE APENAS SE FOR A PRIMEIRA INTERAÇÃO DA CLIENTE e ela não disse absolutamente nada que dê pra inferir ocasião nem estilo.
+Retorne "status": "ask" e faça UMA ÚNICA pergunta natural.
+
+**QUANDO O STATUS É "search" (BUSCAR PRODUTOS):**
+Se você já sabe minimamente a ocasião (mesmo que inferida, ex: "trabalho") e tem alguma pista de estilo ou modelagem, RETORNE "search" IMEDIATAMENTE.
+Retorne "status": "search" e extraia os "inferred_filters" com base no que você entendeu de TODA a conversa.
+
+RETORNE EXATAMENTE NESTE FORMATO JSON (SEM NADA A MAIS):
+{
+  "status": "ask" ou "search",
+  "inferred_filters": {
+    "occasion": "string inferida ou nulo",
+    "style": "string inferida ou nulo",
+    "fit": "string inferida ou nulo",
+    "size": "string inferida da fala (ou utilize a cadastrada se a cliente não mencionou outra mas sabemos qual é) ou nulo"
+  },
+  "message": "Mensagem natural (só preencha se status for 'ask')"
+}`;
+
+        const routerResponse = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
-            headers: {
-                Authorization: `Bearer ${OPENAI_API_KEY}`,
-                "Content-Type": "application/json",
-            },
+            headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
             body: JSON.stringify({
                 model: "gpt-4o-mini",
                 messages: [
-                    { role: "system", content: systemPrompt },
+                    { role: "system", content: routerSystemPrompt },
                     ...historyMessages,
                     { role: "user", content: input_text },
                 ],
-                max_tokens: 800,
-                temperature: 0.7,
+                max_tokens: 400,
+                temperature: 0.3,
                 response_format: { type: "json_object" }
             }),
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error("OpenAI Error:", errorText);
-            throw new Error(`Erro na OpenAI: ${response.status}`);
+        if (!routerResponse.ok) throw new Error(`OpenAI Router Error: ${routerResponse.status}`);
+        
+        const routerData = await routerResponse.json();
+        const routerStateStr = routerData.choices?.[0]?.message?.content;
+        if (!routerStateStr) throw new Error("Empty response from OpenAI Router");
+        
+        let routerState;
+        try {
+            const cleanStr = routerStateStr.replace(/```json/g, "").replace(/```/g, "").trim();
+            routerState = JSON.parse(cleanStr);
+        } catch (e) {
+            console.error("Failed to parse Router JSON:", routerStateStr);
+            routerState = { status: "search", inferred_filters: {} };
         }
 
-        const aiData = await response.json();
-        const contentStr = aiData.choices?.[0]?.message?.content;
-
-        if (!contentStr) {
-            throw new Error("Resposta da IA veio vazia.");
+        // SE NÃO TIVERMOS O SUFICIENTE -> O LLM CONVERSA E A GENTE PARA AQUI.
+        if (routerState.status === "ask") {
+            const finalContent = {
+                type: "chat",
+                text: routerState.message || "Me conta mais sobre o que você procura?",
+                products: [],
+                title: "CONSULTORIA"
+            };
+            return new Response(JSON.stringify({ success: true, data: finalContent }), { headers: jsonHeaders });
         }
 
-        const content = JSON.parse(contentStr);
+        // SE TIVERMOS O SUFICIENTE -> VAMOS AO BANCO (PASSO 2 - BUSCAR E REDIGIR)
+        const filters = routerState.inferred_filters || { occasion: null, style: null, fit: null, size: null };
+        const sizeToSearch = filters.size || userProfile.size_letter || userProfile.size_number;
 
-        // Validation & Cleanup
-        const isLook = content.type === "look" && Array.isArray(content.products) && content.products.length > 0;
+        const { data: products, error: productsError } = await supabase
+            .from("product_catalog")
+            .select("id, name, price, category, occasion, style, description, sizes")
+            .eq("is_active", true);
 
-        if (isLook) {
-            const validIds = products.map(p => p.id);
-            content.products = content.products.filter((id: string) => validIds.includes(id));
-        } else {
-            content.products = [];
-            content.title = content.title || "";
+        if (productsError) throw productsError;
+
+        const { data: stockData, error: stockError } = await supabase
+            .from("product_available_stock")
+            .select("product_id, size, available")
+            .gt("available", 0);
+            
+        if (stockError) throw stockError;
+
+        const stockMap = new Map<string, string[]>();
+        if (stockData) {
+            for (const item of stockData) {
+                if (!stockMap.has(item.product_id)) stockMap.set(item.product_id, []);
+                stockMap.get(item.product_id)!.push(item.size);
+            }
         }
 
-        // 3. Save session
-        await supabase.from("ai_look_sessions").insert({
-            user_id: authenticatedUserId,
-            session_id: session_id || null,
-            input_text,
-            generated_title: content.title || null,
-            generated_description: content.text,
-            generated_product_ids: isLook ? content.products : []
+        const scoredProducts = (products || [])
+            .map(p => {
+                const availableSizes = stockMap.get(p.id) || [];
+                if (availableSizes.length === 0) return null;
+                if (previouslySuggestedIds.has(p.id)) return null; // Nunca repete IDs na mesma conversa
+
+                if (sizeToSearch && sizeToSearch !== "Não sei") {
+                    const hasCompatibleSize = availableSizes.some(s => 
+                        s === sizeToSearch || s === "U" || s === "U (ÚNICO)"
+                    );
+                    if (!hasCompatibleSize) return null; // Filtro cego de tamanho
+                }
+
+                // O scorePriority pontua fortemente os match exatos com a nossa rules engine (estilo, ocasião e fit)
+                const baseScore = scoreProductPriority(p, filters);
+                return { ...p, score: baseScore, availableSizes };
+            })
+            .filter(p => p !== null && p.score > 0);
+
+        scoredProducts.sort((a, b) => b!.score - a!.score);
+        const finalSelection = scoredProducts.slice(0, 3);
+        const finalIds = finalSelection.map(p => p!.id);
+
+        let finalProductsListTxt = "A lista de peças elegíveis está VAZIA (nada no estoque no tamanho dela combina com o pedido).";
+        if (finalSelection.length > 0) {
+             finalProductsListTxt = finalSelection.map((p, idx) => `${idx+1}. ID: ${p!.id} - NOME DA PEÇA: ${p!.name} (Descritivo no site: ${p!.description?.substring(0, 150) || ''})`).join("\n");
+        }
+
+        // PASSO 3: A Redatora (Writer)
+        const writerSystemPrompt = `Você é a Consultora de Imagem da marca feminina parceira Le.Poá.
+O nosso motor interno de algoritmos FEZ A SELEÇÃO DAS ROUPAS. Você NÃO PODE Escolher e NÃO PODE Mudar os Produtos.
+Seu papel É APRESENTAR ESTES PRODUTOS PARA A CLIENTE de forma elegantíssima, fundamentando a escolha com o contexto que ela deu.
+
+**CONTEXTO DETECTADO DA CLIENTE E DA CENA**
+- Falas da Cliente: "${input_text}"
+- Ocasião inferida: ${filters.occasion || "Não detectada claramente"}
+- Estilo inferido: ${filters.style || "Não detectado claramente"}
+- Tamanho desejado: ${sizeToSearch || "Não detectado"}
+
+**LISTA OFICIAL DE PRODUTOS SELECIONADOS NO NOSSO BANCO (SÓ FALE DESSES!)**
+${finalProductsListTxt}
+
+REGRAS ESTILÍSTICAS (OBRIGATÓRIO):
+- Valide o contexto da cliente brevemente antes de entrar nos produtos com tom sofisticado ("Para esse perfil de advogada, eu iria por uma linha mais...").
+- Defenda os looks apresentados usando o descritivo real deles.
+- NUNCA liste explicitamente "ID: xxxx". Isso é para os cartões visuais que a interface vai renderizar. Venda a peça pelo NOME bonito que está ali.
+- Finalize com uma pergunta útil de consultora. ("Me diga, alguma atrai mais seu olhar?" ou "Queríamos explorar vestidos ou alfaiataria agora?")
+- Se a [LISTA OFICIAL DE PRODUTOS SELECIONADOS] estiver "VAZIA", assuma a culpa com extrema polidez. Diga que dentro das regras rígidas do nosso estoque atual (no tamanho ou cor/estilo que ela pediu), você não encontrou um fit 100% perfeito disponível. Tente pivotar e oferecer uma sugestão alternativa de outra categoria ou estilo para salvar a venda.
+- NÃO USE "Com base nas suas solicitações" ou palavras de robôs de chat. Seja uma Mulher, Elegante, e de Alto Ticket.
+
+Você DEVE retornar APENAS este formato JSON:
+{
+  "text": "Sua apresentação impecável aqui..."
+}`;
+
+        const writerResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+                model: "gpt-4o-mini",
+                messages: [
+                    { role: "system", content: writerSystemPrompt },
+                    ...historyMessages, // Passa o contexto da conversa inteira
+                    { role: "user", content: input_text },
+                ],
+                max_tokens: 600,
+                temperature: 0.5,
+                response_format: { type: "json_object" }
+            }),
         });
 
-        return new Response(JSON.stringify({ success: true, data: content }), { headers: jsonHeaders });
+        if (!writerResponse.ok) throw new Error(`OpenAI Writer Error: ${writerResponse.status}`);
+        
+        const writerData = await writerResponse.json();
+        const writerContentStr = writerData.choices?.[0]?.message?.content;
+        if (!writerContentStr) throw new Error("Empty response from OpenAI Writer");
+        
+        let writerContent;
+        try {
+            const cleanStr = writerContentStr.replace(/```json/g, "").replace(/```/g, "").trim();
+            writerContent = JSON.parse(cleanStr);
+        } catch (e) {
+            console.error("Failed to parse Writer JSON:", writerContentStr);
+            writerContent = { text: "Aqui estão algumas opções incríveis para o seu perfil!" };
+        }
+        writerContent.type = finalIds.length > 0 ? "look" : "chat";
+        writerContent.products = finalIds;
+        writerContent.title = filters.occasion ? filters.occasion.toUpperCase() : "SUGESTÃO LE.POÁ";
 
-    } catch (error) {
-        console.error("Error in generate-ai-look:", error);
-        return new Response(JSON.stringify({ error: error.message }), {
-            status: 500,
-            headers: jsonHeaders,
+        if (authenticatedUserId && finalIds.length > 0) {
+            await supabase.from("ai_look_sessions").insert({
+                user_id: authenticatedUserId,
+                session_id: session_id || null,
+                input_text,
+                generated_title: writerContent.title,
+                generated_description: writerContent.text,
+                generated_product_ids: writerContent.products
+            }).catch(e => console.error("Error saving session:", e));
+        }
+
+        return new Response(JSON.stringify({ success: true, data: writerContent }), { headers: jsonHeaders });
+
+    } catch (err: any) {
+        console.error("AI Look Error:", err);
+        return new Response(JSON.stringify({ 
+            success: false, 
+            error: err.message || "Tive uma instabilidade temporária ao buscar suas peças.",
+            details: String(err)
+        }), { 
+            status: 200, // Retornar 200 pro front não cair no catch(err) dele 
+            headers: jsonHeaders 
         });
     }
 });
