@@ -244,7 +244,7 @@ export function AILookConsultant() {
                                         </div>
                                         <div className="space-y-4">
                                             <div className={cn(
-                                                "rounded-2xl px-6 py-4 text-sm leading-relaxed shadow-sm",
+                                                "rounded-2xl px-6 py-4 text-sm leading-relaxed shadow-sm whitespace-pre-wrap",
                                                 msg.type === "user"
                                                     ? "bg-gold text-white rounded-tr-none font-medium"
                                                     : "bg-white border border-border/50 text-gray-800 rounded-tl-none"

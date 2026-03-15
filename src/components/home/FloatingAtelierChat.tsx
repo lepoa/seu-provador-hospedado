@@ -424,7 +424,7 @@ export function FloatingAtelierChat() {
                 <div className="space-y-2">
                   <div
                     className={cn(
-                      "rounded-xl px-3 py-2 text-sm leading-relaxed",
+                      "rounded-xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap",
                       message.type === "user"
                         ? "rounded-tr-sm bg-[#b98d45] text-white"
                         : "rounded-tl-sm border border-[#d6c29a66] bg-white text-[#262421]"
