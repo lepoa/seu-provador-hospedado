@@ -253,7 +253,7 @@ Você DEVE retornar APENAS este formato JSON:
                     ...historyMessages, // Passa o contexto da conversa inteira
                     { role: "user", content: input_text },
                 ],
-                max_tokens: 600,
+                max_tokens: 1200,
                 temperature: 0.5,
                 response_format: { type: "json_object" }
             }),
@@ -265,12 +265,34 @@ Você DEVE retornar APENAS este formato JSON:
         const writerContentStr = writerData.choices?.[0]?.message?.content;
         if (!writerContentStr) throw new Error("Empty response from OpenAI Writer");
         
-        let writerContent;
+        let writerContent: {
+            text: string;
+            type?: string;
+            products?: string[];
+            title?: string;
+        };
         try {
-            const cleanStr = writerContentStr.replace(/```json/g, "").replace(/```/g, "").trim();
-            writerContent = JSON.parse(cleanStr);
+            // Because OpenAI's markdown JSON is sometimes malformed with newlines
+            // or unescaped characters, we try to extract the `text` property directly
+            let extractedText = "";
+            const textMatch = writerContentStr.match(/"text"\s*:\s*"([\s\S]*?)"\s*}/);
+            
+            if (textMatch && textMatch[1]) {
+                extractedText = textMatch[1];
+            } else {
+                // Se falhar o regex, tenta um parse na força bruta como ultima tentativa
+                try {
+                    const parsed = JSON.parse(writerContentStr.replace(/```json/g, "").replace(/```/g, "").trim());
+                    extractedText = parsed.text || "Aqui estão algumas opções incríveis para o seu perfil!";
+                } catch(err) {
+                    throw new Error("Regex and strict parse failed.");
+                }
+            }
+            
+            writerContent = { text: extractedText.replace(/\\n/g, '\n').replace(/\\"/g, '"') };
         } catch (e) {
-            console.error("Failed to parse Writer JSON:", writerContentStr);
+            console.error("String that failed to parse:", writerContentStr);
+            console.error("Parse error:", e);
             writerContent = { text: "Aqui estão algumas opções incríveis para o seu perfil!" };
         }
         writerContent.type = finalIds.length > 0 ? "look" : "chat";
