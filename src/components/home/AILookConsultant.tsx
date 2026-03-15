@@ -39,6 +39,16 @@ const SUGGESTED_PROMPTS = [
     "Casamento de dia",
     "Look casual chic",
 ];
+const STORAGE_SESSION_ID_KEY = "lepoa_atelier_session_id_v1";
+
+const getAtelierSessionId = (): string => {
+    if (typeof window === "undefined") return crypto.randomUUID();
+    const existing = window.localStorage.getItem(STORAGE_SESSION_ID_KEY);
+    if (existing) return existing;
+    const generated = crypto.randomUUID();
+    window.localStorage.setItem(STORAGE_SESSION_ID_KEY, generated);
+    return generated;
+};
 
 export function AILookConsultant() {
     const { user } = useAuth();
@@ -48,7 +58,7 @@ export function AILookConsultant() {
         {
             id: "welcome",
             type: "bot",
-            text: "Olá! Sou sua consultora de estilo Le.Poá. Me conte: qual a ocasião de hoje para eu montar o look ideal para você?",
+            text: "Oi! Me conta a ocasião, o horário e a imagem que você quer passar, que eu monto uma curadoria certeira para você com peças da Le.Poá.",
         },
     ]);
 
@@ -91,8 +101,12 @@ export function AILookConsultant() {
                 body: {
                     input_text: text,
                     user_id: user?.id,
-                    session_id: localStorage.getItem("analytics_session_id") || crypto.randomUUID(),
-                    history: messages.slice(1).map(m => ({ type: m.type, text: m.text }))
+                    session_id: getAtelierSessionId(),
+                    history: messages.slice(1).map(m => ({ 
+                        type: m.type, 
+                        text: m.text, 
+                        products: m.look?.products || [] 
+                    }))
                 },
             });
 
@@ -137,13 +151,12 @@ export function AILookConsultant() {
 
         } catch (err: any) {
             console.error("DEBUG: Error generating AI look:", err);
-            const errorMessage = err?.message || "Erro desconhecido";
             setMessages((prev) => [
                 ...prev,
                 {
                     id: crypto.randomUUID(),
                     type: "bot",
-                    text: `Desculpe, tive um probleminha para montar seu look: "${errorMessage}".`,
+                    text: "Tive uma instabilidade agora, mas sigo com você daqui. Me confirma em uma frase a ocasião e o estilo que você quer, que eu refaço a curadoria.",
                 },
             ]);
         } finally {
@@ -333,3 +346,4 @@ export function AILookConsultant() {
         </section>
     );
 }
+
