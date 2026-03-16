@@ -20,7 +20,7 @@ serve(async (req) => {
     // Fetch products
     const { data: products, error } = await supabase
       .from('product_catalog')
-      .select('id, name, description, price, image_url, images, main_image_index, is_active')
+      .select('id, name, description, price, image_url, images, main_image_index, is_active, color')
       .eq('is_active', true)
 
     if (error) {
@@ -61,7 +61,7 @@ serve(async (req) => {
       const link = escapeXml(`https://lepoa.online/produto/${id}`);
       
       const variants = stockMap.get(id) || [];
-      const color = escapeXml(extractColorFromName(product.name));
+      const color = escapeXml(product.color || extractColorFromName(product.name));
       const googleCategory = "212"; // 212 = Apparel & Accessories > Clothing
 
       if (variants.length === 0) {
