@@ -61,6 +61,8 @@ serve(async (req) => {
       const link = escapeXml(`https://lepoa.online/produto/${id}`);
       
       const variants = stockMap.get(id) || [];
+      const color = escapeXml(extractColorFromName(product.name));
+      const googleCategory = "212"; // 212 = Apparel & Accessories > Clothing
 
       if (variants.length === 0) {
         // Fallback for products without size tracked
@@ -74,6 +76,8 @@ serve(async (req) => {
         xml += `      <g:link>${link}</g:link>\n`;
         xml += `      <g:image_link>${imageUrl}</g:image_link>\n`;
         xml += `      <g:brand>Le.Poá</g:brand>\n`;
+        xml += `      <g:color>${color}</g:color>\n`;
+        xml += `      <g:google_product_category>${googleCategory}</g:google_product_category>\n`;
         xml += `    </item>\n`;
       } else {
         // Emit one product variation per size
@@ -94,6 +98,8 @@ serve(async (req) => {
           xml += `      <g:image_link>${imageUrl}</g:image_link>\n`;
           xml += `      <g:brand>Le.Poá</g:brand>\n`;
           xml += `      <g:size>${size}</g:size>\n`;
+          xml += `      <g:color>${color}</g:color>\n`;
+          xml += `      <g:google_product_category>${googleCategory}</g:google_product_category>\n`;
           xml += `    </item>\n`;
         }
       }
@@ -119,6 +125,24 @@ serve(async (req) => {
     })
   }
 })
+
+function extractColorFromName(name: string): string {
+  if (!name) return "Única";
+  const n = name.toLowerCase();
+  const colors = [
+    "preto", "preta", "branco", "branca", "off white", "off-white", "rosa", "azul",
+    "verde", "amarelo", "amarela", "vermelho", "vermelha", "roxo", "roxa", "lilás", "lilas",
+    "marrom", "bege", "nude", "cinza", "prata", "dourado", "dourada", "laranja", "coral",
+    "marsala", "mostarda", "marinho", "oliva", "pink", "fúcsia", "fucsia", "estampado", "estampada"
+  ];
+  
+  for (const c of colors) {
+    if (n.includes(c)) {
+      return c.charAt(0).toUpperCase() + c.slice(1); // Capitalize
+    }
+  }
+  return "Única"; // Default if no color found
+}
 
 function escapeXml(unsafe: string) {
   if (!unsafe) return '';
