@@ -1,4 +1,4 @@
-﻿import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   AlertCircle,
   BookOpen,
@@ -36,7 +36,7 @@ export const MANUAL_SEGMENT_OPTIONS: Array<{ value: CustomerManualSegment; label
 interface CustomerCardProps {
   customer: {
     id: string;
-    phone: string;
+    phone: string | null;
     name: string | null;
     email: string | null;
     style_title: string | null;
@@ -76,7 +76,8 @@ export function CustomerCard({ customer, onOpenCatalog, onManualSegmentChange }:
   const completionPercentage = Math.round((filledFields / fields.length) * 100);
   const isComplete = completionPercentage === 100;
 
-  const formatPhone = (phone: string) => {
+  const formatPhone = (phone: string | null) => {
+    if (!phone) return "Sem telefone";
     const digits = phone.replace(/\D/g, "");
     if (digits.length === 11) {
       return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
@@ -115,10 +116,10 @@ export function CustomerCard({ customer, onOpenCatalog, onManualSegmentChange }:
     return customer.phone?.slice(-2) || "?";
   };
 
-  const whatsappNumber = customer.phone.replace(/\D/g, "");
-  const whatsappLink = `https://wa.me/${
-    whatsappNumber.startsWith("55") ? whatsappNumber : `55${whatsappNumber}`
-  }`;
+  const whatsappNumber = (customer.phone || "").replace(/\D/g, "");
+  const whatsappLink = whatsappNumber
+    ? `https://wa.me/${whatsappNumber.startsWith("55") ? whatsappNumber : `55${whatsappNumber}`}`
+    : null;
   const manualSegment = customer.manual_segment ?? "none";
   const pendingOrders = customer.pending_orders ?? 0;
   const rfvScore = customer.rfv_score ?? null;
@@ -227,17 +228,24 @@ export function CustomerCard({ customer, onOpenCatalog, onManualSegmentChange }:
         </div>
 
         <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="default"
-            className="flex-1 bg-[#25D366] hover:bg-[#128C7E] text-white gap-1"
-            asChild
-          >
-            <a href={whatsappLink} target="_blank" rel="noopener noreferrer">
+          {whatsappLink ? (
+            <Button
+              size="sm"
+              variant="default"
+              className="flex-1 bg-[#25D366] hover:bg-[#128C7E] text-white gap-1"
+              asChild
+            >
+              <a href={whatsappLink} target="_blank" rel="noopener noreferrer">
+                <MessageCircle className="h-3.5 w-3.5" />
+                WhatsApp
+              </a>
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" className="flex-1 gap-1 opacity-50" disabled>
               <MessageCircle className="h-3.5 w-3.5" />
-              WhatsApp
-            </a>
-          </Button>
+              Sem telefone
+            </Button>
+          )}
           <Button
             size="sm"
             variant="outline"

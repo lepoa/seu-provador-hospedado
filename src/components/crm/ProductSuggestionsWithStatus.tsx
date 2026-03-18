@@ -49,7 +49,7 @@ interface ProductSuggestionsWithStatusProps {
   customerId: string;
   customer: {
     name: string | null;
-    phone: string;
+    phone: string | null;
     style_title: string | null;
     size_letter: string | null;
     size_number: string | null;
@@ -155,6 +155,10 @@ Me conta o que achou! ✨`;
 
   const sendWhatsApp = (suggestion: Suggestion) => {
     copySuggestionMessage(suggestion);
+    if (!customer.phone) {
+      toast.error("Cliente sem telefone cadastrado");
+      return;
+    }
     const phone = customer.phone.replace(/\D/g, "");
     const whatsappNumber = phone.startsWith("55") ? phone : `55${phone}`;
     window.open(`https://wa.me/${whatsappNumber}`, "_blank");

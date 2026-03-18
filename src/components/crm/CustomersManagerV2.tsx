@@ -1,4 +1,4 @@
-﻿
+
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDown,
@@ -58,7 +58,7 @@ import {
 
 interface CustomerWithStats {
   id: string;
-  phone: string;
+  phone: string | null;
   name: string | null;
   email: string | null;
   size: string | null;
