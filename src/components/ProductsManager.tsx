@@ -84,25 +84,39 @@ export function ProductsManager({ userId, initialFilter }: ProductsManagerProps)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
-  // Fetch available stock from the view
+  // Fetch available stock from the view (batched to stay under Supabase max_rows)
   const loadAvailableStock = useCallback(async (productIds: string[]) => {
     if (productIds.length === 0 || stockViewAccessBlocked) return;
 
     try {
-      const { data, error } = await supabase
-        .from("product_available_stock")
-        .select("*")
-        .in("product_id", productIds)
-        .limit(5000);
+      // Supabase server caps responses at max_rows (default 1000).
+      // With ~11 sizes per product, batch in groups of 50 (~550 rows each).
+      const BATCH_SIZE = 50;
+      const batches: string[][] = [];
+      for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
+        batches.push(productIds.slice(i, i + BATCH_SIZE));
+      }
 
-      if (error) throw error;
+      const allData: any[] = [];
+      const results = await Promise.all(
+        batches.map(batch =>
+          supabase
+            .from("product_available_stock")
+            .select("*")
+            .in("product_id", batch)
+        )
+      );
+
+      for (const result of results) {
+        if (result.error) throw result.error;
+        if (result.data) allData.push(...result.data);
+      }
 
       const stockMap = new Map<string, Map<string, AvailableStockEntry>>();
-      (data || []).forEach((entry: any) => {
+      allData.forEach((entry: any) => {
         if (!stockMap.has(entry.product_id)) {
           stockMap.set(entry.product_id, new Map());
         }
-        // Map on_hand to match our interface if needed
         const mappedEntry: AvailableStockEntry = {
           product_id: entry.product_id,
           size: entry.size,
