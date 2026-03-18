@@ -10,8 +10,8 @@ export interface MatchedProduct {
   is_active: boolean;
   category: string | null;
   color: string | null;
-  style: string | null;
-  occasion: string | null;
+  style: string | string[] | null;
+  occasion: string | string[] | null;
   modeling: string | null;
   tags: string[];
   group_key: string | null;
@@ -48,20 +48,20 @@ interface ProductCatalogRow {
   is_active: boolean | null;
   category: string | null;
   color: string | null;
-  style: string | null;
-  occasion: string | null;
+  style: string | string[] | null;
+  occasion: string | string[] | null;
   modeling: string | null;
   tags: string[] | null;
   group_key: string | null;
 }
 
 // Refinement mode types
-export type RefinementMode = 
-  | "default" 
-  | "color" 
-  | "modeling" 
-  | "elegant" 
-  | "casual" 
+export type RefinementMode =
+  | "default"
+  | "color"
+  | "modeling"
+  | "elegant"
+  | "casual"
   | "category";
 
 // Weight configurations for each refinement mode
@@ -74,47 +74,47 @@ const WEIGHT_CONFIGS: Record<RefinementMode, {
   tagBonus?: string[];
 }> = {
   default: {
-    category: 35,
-    color: 20,
-    modeling: 20,
-    details: 15,
+    category: 50, // Increased from 35
+    color: 15,    // Reduced from 20
+    modeling: 15, // Reduced from 20
+    details: 10,  // Reduced from 15
     style: 10,
   },
   color: {
-    category: 25,
+    category: 40,
     color: 35,
-    modeling: 20,
-    details: 10,
-    style: 10,
+    modeling: 15,
+    details: 5,
+    style: 5,
   },
   modeling: {
-    category: 25,
-    color: 20,
+    category: 40,
+    color: 15,
     modeling: 35,
-    details: 10,
-    style: 10,
+    details: 5,
+    style: 5,
   },
   elegant: {
-    category: 25,
-    color: 20,
-    modeling: 20,
-    details: 10,
+    category: 40,
+    color: 15,
+    modeling: 15,
+    details: 5,
     style: 25,
-    tagBonus: ["elegante", "alfaiataria", "sofisticado", "clÃ¡ssico", "chic"],
+    tagBonus: ["elegante", "alfaiataria", "sofisticado", "clássico", "chic"],
   },
   casual: {
-    category: 25,
-    color: 20,
-    modeling: 20,
-    details: 10,
+    category: 40,
+    color: 15,
+    modeling: 15,
+    details: 5,
     style: 25,
-    tagBonus: ["casual", "dia a dia", "bÃ¡sico", "confortÃ¡vel", "despojado"],
+    tagBonus: ["casual", "dia a dia", "básico", "confortável", "despojado"],
   },
   category: {
-    category: 45,
-    color: 20,
-    modeling: 20,
-    details: 10,
+    category: 60,
+    color: 15,
+    modeling: 15,
+    details: 5,
     style: 5,
   },
 };
@@ -203,13 +203,32 @@ function valuesMatch(a: unknown, b: unknown): boolean {
   const normalA = normalizeValue(a);
   const normalB = normalizeValue(b);
   if (!normalA || !normalB) return false;
-  return normalA === normalB;
+
+  // Exact match
+  if (normalA === normalB) return true;
+
+  // Handle singular/plural (simple suffix check for Portuguese)
+  const isSingularPlural = (s1: string, s2: string) => {
+    if (s1 === s2 + "s" || s2 === s1 + "s") return true;
+    if (s1 === s2 + "es" || s2 === s1 + "es") return true; // ex: cor/cores
+    return false;
+  };
+
+  if (isSingularPlural(normalA, normalB)) return true;
+
+  // Substring matching for categories (e.g. "vestido longo" matches "vestido")
+  if (normalA.includes(normalB) || normalB.includes(normalA)) {
+    // Only allow substring if it's a significant portion (not just "a" in "blusa")
+    if (normalA.length > 3 && normalB.length > 3) return true;
+  }
+
+  return false;
 }
 
 // Color family matching
 function colorsAreSimilar(a: unknown, b: unknown): boolean {
   if (valuesMatch(a, b)) return true;
-  
+
   const colorFamilies: Record<string, string[]> = {
     neutro: ["preto", "branco", "cinza", "bege", "nude", "off white", "creme", "areia"],
     quente: ["vermelho", "laranja", "amarelo", "dourado", "coral", "terracota", "mostarda"],
@@ -218,16 +237,16 @@ function colorsAreSimilar(a: unknown, b: unknown): boolean {
     marrom: ["marrom", "caramelo", "chocolate", "cafÃ©", "terra", "camel"],
     vinho: ["vinho", "bordÃ´", "marsala", "burgundy", "cereja"],
   };
-  
+
   const normalA = normalizeValue(a);
   const normalB = normalizeValue(b);
-  
+
   for (const family of Object.values(colorFamilies)) {
     const hasA = family.some(c => normalA.includes(c));
     const hasB = family.some(c => normalB.includes(c));
     if (hasA && hasB) return true;
   }
-  
+
   return false;
 }
 
@@ -241,8 +260,8 @@ function hasStockInSizes(
   if (Object.keys(stock).length === 0) return false;
   // Check for "Tamanho Unico" (UN/U) - always available
   if ((stock["UN"] && stock["UN"] > 0) ||
-      (stock["U"] && stock["U"] > 0) ||
-      (stock["UNICO"] && stock["UNICO"] > 0)) {
+    (stock["U"] && stock["U"] > 0) ||
+    (stock["UNICO"] && stock["UNICO"] > 0)) {
     return true;
   }
   // Check all selected letter sizes
@@ -315,34 +334,58 @@ export function calculateProductScore(
   // Tags/details matching
   const analysisTags = toStringList((analysis as { tags_extras?: unknown }).tags_extras);
   const productTags = toStringList(product.tags);
-  
+
   let tagMatchCount = 0;
   const maxTagMatches = 3;
-  
+
   for (const analysisTag of analysisTags) {
     if (tagMatchCount >= maxTagMatches) break;
-    
+
     const normalizedAnalysisTag = normalizeValue(analysisTag);
     for (const productTag of productTags) {
       const normalizedProductTag = normalizeValue(productTag);
-      if (normalizedAnalysisTag && normalizedProductTag && 
-          (normalizedAnalysisTag.includes(normalizedProductTag) || 
-           normalizedProductTag.includes(normalizedAnalysisTag))) {
+      if (normalizedAnalysisTag && normalizedProductTag &&
+        (normalizedAnalysisTag.includes(normalizedProductTag) ||
+          normalizedProductTag.includes(normalizedAnalysisTag))) {
         tagMatchCount++;
         matchDetails.matchingTags.push(productTag);
         break;
       }
     }
   }
-  
+
   if (tagMatchCount > 0) {
     score += Math.round((tagMatchCount / maxTagMatches) * weights.details);
     matchReasons.push("detalhes");
   }
 
+  // Bonus for keywords in name or description from resumo_visual
+  if (analysis.resumo_visual) {
+    const keywords = analysis.resumo_visual.toLowerCase()
+      .split(/[ ,.!\?]+/)
+      .filter(w => w.length > 3 && !['com', 'para', 'nas', 'nos', 'uma', 'este', 'esta'].includes(w));
+
+    const productName = normalizeValue(product.name);
+    // Use description if available (needs to be typed or accessed safely)
+    const productDesc = normalizeValue((product as any).description);
+
+    let keywordMatches = 0;
+    for (const kw of keywords) {
+      if (productName.includes(kw) || productDesc.includes(kw)) {
+        keywordMatches++;
+      }
+    }
+
+    if (keywordMatches > 0) {
+      // Small bonus for each keyword match to break ties
+      score += Math.min(10, keywordMatches * 2);
+      if (keywordMatches >= 2) matchReasons.push("palavras-chave");
+    }
+  }
+
   // Tag bonus for elegant/casual modes
   if (weights.tagBonus && productTags.length > 0) {
-    const hasBonus = weights.tagBonus.some(bonus => 
+    const hasBonus = weights.tagBonus.some(bonus =>
       productTags.some(tag => normalizeValue(tag).includes(normalizeValue(bonus)))
     );
     if (hasBonus) {
@@ -366,7 +409,7 @@ export function findMatchingProducts(
   options: FindMatchesOptions
 ): MatchedProduct[] {
   const { letterSizes, numberSizes, limit = 9, refinementMode = "default" } = options;
-  
+
   const scoredProducts: MatchedProduct[] = [];
 
   for (const product of products) {
@@ -374,15 +417,15 @@ export function findMatchingProducts(
     if (!hasStockInSizes(product.stock_by_size, letterSizes, numberSizes)) {
       continue;
     }
-    
+
     // Skip inactive products
     if (!product.is_active) {
       continue;
     }
 
     const { score, matchDetails, matchReasons } = calculateProductScore(
-      product, 
-      analysis, 
+      product,
+      analysis,
       refinementMode
     );
 
@@ -419,7 +462,7 @@ export function hasAnyProductsInStock(
   letterSizes: string[],
   numberSizes: string[]
 ): boolean {
-  return products.some(p => 
+  return products.some(p =>
     p.is_active && hasStockInSizes(p.stock_by_size, letterSizes, numberSizes)
   );
 }

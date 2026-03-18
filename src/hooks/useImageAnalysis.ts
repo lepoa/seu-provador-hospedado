@@ -14,6 +14,10 @@ export interface ImageAnalysisResult {
   estilo: FieldAnalysis;
   ocasiao: FieldAnalysis;
   modelagem: FieldAnalysis;
+  decote: FieldAnalysis;
+  manga_alca: FieldAnalysis;
+  comprimento: FieldAnalysis;
+  textura: FieldAnalysis;
   tags_extras: string[];
   resumo_visual?: string;
 }
@@ -70,6 +74,10 @@ function normalizeAnalysisResult(raw: unknown): ImageAnalysisResult {
     estilo: normalizeFieldAnalysis(input.estilo),
     ocasiao: normalizeFieldAnalysis(input.ocasiao),
     modelagem: normalizeFieldAnalysis(input.modelagem),
+    decote: normalizeFieldAnalysis(input.decote),
+    manga_alca: normalizeFieldAnalysis(input.manga_alca),
+    comprimento: normalizeFieldAnalysis(input.comprimento),
+    textura: normalizeFieldAnalysis(input.textura),
     tags_extras: normalizeTags(input.tags_extras),
     resumo_visual: typeof input.resumo_visual === "string" ? input.resumo_visual : undefined,
   };

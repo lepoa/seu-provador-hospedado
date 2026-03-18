@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Heart, Loader2 } from "lucide-react";
+import { ArrowLeft, Heart, Loader2, MessageCircle, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,9 +8,13 @@ import { Header } from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+// Número do WhatsApp da Le.Poá para suporte (formato internacional sem +)
+const WHATSAPP_NUMBER = "5562991223519";
+
 const EsqueciSenha = () => {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,6 +33,7 @@ const EsqueciSenha = () => {
       if (error) throw error;
 
       toast.success("Enviamos um link seguro para seu email.");
+      setEmailSent(true);
     } catch (error: unknown) {
       console.error("Password recovery error:", error);
       const err = error as { message?: string };
@@ -37,6 +42,11 @@ const EsqueciSenha = () => {
       setIsLoading(false);
     }
   };
+
+  const whatsappMsg = encodeURIComponent(
+    `Olá! Preciso de ajuda para redefinir a senha da minha conta Le.Poá. Meu email cadastrado é: ${email}`
+  );
+  const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${whatsappMsg}`;
 
   return (
     <div className="min-h-screen bg-background">
@@ -87,7 +97,35 @@ const EsqueciSenha = () => {
             </Button>
           </form>
 
-          <p className="mt-8 text-center text-xs text-muted-foreground">
+          {emailSent && (
+            <div className="mt-8 p-4 rounded-xl border border-border bg-muted/40 text-left space-y-3">
+              <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Mail className="h-4 w-4 text-accent shrink-0" />
+                Não recebeu o email?
+              </p>
+              <ul className="text-xs text-muted-foreground space-y-1.5 list-disc list-inside">
+                <li>Verifique sua pasta de <strong>Spam</strong> ou <strong>Lixo eletrônico</strong></li>
+                <li>Pode levar alguns minutos para chegar</li>
+                <li>Certifique-se que o email digitado está correto</li>
+              </ul>
+              <div className="pt-1">
+                <p className="text-xs text-muted-foreground mb-2">
+                  Ainda com problemas? Fale com a gente pelo WhatsApp:
+                </p>
+                <a
+                  href={whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm font-medium text-green-600 hover:text-green-700 transition-colors"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Contatar suporte via WhatsApp
+                </a>
+              </div>
+            </div>
+          )}
+
+          <p className="mt-6 text-center text-xs text-muted-foreground">
             Lembrou sua senha?{" "}
             <Link to="/entrar" className="text-accent hover:underline">
               Fazer login

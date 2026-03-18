@@ -48,6 +48,21 @@ const PedidoPendente = lazy(() => import("./pages/PedidoPendente"));
 const PedidoErro = lazy(() => import("./pages/PedidoErro"));
 const LiveCheckout = lazy(() => import("./pages/LiveCheckout"));
 const BagDetails = lazy(() => import("./pages/BagDetails"));
+const EmailMarketingPage = lazy(() => import("./pages/EmailMarketingPage"));
+const ImportarEstoque = lazy(() => import("./pages/ImportarEstoque"));
+const LiveBackstagePage = lazy(() => import("./pages/LiveBackstagePage"));
+const LivePlanningPage = lazy(() => import("./pages/LivePlanningPage"));
+const LiveReportsPage = lazy(() => import("./pages/LiveReportsPage"));
+const LiveReportsPeriodPage = lazy(() => import("./pages/LiveReportsPeriodPage"));
+const LiveOrdersPage = lazy(() => import("./pages/LiveOrdersPage"));
+const LivePendenciasPage = lazy(() => import("./pages/LivePendenciasPage"));
+const LiveSeparationPage = lazy(() => import("./pages/LiveSeparationPage"));
+const CopilotoRFV = lazy(() => import("./pages/CopilotoRFV"));
+const InsightsPage = lazy(() => import("./pages/InsightsPage"));
+const DashboardConsultoraPage = lazy(() => import("./pages/DashboardConsultoraPage"));
+const BagTrackerPage = lazy(() => import("./pages/BagTrackerPage"));
+const ClientesRankingPage = lazy(() => import("./pages/ClientesRankingPage"));
+const CustomerDetail = lazy(() => import("./pages/CustomerDetail"));
 
 const queryClient = new QueryClient();
 
@@ -294,21 +309,22 @@ const App = () => (
                 )}
               />
               <Route path="/admin" element={withMerchantProtection(Dashboard)} />
+              <Route path="/admin/email-marketing" element={withMerchantProtection(EmailMarketingPage)} />
               <Route path="/dashboard" element={withMerchantProtection(Dashboard)} />
-              <Route path="/dashboard/clientes/:id" element={<Navigate to="/dashboard?tab=clientes" replace />} />
-              <Route path="/dashboard/lives/relatorio" element={<Navigate to="/dashboard?tab=lives" replace />} />
-              <Route path="/dashboard/lives/rastreador" element={<Navigate to="/dashboard?tab=lives" replace />} />
-              <Route path="/dashboard/lives/:eventId/planejar" element={<Navigate to="/dashboard?tab=lives" replace />} />
-              <Route path="/dashboard/lives/:eventId/backstage" element={<Navigate to="/dashboard?tab=lives" replace />} />
-              <Route path="/dashboard/lives/:eventId/relatorio" element={<Navigate to="/dashboard?tab=lives" replace />} />
-              <Route path="/dashboard/lives/:eventId/pedidos" element={<Navigate to="/dashboard?tab=lives" replace />} />
-              <Route path="/dashboard/lives/:eventId/pendencias" element={<Navigate to="/dashboard?tab=lives" replace />} />
-              <Route path="/dashboard/lives/:eventId/separacao" element={<Navigate to="/dashboard?tab=lives" replace />} />
-              <Route path="/dashboard/insights" element={<Navigate to="/dashboard?tab=insights" replace />} />
-              <Route path="/dashboard/rfv" element={<Navigate to="/dashboard?tab=rfv" replace />} />
-              <Route path="/dashboard/consultora" element={<Navigate to="/dashboard?tab=consultora" replace />} />
-              <Route path="/clientes/ranking" element={<Navigate to="/dashboard?tab=clientes" replace />} />
-              <Route path="/importar-estoque" element={<Navigate to="/dashboard?tab=products" replace />} />
+              <Route path="/dashboard/clientes/:id" element={withMerchantProtection(CustomerDetail)} />
+              <Route path="/dashboard/lives/relatorio" element={withMerchantProtection(LiveReportsPeriodPage)} />
+              <Route path="/dashboard/lives/rastreador" element={withMerchantProtection(BagTrackerPage)} />
+              <Route path="/dashboard/lives/:eventId/planejar" element={withMerchantProtection(LivePlanningPage)} />
+              <Route path="/dashboard/lives/:eventId/backstage" element={withMerchantProtection(LiveBackstagePage)} />
+              <Route path="/dashboard/lives/:eventId/relatorio" element={withMerchantProtection(LiveReportsPage)} />
+              <Route path="/dashboard/lives/:eventId/pedidos" element={withMerchantProtection(LiveOrdersPage)} />
+              <Route path="/dashboard/lives/:eventId/pendencias" element={withMerchantProtection(LivePendenciasPage)} />
+              <Route path="/dashboard/lives/:eventId/separacao" element={withMerchantProtection(LiveSeparationPage)} />
+              <Route path="/dashboard/insights" element={withMerchantProtection(InsightsPage)} />
+              <Route path="/dashboard/rfv" element={withMerchantProtection(CopilotoRFV)} />
+              <Route path="/dashboard/consultora" element={withMerchantProtection(DashboardConsultoraPage)} />
+              <Route path="/clientes/ranking" element={withMerchantProtection(ClientesRankingPage)} />
+              <Route path="/importar-estoque" element={withMerchantProtection(ImportarEstoque)} />
 
               {/* E-commerce routes */}
               <Route path="/catalogo" element={withRouteSuspense(Catalog)} />

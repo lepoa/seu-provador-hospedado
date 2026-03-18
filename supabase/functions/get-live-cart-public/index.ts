@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
     const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
     const body: GetLiveCartPublicRequest = await req.json();
-    
+
     // Support both live_cart_id and bagId (legacy BagTracker)
     const live_cart_id = body?.live_cart_id || body?.bagId;
 
@@ -214,6 +214,7 @@ Deno.serve(async (req) => {
         items: safeItems,
         deliveryMethod: delivery_method,
         mpCheckoutUrl: cart.mp_checkout_url ?? null,
+        orderId: cart.order_id ?? null,
         eventTitle: liveEvent?.titulo ?? "Live",
         createdAt: cart.created_at,
       }),

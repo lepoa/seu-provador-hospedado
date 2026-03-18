@@ -448,6 +448,9 @@ Deno.serve(async (req) => {
             coupon_discount: liveCart.coupon_discount || 0,
             // Seller
             seller_id: liveCart.seller_id || null,
+            // User and Customer linking
+            user_id: liveCart.user_id || null,
+            customer_id: customer?.client_id || null,
           })
           .select()
           .single();
@@ -569,7 +572,7 @@ Deno.serve(async (req) => {
                 p_phone: customer.whatsapp || null,
                 p_order_id: newOrder.id,
                 p_paid_at: paidAt,
-                p_customer_id: customer.client_id || null,
+                p_customer_id: newOrder.customer_id || customer.client_id || null,
               });
               logWebhook("info", "Instagram identity upserted", { handle: customer.instagram_handle });
             } catch (identityErr) {

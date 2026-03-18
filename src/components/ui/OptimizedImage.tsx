@@ -19,6 +19,7 @@ export function OptimizedImage({
 }: OptimizedImageProps) {
     const srcSet = getResponsiveSrcSet(src);
     const defaultSrc = srcSet ? getTransformedImageUrl(src, defaultWidth) : src;
+    const fetchPriorityValue = priority ? "high" : "auto";
 
     return (
         <img
@@ -30,8 +31,7 @@ export function OptimizedImage({
             className={cn("object-cover", className)}
             loading={priority ? "eager" : "lazy"}
             decoding={priority ? "sync" : "async"}
-            // @ts-ignore - React team expects fetchPriority but typical prop syntax is string
-            fetchPriority={priority ? "high" : "auto"}
+            fetchpriority={fetchPriorityValue}
         />
     );
 }

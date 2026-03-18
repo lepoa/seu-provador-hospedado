@@ -19,7 +19,6 @@ import { ProductCard } from "@/components/ProductCard";
 import { useEffectivePrices } from "@/hooks/useEffectivePrices";
 import { useProductAvailableStock } from "@/hooks/useProductAvailableStock";
 import { buildWhatsAppLink } from "@/lib/whatsappHelpers";
-import { TrendingSection } from "@/components/home/TrendingSection";
 
 const HERO_IMAGE = "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=900&q=80";
 
@@ -491,8 +490,6 @@ const Index = () => {
           </div>
         </div>
       </section>
-
-      <TrendingSection />
 
       <section className="bg-[#f2ead9] px-5 py-14 md:py-20">
         <div className="mx-auto max-w-6xl">

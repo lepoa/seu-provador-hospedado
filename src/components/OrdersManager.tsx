@@ -830,8 +830,8 @@ Qualquer dúvida estamos à disposição! \u{1F495}`;
   const getDeliveryLabel = (method: string | null) => {
     switch (method) {
       case "motoboy": return "Motoboy";
-      case "pickup": return "Retirada na loja";
-      case "shipping": return "Correios";
+      case "pickup": case "retirada": return "Retirada na loja";
+      case "shipping": case "correios": return "Correios";
       default: return "Não definido";
     }
   };

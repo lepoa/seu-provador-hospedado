@@ -2797,12 +2797,12 @@ export type Database = {
           main_image_index: number | null
           modeling: string | null
           name: string
-          occasion: string | null
+          occasion: string[] | null
           price: number
           sizes: string[] | null
           sku: string | null
           stock_by_size: Json | null
-          style: string | null
+          style: string[] | null
           tags: string[] | null
           user_id: string | null
           video_url: string | null
@@ -2830,12 +2830,12 @@ export type Database = {
           main_image_index?: number | null
           modeling?: string | null
           name: string
-          occasion?: string | null
+          occasion?: string[] | null
           price: number
           sizes?: string[] | null
           sku?: string | null
           stock_by_size?: Json | null
-          style?: string | null
+          style?: string[] | null
           tags?: string[] | null
           user_id?: string | null
           video_url?: string | null
@@ -2863,12 +2863,12 @@ export type Database = {
           main_image_index?: number | null
           modeling?: string | null
           name?: string
-          occasion?: string | null
+          occasion?: string[] | null
           price?: number
           sizes?: string[] | null
           sku?: string | null
           stock_by_size?: Json | null
-          style?: string | null
+          style?: string[] | null
           tags?: string[] | null
           user_id?: string | null
           video_url?: string | null

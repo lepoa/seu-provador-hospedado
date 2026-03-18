@@ -40,8 +40,8 @@ interface Product {
   category: string | null;
   price: number;
   color: string | null;
-  style: string | null;
-  occasion: string | null;
+  style: string[] | null;
+  occasion: string[] | null;
   modeling: string | null;
   sizes: string[];
   is_active: boolean;
@@ -96,7 +96,7 @@ interface ProductFormProps {
 const CATEGORIES = ["Vestidos", "Blusas", "Calças", "Saias", "Conjuntos", "Acessórios", "Blazers", "Shorts", "Casacos", "Macacões", "Camisas"];
 const BASE_COLORS = ["Preto", "Branco", "Bege", "Rosa", "Azul", "Verde", "Vermelho", "Marrom", "Cinza", "Estampado", "Off White", "Chocolate", "Menta", "Nude", "Caramelo", "Mostarda", "Vinho", "Laranja", "Amarelo", "Lilás", "Roxo", "Coral"];
 const STYLES = ["elegante", "clássico", "minimal", "romântico", "casual", "moderno", "fashion", "sexy_chic"];
-const OCCASIONS = ["trabalho", "casual", "festa", "dia a dia", "especial", "casual_chic", "eventos", "viagem"];
+const OCCASIONS = ["trabalho", "casual", "jantar", "eventos", "viagem", "dia a dia", "especial", "igreja"];
 const MODELINGS = ["ajustado", "regular", "soltinho", "oversized", "acinturado", "slim", "reto", "amplo"];
 
 function toErrorDetails(error: unknown): Record<string, unknown> {
@@ -113,19 +113,10 @@ function toErrorDetails(error: unknown): Record<string, unknown> {
   };
 }
 
-function normalizeOccasionValue(value: unknown): string | null {
-  if (typeof value === "string") {
-    return value.trim() || null;
-  }
-
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const normalized = normalizeOccasionValue(item);
-      if (normalized) return normalized;
-    }
-  }
-
-  return null;
+function normalizeToArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === "string" && v.trim() !== "");
+  if (typeof value === "string" && value.trim()) return [value.trim()];
+  return [];
 }
 
 function shouldRetryWithOccasionArray(error: unknown): boolean {
@@ -277,8 +268,8 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
     category: null,
     price: 0,
     color: null,
-    style: null,
-    occasion: null,
+    style: [],
+    occasion: [],
     modeling: null,
     sizes: [],
     is_active: true,
@@ -349,7 +340,8 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
         // Set normalized color
         color: normalizedColor,
         category: normalizedCategory,
-        occasion: normalizeOccasionValue(product.occasion),
+        occasion: normalizeToArray(product.occasion),
+        style: normalizeToArray(product.style),
         sizes: product.sizes || [],
         tags: product.tags || [],
         weight_kg: product.weight_kg ?? null,
@@ -381,8 +373,8 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
         category: null,
         price: 0,
         color: null,
-        style: null,
-        occasion: null,
+        style: [],
+        occasion: [],
         modeling: null,
         sizes: [],
         is_active: true,
@@ -584,8 +576,8 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
 
   const generateTags = () => {
     const tags: string[] = [];
-    if (formData.style) tags.push(formData.style);
-    if (formData.occasion) tags.push(formData.occasion);
+    if (formData.style?.length) tags.push(...formData.style);
+    if (formData.occasion?.length) tags.push(...formData.occasion);
     if (formData.category) tags.push(formData.category.toLowerCase());
     if (formData.modeling) tags.push(formData.modeling);
     if (analysisResult?.tags_extras) {
@@ -633,8 +625,8 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
       // Main image URL (for backward compatibility)
       const mainImageUrl = images[mainImageIndex] || images[0] || null;
 
-      const normalizedStyle = normalizeOptionalText(formData.style);
-      const normalizedOccasion = normalizeOptionalText(formData.occasion);
+      const normalizedStyle = (formData.style ?? []).filter(Boolean);
+      const normalizedOccasion = (formData.occasion ?? []).filter(Boolean);
       const normalizedModeling = normalizeOptionalText(formData.modeling);
       const normalizedColor = normalizeOptionalText(formData.color);
       const normalizedCategory = normalizeOptionalText(formData.category);
@@ -668,8 +660,8 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
         category: normalizedCategory,
         price: formData.price,
         color: normalizedColor,
-        style: normalizedStyle,
-        occasion: normalizedOccasion,
+        style: normalizedStyle.length ? normalizedStyle : null,
+        occasion: normalizedOccasion.length ? normalizedOccasion : null,
         modeling: normalizedModeling,
         sizes: sizesFromStock,
         is_active: formData.is_active,
@@ -689,23 +681,6 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
         discount_value: formData.discount_value || null,
       };
 
-      const occasionArrayPayload = {
-        ...productData,
-        occasion: normalizedOccasion ? [normalizedOccasion] : null,
-      };
-
-      // Safety fallback for legacy schema drift where these columns became array-typed.
-      const legacyArrayCompatibilityPayload = {
-        ...productData,
-        style: normalizedStyle ? [normalizedStyle] : null,
-        // Some production DBs drifted to text[][] for occasion; keep 2D fallback.
-        occasion: normalizedOccasion ? [[normalizedOccasion]] : null,
-        modeling: normalizedModeling ? [normalizedModeling] : null,
-        sizes: sizesFromStock.length > 0 ? sizesFromStock : null,
-        tags: generatedTags.length > 0 ? generatedTags : null,
-        images: normalizedImages.length > 0 ? normalizedImages : null,
-      };
-
       let savedProductId = product?.id;
 
       if (product?.id) {
@@ -714,41 +689,6 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
           .update(productData)
           .eq("id", product.id);
 
-        if (error && shouldRetryWithOccasionArray(error)) {
-          runtimeLog("product-form", "submit:update:retry-occasion-array", {
-            productId: product.id,
-            error: toErrorDetails(error),
-          }, "warn");
-
-          const retryOccasion = await supabase
-            .from("product_catalog")
-            .update(occasionArrayPayload)
-            .eq("id", product.id);
-
-          error = retryOccasion.error;
-          if (!error) {
-            runtimeLog("product-form", "submit:update:retry-occasion-array:success", {
-              productId: product.id,
-            });
-          } else if (shouldRetryWithOccasionArray(error)) {
-            runtimeLog("product-form", "submit:update:retry-legacy-array-compat", {
-              productId: product.id,
-              error: toErrorDetails(error),
-            }, "warn");
-
-            const retryLegacyCompat = await supabase
-              .from("product_catalog")
-              .update(legacyArrayCompatibilityPayload)
-              .eq("id", product.id);
-
-            error = retryLegacyCompat.error;
-            if (!error) {
-              runtimeLog("product-form", "submit:update:retry-legacy-array-compat:success", {
-                productId: product.id,
-              });
-            }
-          }
-        }
 
         if (error) {
           runtimeLog("product-form", "submit:update:error", {
@@ -770,43 +710,6 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
           .select("id")
           .single();
 
-        if (error && shouldRetryWithOccasionArray(error)) {
-          runtimeLog("product-form", "submit:create:retry-occasion-array", {
-            error: toErrorDetails(error),
-          }, "warn");
-
-          const retryOccasion = await supabase
-            .from("product_catalog")
-            .insert(occasionArrayPayload)
-            .select("id")
-            .single();
-
-          error = retryOccasion.error;
-          newProduct = retryOccasion.data;
-          if (!error) {
-            runtimeLog("product-form", "submit:create:retry-occasion-array:success", {
-              productId: retryOccasion.data?.id ?? null,
-            });
-          } else if (shouldRetryWithOccasionArray(error)) {
-            runtimeLog("product-form", "submit:create:retry-legacy-array-compat", {
-              error: toErrorDetails(error),
-            }, "warn");
-
-            const retryLegacyCompat = await supabase
-              .from("product_catalog")
-              .insert(legacyArrayCompatibilityPayload)
-              .select("id")
-              .single();
-
-            error = retryLegacyCompat.error;
-            newProduct = retryLegacyCompat.data;
-            if (!error) {
-              runtimeLog("product-form", "submit:create:retry-legacy-array-compat:success", {
-                productId: retryLegacyCompat.data?.id ?? null,
-              });
-            }
-          }
-        }
 
         if (error) {
           runtimeLog("product-form", "submit:create:error", {
@@ -876,464 +779,484 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="font-serif">
-            {product ? "Editar Produto" : "Novo Produto"}
-          </DialogTitle>
-          <DialogDescription className="sr-only">
-            Formulario para cadastrar ou editar produtos, incluindo imagens, video e estoque.
-          </DialogDescription>
-        </DialogHeader>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-serif">
+              {product ? "Editar Produto" : "Novo Produto"}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Formulario para cadastrar ou editar produtos, incluindo imagens, video e estoque.
+            </DialogDescription>
+          </DialogHeader>
 
-        <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
-          {/* Image Upload Section */}
-          <div className="border border-border rounded-lg p-4">
-            <ProductImageUploader
-              images={images}
-              mainImageIndex={mainImageIndex}
-              videoUrl={videoUrl}
-              onImagesChange={handleImagesChange}
-              onVideoChange={setVideoUrl}
-              userId={userId}
-            />
-
-            {/* Analyze Button */}
-            {images.length > 0 && !analysisResult && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleAnalyzeImage}
-                disabled={isAnalyzing}
-                className="w-full mt-4"
-              >
-                {isAnalyzing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Analisando foto...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Analisar foto e sugerir campos
-                  </>
-                )}
-              </Button>
-            )}
-          </div>
-
-          {/* AI Suggestions UI */}
-          {analysisResult && (
-            <AnalysisSuggestionUI
-              analysis={analysisResult}
-              onApply={handleApplyField}
-              onApplyAll={handleApplyAll}
-              onApplySelected={handleApplySelected}
-              onDismiss={clearAnalysis}
-              currentValues={{
-                category: formData.category,
-                color: formData.color,
-                style: formData.style,
-                occasion: formData.occasion,
-                modeling: formData.modeling,
-              }}
-            />
-          )}
-
-          {/* Basic Info */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="name">Nome *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Nome do produto"
+          <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
+            {/* Image Upload Section */}
+            <div className="border border-border rounded-lg p-4">
+              <ProductImageUploader
+                images={images}
+                mainImageIndex={mainImageIndex}
+                videoUrl={videoUrl}
+                onImagesChange={handleImagesChange}
+                onVideoChange={setVideoUrl}
+                userId={userId}
               />
-            </div>
 
-            <div>
-              <Label htmlFor="sku">SKU (código único)</Label>
-              <Input
-                id="sku"
-                value={formData.sku || ""}
-                onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value || null }))}
-                placeholder="Ex: VEST-001"
-                className="font-mono"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="price">Preço *</Label>
-              <MoneyInput
-                id="price"
-                value={formData.price}
-                onChange={(value) => setFormData(prev => ({ ...prev, price: value }))}
-                placeholder="0,00"
-              />
-            </div>
-
-            <div>
-              <Label>Categoria</Label>
-              <Select
-                value={formData.category || ""}
-                onValueChange={(value) => {
-                  if (value === "new_category") {
-                    setCategoryModalOpen(true);
-                    return;
-                  }
-                  setFormData(prev => ({ ...prev, category: value }));
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableCategories.map(cat => (
-                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                  ))}
-                  <SelectItem value="new_category" className="font-medium text-primary">
-                    + Criar nova categoria
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Weight and Dimensions Row */}
-            <div className="col-span-2 space-y-3">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <Label htmlFor="weight_kg">Peso (kg) *</Label>
-                  {formData.category && CATEGORY_WEIGHTS[formData.category] && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-xs"
-                      onClick={() => setFormData(prev => ({ ...prev, weight_kg: CATEGORY_WEIGHTS[prev.category!] }))}
-                    >
-                      Usar sugestão: {CATEGORY_WEIGHTS[formData.category]}kg
-                    </Button>
+              {/* Analyze Button */}
+              {images.length > 0 && !analysisResult && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleAnalyzeImage}
+                  disabled={isAnalyzing}
+                  className="w-full mt-4"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Analisando foto...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Analisar foto e sugerir campos
+                    </>
                   )}
-                </div>
+                </Button>
+              )}
+            </div>
+
+            {/* AI Suggestions UI */}
+            {analysisResult && (
+              <AnalysisSuggestionUI
+                analysis={analysisResult}
+                onApply={handleApplyField}
+                onApplyAll={handleApplyAll}
+                onApplySelected={handleApplySelected}
+                onDismiss={clearAnalysis}
+                currentValues={{
+                  category: formData.category,
+                  color: formData.color,
+                  style: formData.style,
+                  occasion: formData.occasion,
+                  modeling: formData.modeling,
+                }}
+              />
+            )}
+
+            {/* Basic Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="name">Nome *</Label>
                 <Input
-                  id="weight_kg"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="30"
-                  value={formData.weight_kg ?? ""}
-                  onChange={(e) => setFormData(prev => ({ ...prev, weight_kg: e.target.value ? parseFloat(e.target.value) : null }))}
-                  placeholder="Ex: 0.45"
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Nome do produto"
                 />
-                {!formData.weight_kg && formData.is_active && (
-                  <p className="text-xs text-amber-600 mt-1">⚠️ Peso obrigatório para produtos ativos. O frete usará 0.30kg como padrão.</p>
-                )}
               </div>
 
               <div>
-                <Label className="text-muted-foreground text-xs mb-2 block">
-                  Dimensões (cm) - opcional, padrão: {DEFAULT_DIMENSIONS.length}x{DEFAULT_DIMENSIONS.width}x{DEFAULT_DIMENSIONS.height}
-                </Label>
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="100"
-                      value={formData.length_cm ?? ""}
-                      onChange={(e) => setFormData(prev => ({ ...prev, length_cm: e.target.value ? parseFloat(e.target.value) : null }))}
-                      placeholder="Comp."
-                    />
-                  </div>
-                  <div>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="100"
-                      value={formData.width_cm ?? ""}
-                      onChange={(e) => setFormData(prev => ({ ...prev, width_cm: e.target.value ? parseFloat(e.target.value) : null }))}
-                      placeholder="Larg."
-                    />
-                  </div>
-                  <div>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="100"
-                      value={formData.height_cm ?? ""}
-                      onChange={(e) => setFormData(prev => ({ ...prev, height_cm: e.target.value ? parseFloat(e.target.value) : null }))}
-                      placeholder="Alt."
-                    />
-                  </div>
-                </div>
+                <Label htmlFor="sku">SKU (código único)</Label>
+                <Input
+                  id="sku"
+                  value={formData.sku || ""}
+                  onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value || null }))}
+                  placeholder="Ex: VEST-001"
+                  className="font-mono"
+                />
               </div>
-            </div>
-          </div>
 
-          {/* Style Info */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Cor</Label>
-              <div className="space-y-2">
+              <div>
+                <Label htmlFor="price">Preço *</Label>
+                <MoneyInput
+                  id="price"
+                  value={formData.price}
+                  onChange={(value) => setFormData(prev => ({ ...prev, price: value }))}
+                  placeholder="0,00"
+                />
+              </div>
+
+              <div>
+                <Label>Categoria</Label>
                 <Select
-                  value={availableColors.includes(formData.color || "") ? formData.color || "" : "new_color"}
+                  value={formData.category || ""}
                   onValueChange={(value) => {
-                    if (value === "new_color") {
-                      setFormData(prev => ({ ...prev, color: "" }));
-                    } else {
-                      setFormData(prev => ({ ...prev, color: value }));
+                    if (value === "new_category") {
+                      setCategoryModalOpen(true);
+                      return;
                     }
+                    setFormData(prev => ({ ...prev, category: value }));
                   }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableColors.map(color => (
-                      <SelectItem key={color} value={color}>{color}</SelectItem>
+                    {availableCategories.map(cat => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                     ))}
-                    <SelectItem value="new_color" className="font-medium text-primary">
-                      + Nova Cor...
+                    <SelectItem value="new_category" className="font-medium text-primary">
+                      + Criar nova categoria
                     </SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
 
-                {(!availableColors.includes(formData.color || "") || formData.color === "") && (
+              {/* Weight and Dimensions Row */}
+              <div className="col-span-2 space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <Label htmlFor="weight_kg">Peso (kg) *</Label>
+                    {formData.category && CATEGORY_WEIGHTS[formData.category] && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => setFormData(prev => ({ ...prev, weight_kg: CATEGORY_WEIGHTS[prev.category!] }))}
+                      >
+                        Usar sugestão: {CATEGORY_WEIGHTS[formData.category]}kg
+                      </Button>
+                    )}
+                  </div>
                   <Input
-                    placeholder="Digite a cor..."
-                    value={formData.color || ""}
-                    onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
-                    className="mt-2 animate-in fade-in slide-in-from-top-1"
-                    autoFocus
+                    id="weight_kg"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="30"
+                    value={formData.weight_kg ?? ""}
+                    onChange={(e) => setFormData(prev => ({ ...prev, weight_kg: e.target.value ? parseFloat(e.target.value) : null }))}
+                    placeholder="Ex: 0.45"
                   />
-                )}
+                  {!formData.weight_kg && formData.is_active && (
+                    <p className="text-xs text-amber-600 mt-1">⚠️ Peso obrigatório para produtos ativos. O frete usará 0.30kg como padrão.</p>
+                  )}
+                </div>
+
+                <div>
+                  <Label className="text-muted-foreground text-xs mb-2 block">
+                    Dimensões (cm) - opcional, padrão: {DEFAULT_DIMENSIONS.length}x{DEFAULT_DIMENSIONS.width}x{DEFAULT_DIMENSIONS.height}
+                  </Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={formData.length_cm ?? ""}
+                        onChange={(e) => setFormData(prev => ({ ...prev, length_cm: e.target.value ? parseFloat(e.target.value) : null }))}
+                        placeholder="Comp."
+                      />
+                    </div>
+                    <div>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={formData.width_cm ?? ""}
+                        onChange={(e) => setFormData(prev => ({ ...prev, width_cm: e.target.value ? parseFloat(e.target.value) : null }))}
+                        placeholder="Larg."
+                      />
+                    </div>
+                    <div>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={formData.height_cm ?? ""}
+                        onChange={(e) => setFormData(prev => ({ ...prev, height_cm: e.target.value ? parseFloat(e.target.value) : null }))}
+                        placeholder="Alt."
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div>
-              <Label>Estilo</Label>
-              <Select
-                value={formData.style || ""}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, style: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  {STYLES.map(style => (
-                    <SelectItem key={style} value={style}>{style}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Style Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Cor</Label>
+                <div className="space-y-2">
+                  <Select
+                    value={availableColors.includes(formData.color || "") ? formData.color || "" : "new_color"}
+                    onValueChange={(value) => {
+                      if (value === "new_color") {
+                        setFormData(prev => ({ ...prev, color: "" }));
+                      } else {
+                        setFormData(prev => ({ ...prev, color: value }));
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableColors.map(color => (
+                        <SelectItem key={color} value={color}>{color}</SelectItem>
+                      ))}
+                      <SelectItem value="new_color" className="font-medium text-primary">
+                        + Nova Cor...
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
 
-            <div>
-              <Label>Ocasião</Label>
-              <Select
-                value={formData.occasion || ""}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, occasion: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  {OCCASIONS.map(occ => (
-                    <SelectItem key={occ} value={occ}>{occ}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label>Modelagem</Label>
-              <Select
-                value={formData.modeling || ""}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, modeling: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  {MODELINGS.map(mod => (
-                    <SelectItem key={mod} value={mod}>{mod}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Stock by Size */}
-          <div className="border border-border rounded-lg p-4">
-            <StockBySize
-              stock={stockBySize}
-              onChange={setStockBySize}
-            />
-            {Object.values(lockedStockBySize).some((qty) => qty > 0) && (
-              <p className="mt-3 text-xs text-muted-foreground">
-                Valores editÃ¡veis mostram estoque disponÃ­vel. Reservado/Vendido atual:{" "}
-                <span className="font-medium text-foreground">
-                  {Object.values(lockedStockBySize).reduce((sum, qty) => sum + (qty || 0), 0)}
-                </span>{" "}
-                unidade(s).
-              </p>
-            )}
-          </div>
-
-          {/* Discount */}
-          <div className="border border-border rounded-lg p-4">
-            <ProductDiscountFields
-              discountType={formData.discount_type || null}
-              discountValue={formData.discount_value ?? null}
-              onDiscountTypeChange={(value) => setFormData(prev => ({ ...prev, discount_type: value }))}
-              onDiscountValueChange={(value) => setFormData(prev => ({ ...prev, discount_value: value }))}
-              label="Desconto no Catálogo"
-            />
-            {formData.discount_type && formData.discount_value && formData.price > 0 && (
-              <div className="mt-3 p-2 bg-green-50 dark:bg-green-950/30 rounded text-sm">
-                <span className="text-muted-foreground line-through">
-                  R$ {formData.price.toFixed(2)}
-                </span>
-                <span className="ml-2 font-bold text-green-600">
-                  R$ {calculateDiscountedPrice(formData.price, formData.discount_type, formData.discount_value).toFixed(2)}
-                </span>
+                  {(!availableColors.includes(formData.color || "") || formData.color === "") && (
+                    <Input
+                      placeholder="Digite a cor..."
+                      value={formData.color || ""}
+                      onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
+                      className="mt-2 animate-in fade-in slide-in-from-top-1"
+                      autoFocus
+                    />
+                  )}
+                </div>
               </div>
-            )}
-          </div>
 
-          {/* Description */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="description">Descrição</Label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={handleGenerateDescription}
-                disabled={isGeneratingDescription || images.length === 0}
-                title={images.length === 0 ? "Adicione uma imagem primeiro" : "Gerar descrição premium com IA"}
-              >
-                {isGeneratingDescription ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                ) : (
-                  <Sparkles className="h-4 w-4 mr-1" />
-                )}
-                {isGeneratingDescription ? "Gerando..." : "Gerar com IA"}
-              </Button>
+              <div>
+                <Label>Estilo <span className="text-xs text-muted-foreground ml-1">(pode marcar mais de um)</span></Label>
+                <div className="flex flex-wrap gap-2 mt-1.5">
+                  {STYLES.map(style => {
+                    const selected = formData.style?.includes(style) ?? false;
+                    return (
+                      <button
+                        key={style}
+                        type="button"
+                        onClick={() => setFormData(prev => ({
+                          ...prev,
+                          style: selected
+                            ? (prev.style ?? []).filter(s => s !== style)
+                            : [...(prev.style ?? []), style]
+                        }))}
+                        className={`px-3 py-1 rounded-full text-sm border transition-colors capitalize ${selected
+                            ? "bg-foreground text-background border-foreground"
+                            : "border-border text-muted-foreground hover:border-foreground hover:text-foreground"
+                          }`}
+                      >
+                        {style.replace("_", " ")}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <Label>Ocasião <span className="text-xs text-muted-foreground ml-1">(pode marcar mais de uma)</span></Label>
+                <div className="flex flex-wrap gap-2 mt-1.5">
+                  {OCCASIONS.map(occ => {
+                    const selected = formData.occasion?.includes(occ) ?? false;
+                    return (
+                      <button
+                        key={occ}
+                        type="button"
+                        onClick={() => setFormData(prev => ({
+                          ...prev,
+                          occasion: selected
+                            ? (prev.occasion ?? []).filter(o => o !== occ)
+                            : [...(prev.occasion ?? []), occ]
+                        }))}
+                        className={`px-3 py-1 rounded-full text-sm border transition-colors capitalize ${selected
+                            ? "bg-foreground text-background border-foreground"
+                            : "border-border text-muted-foreground hover:border-foreground hover:text-foreground"
+                          }`}
+                      >
+                        {occ}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <Label>Modelagem</Label>
+                <Select
+                  value={formData.modeling || ""}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, modeling: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MODELINGS.map(mod => (
+                      <SelectItem key={mod} value={mod}>{mod}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <Textarea
-              id="description"
-              value={formData.description || ""}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              placeholder="Descrição detalhada do produto..."
-              rows={3}
-            />
-          </div>
 
-          {/* Customer Suggestions - only show when editing existing product */}
-          {product?.id && (
-            <div className="border-t pt-6">
-              <CustomerSuggestions
-                productId={product.id}
-                productName={formData.name || product.name}
+            {/* Stock by Size */}
+            <div className="border border-border rounded-lg p-4">
+              <StockBySize
+                stock={stockBySize}
+                onChange={setStockBySize}
+              />
+              {Object.values(lockedStockBySize).some((qty) => qty > 0) && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Valores editÃ¡veis mostram estoque disponÃ­vel. Reservado/Vendido atual:{" "}
+                  <span className="font-medium text-foreground">
+                    {Object.values(lockedStockBySize).reduce((sum, qty) => sum + (qty || 0), 0)}
+                  </span>{" "}
+                  unidade(s).
+                </p>
+              )}
+            </div>
+
+            {/* Discount */}
+            <div className="border border-border rounded-lg p-4">
+              <ProductDiscountFields
+                discountType={formData.discount_type || null}
+                discountValue={formData.discount_value ?? null}
+                onDiscountTypeChange={(value) => setFormData(prev => ({ ...prev, discount_type: value }))}
+                onDiscountValueChange={(value) => setFormData(prev => ({ ...prev, discount_value: value }))}
+                label="Desconto no Catálogo"
+              />
+              {formData.discount_type && formData.discount_value && formData.price > 0 && (
+                <div className="mt-3 p-2 bg-green-50 dark:bg-green-950/30 rounded text-sm">
+                  <span className="text-muted-foreground line-through">
+                    R$ {formData.price.toFixed(2)}
+                  </span>
+                  <span className="ml-2 font-bold text-green-600">
+                    R$ {calculateDiscountedPrice(formData.price, formData.discount_type, formData.discount_value).toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Description */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="description">Descrição</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleGenerateDescription}
+                  disabled={isGeneratingDescription || images.length === 0}
+                  title={images.length === 0 ? "Adicione uma imagem primeiro" : "Gerar descrição premium com IA"}
+                >
+                  {isGeneratingDescription ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 mr-1" />
+                  )}
+                  {isGeneratingDescription ? "Gerando..." : "Gerar com IA"}
+                </Button>
+              </div>
+              <Textarea
+                id="description"
+                value={formData.description || ""}
+                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Descrição detalhada do produto..."
+                rows={3}
               />
             </div>
-          )}
 
-          {/* Active Status */}
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="is_active"
-              checked={formData.is_active}
-              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_active: checked as boolean }))}
-            />
-            <Label htmlFor="is_active" className="cursor-pointer">
-              Produto ativo (visível no catálogo)
-            </Label>
+            {/* Customer Suggestions - only show when editing existing product */}
+            {product?.id && (
+              <div className="border-t pt-6">
+                <CustomerSuggestions
+                  productId={product.id}
+                  productName={formData.name || product.name}
+                />
+              </div>
+            )}
+
+            {/* Active Status */}
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="is_active"
+                checked={formData.is_active}
+                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_active: checked as boolean }))}
+              />
+              <Label htmlFor="is_active" className="cursor-pointer">
+                Produto ativo (visível no catálogo)
+              </Label>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-4">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={isSubmitting}
+                onClick={(e) => handleSubmit(e, true)}
+              >
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar rápido"}
+              </Button>
+              <Button type="submit" disabled={isSubmitting} className="flex-1">
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  "Salvar completo"
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={categoryModalOpen}
+        onOpenChange={(next) => {
+          setCategoryModalOpen(next);
+          if (!next) {
+            setNewCategoryName("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nova categoria</DialogTitle>
+            <DialogDescription className="sr-only">
+              Crie uma categoria personalizada para usar no produto atual.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="new-category-name">Nome da categoria</Label>
+              <Input
+                id="new-category-name"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                placeholder="Ex: Blusas"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setCategoryModalOpen(false);
+                  setNewCategoryName("");
+                }}
+                disabled={isCreatingCategory}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={handleCreateInlineCategory}
+                disabled={isCreatingCategory}
+              >
+                {isCreatingCategory ? "Salvando..." : "Criar categoria"}
+              </Button>
+            </div>
           </div>
-
-          {/* Actions */}
-          <div className="flex gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={isSubmitting}
-              onClick={(e) => handleSubmit(e, true)}
-            >
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar rápido"}
-            </Button>
-            <Button type="submit" disabled={isSubmitting} className="flex-1">
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Salvando...
-                </>
-              ) : (
-                "Salvar completo"
-              )}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-
-    <Dialog
-      open={categoryModalOpen}
-      onOpenChange={(next) => {
-        setCategoryModalOpen(next);
-        if (!next) {
-          setNewCategoryName("");
-        }
-      }}
-    >
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Nova categoria</DialogTitle>
-          <DialogDescription className="sr-only">
-            Crie uma categoria personalizada para usar no produto atual.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-3">
-          <div>
-            <Label htmlFor="new-category-name">Nome da categoria</Label>
-            <Input
-              id="new-category-name"
-              value={newCategoryName}
-              onChange={(e) => setNewCategoryName(e.target.value)}
-              placeholder="Ex: Blusas"
-            />
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setCategoryModalOpen(false);
-                setNewCategoryName("");
-              }}
-              disabled={isCreatingCategory}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              onClick={handleCreateInlineCategory}
-              disabled={isCreatingCategory}
-            >
-              {isCreatingCategory ? "Salvando..." : "Criar categoria"}
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

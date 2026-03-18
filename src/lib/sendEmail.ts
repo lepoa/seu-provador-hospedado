@@ -9,7 +9,7 @@ interface SendEmailResult {
   error?: string;
 }
 
-const EMAIL_API_ENDPOINT = "http://localhost:3001/api/send-email";
+const EMAIL_API_ENDPOINT = "/api/send-email";
 
 export async function sendEmail({ to, subject, html }: SendEmailPayload): Promise<SendEmailResult> {
   if (!to || !subject || !html) {

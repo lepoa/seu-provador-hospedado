@@ -29,8 +29,8 @@ interface Product {
   category: string | null;
   color: string | null;
   sizes: string[];
-  style: string | null;
-  occasion: string | null;
+  style: string | string[] | null;
+  occasion: string | string[] | null;
   modeling: string | null;
   tags: string[];
   description: string | null;
@@ -363,8 +363,8 @@ const ProductDetail = () => {
                       setShowVideo(false);
                     }}
                     className={`flex-shrink-0 w-16 h-20 rounded-lg overflow-hidden border-2 transition-colors ${currentImageIndex === idx && !showVideo
-                        ? "border-accent"
-                        : "border-transparent"
+                      ? "border-accent"
+                      : "border-transparent"
                       }`}
                   >
                     <OptimizedImage
@@ -436,12 +436,12 @@ const ProductDetail = () => {
               )}
               {product.style && (
                 <p>
-                  <span className="font-medium text-foreground">Estilo:</span> {product.style}
+                  <span className="font-medium text-foreground">Estilo:</span>{" "}{Array.isArray(product.style) ? product.style.flat().filter(Boolean).join(", ") : product.style}
                 </p>
               )}
               {product.occasion && (
                 <p>
-                  <span className="font-medium text-foreground">Ocasião:</span> {product.occasion}
+                  <span className="font-medium text-foreground">Ocasião:</span>{" "}{Array.isArray(product.occasion) ? product.occasion.flat().filter(Boolean).join(", ") : product.occasion}
                 </p>
               )}
               {product.modeling && (
@@ -467,8 +467,8 @@ const ProductDetail = () => {
                         <button
                           onClick={() => setSelectedSize(size === selectedSize ? null : size)}
                           className={`px-4 py-2 text-sm rounded-lg border transition-colors ${selectedSize === size
-                              ? "bg-primary text-primary-foreground border-primary"
-                              : "border-border hover:border-accent"
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "border-border hover:border-accent"
                             }`}
                         >
                           {size}

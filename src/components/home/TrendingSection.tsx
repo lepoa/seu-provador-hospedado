@@ -49,14 +49,7 @@ export function TrendingSection() {
     }
 
     if (trendingProducts.length === 0) {
-        return (
-            <section className="py-14 px-5 border-y border-dashed border-accent/20 bg-accent/5">
-                <div className="max-w-6xl mx-auto text-center opacity-40">
-                    <Flame className="h-6 w-6 mx-auto mb-2" />
-                    <p className="text-sm">O carrossel de tendências aparecerá aqui assim que houver pedidos pagos.</p>
-                </div>
-            </section>
-        );
+        return null;
     }
 
     const getMainImage = (p: any) => {
@@ -76,7 +69,7 @@ export function TrendingSection() {
                             </span>
                         </div>
                         <h2 className="font-serif text-4xl md:text-5xl font-medium text-primary leading-tight mb-4">
-                            Coleção em <span className="italic">Destaque</span>
+                            Mais Vendidos da <span className="italic">Semana</span>
                         </h2>
                         <p className="text-muted-foreground text-sm md:text-lg font-light max-w-lg">
                             Peças curadas estrategicamente para elevar seu guarda-roupa.

@@ -36,7 +36,8 @@ interface Product {
   category: string | null;
   color: string | null;
   sizes: string[];
-  style: string | null;
+  style: string | string[] | null;
+  occasion: string | string[] | null;
   tags: string[];
   stock_by_size: Record<string, number> | null | unknown;
   discount_type: "percentage" | "fixed" | null;
@@ -144,16 +145,24 @@ const Catalog = () => {
       );
     }
 
-    // Occasion filter (searches in tags, style, category, name)
+    // Occasion filter — checks occasion array, tags, category and name
     if (selectedOccasion) {
       const occLower = selectedOccasion.toLowerCase();
-      result = result.filter(
-        (p) =>
-          p.tags?.some((t) => t.toLowerCase().includes(occLower)) ||
-          p.style?.toLowerCase().includes(occLower) ||
-          p.category?.toLowerCase().includes(occLower) ||
-          p.name.toLowerCase().includes(occLower)
-      );
+      // Helper: extract all string values from a field that may be string, string[], or string[][]
+      const toStrings = (val: unknown): string[] => {
+        if (!val) return [];
+        if (typeof val === "string") return [val];
+        if (Array.isArray(val)) return (val as unknown[]).flat(2).filter((v): v is string => typeof v === "string");
+        return [];
+      };
+      result = result.filter((p) => {
+        if (toStrings(p.occasion).some((o) => o.toLowerCase().includes(occLower))) return true;
+        if (p.tags?.some((t) => typeof t === "string" && t.toLowerCase().includes(occLower))) return true;
+        if (toStrings(p.style).some((s) => s.toLowerCase().includes(occLower))) return true;
+        if (p.category?.toLowerCase().includes(occLower)) return true;
+        if (p.name.toLowerCase().includes(occLower)) return true;
+        return false;
+      });
     }
 
     // Category filter

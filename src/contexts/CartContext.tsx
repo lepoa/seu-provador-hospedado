@@ -1,5 +1,7 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { useGiftEngine } from "@/hooks/useGiftEngine";
+import { supabase } from "@/integrations/supabase/client";
+import { saveAbandonedCart, clearAbandonedCart } from "@/hooks/useAbandonedCart";
 
 export interface CartItem {
   productId: string;
@@ -55,6 +57,36 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
+  }, [items]);
+
+  // ── Abandoned cart tracking ──────────────────────────────────────────
+  const abandonedCartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    // Fire with 5s debounce to avoid excessive writes
+    if (abandonedCartTimer.current) clearTimeout(abandonedCartTimer.current);
+
+    if (items.length === 0) return;
+
+    abandonedCartTimer.current = setTimeout(async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.email) return;
+
+      await saveAbandonedCart(
+        user.email,
+        items.map((item) => ({
+          name: item.name,
+          size: item.size,
+          price: item.price,
+          quantity: item.quantity,
+          image_url: item.imageUrl ?? undefined,
+        }))
+      );
+    }, 5_000);
+
+    return () => {
+      if (abandonedCartTimer.current) clearTimeout(abandonedCartTimer.current);
+    };
   }, [items]);
 
   // Calculate total (excluding gifts)
@@ -129,7 +161,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
     );
   };
 
-  const clearCart = () => setItems([]);
+  const clearCart = () => {
+    setItems([]);
+    // Clear any pending abandoned cart email for this user
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user?.email) clearAbandonedCart(user.email).catch(() => { });
+    });
+  };
 
   return (
     <CartContext.Provider

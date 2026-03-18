@@ -6,6 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Header } from "@/components/Header";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ModalPrivacidade } from "@/components/account/ModalPrivacidade";
+import { ModalTermos } from "@/components/account/ModalTermos";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { usePhoneMask } from "@/hooks/usePhoneMask";
@@ -37,6 +40,12 @@ const Auth = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
+  const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
+
+  const CONSENT_TERMS_VERSION = "v1";
+  const CONSENT_PRIVACY_VERSION = "v1";
 
   const {
     displayValue: whatsappMasked,
@@ -99,8 +108,14 @@ const Auth = () => {
       return;
     }
 
+    if (!termsAccepted) {
+      toast.error("Você precisa aceitar os termos para criar sua conta.");
+      return;
+    }
+
     setIsLoading(true);
     try {
+      const now = new Date().toISOString();
       const redirectUrl = `${window.location.origin}${redirectTo}`;
       const normalizedWhatsapp = getWhatsappNormalized();
       const normalizedInstagram = instagramHandle
@@ -115,13 +130,18 @@ const Auth = () => {
             name,
             whatsapp: normalizedWhatsapp,
             instagram_handle: normalizedInstagram,
+            terms_accepted: true,
+            privacy_accepted: true,
+            terms_version: CONSENT_TERMS_VERSION,
+            privacy_version: CONSENT_PRIVACY_VERSION,
+            consent_user_agent: navigator.userAgent,
           },
         },
       });
 
       if (error) throw error;
 
-      // Update profile with name and WhatsApp
+      // Update profile and create customer
       if (data.user) {
         const { error: profileError } = await supabase
           .from("profiles")
@@ -129,11 +149,31 @@ const Auth = () => {
             name,
             whatsapp: normalizedWhatsapp,
             instagram_handle: normalizedInstagram,
+            terms_accepted: true,
+            privacy_accepted: true,
+            terms_accepted_at: now,
+            privacy_accepted_at: now,
+            terms_version: CONSENT_TERMS_VERSION,
+            privacy_version: CONSENT_PRIVACY_VERSION,
+            consent_user_agent: navigator.userAgent,
           })
           .eq("user_id", data.user.id);
 
         if (profileError) {
           console.error("Profile update error:", profileError);
+        }
+
+        const { error: customerError } = await supabase
+          .from("customers")
+          .upsert({
+            user_id: data.user.id,
+            name,
+            phone: normalizedWhatsapp,
+            instagram_handle: normalizedInstagram,
+          }, { onConflict: 'phone' });
+
+        if (customerError) {
+          console.warn("Erro ao criar registro em customers:", customerError);
         }
       }
 
@@ -304,6 +344,36 @@ const Auth = () => {
             )}
           </div>
 
+          {isSignUp && (
+            <div className="rounded-md border border-border p-3 space-y-2 animate-slide-in-up" style={{ animationDelay: "180ms" }}>
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="terms-acceptance"
+                  checked={termsAccepted}
+                  onCheckedChange={(checked) => setTermsAccepted(checked === true)}
+                />
+                <Label htmlFor="terms-acceptance" className="text-xs leading-5 cursor-pointer text-muted-foreground">
+                  Li e concordo com os{" "}
+                  <button
+                    type="button"
+                    onClick={() => setIsTermsModalOpen(true)}
+                    className="underline underline-offset-4 hover:text-foreground text-accent"
+                  >
+                    Termos de Uso
+                  </button>{" "}
+                  e{" "}
+                  <button
+                    type="button"
+                    onClick={() => setIsPrivacyModalOpen(true)}
+                    className="underline underline-offset-4 hover:text-foreground text-accent"
+                  >
+                    Política de Privacidade
+                  </button>
+                </Label>
+              </div>
+            </div>
+          )}
+
           <Button
             type="submit"
             className="w-full gap-2 transition-all hover:scale-[1.02]"
@@ -388,6 +458,17 @@ const Auth = () => {
             </ul>
           </div>
         )}
+
+        <ModalTermos
+          open={isTermsModalOpen}
+          onOpenChange={setIsTermsModalOpen}
+          onAgree={() => setTermsAccepted(true)}
+        />
+        <ModalPrivacidade
+          open={isPrivacyModalOpen}
+          onOpenChange={setIsPrivacyModalOpen}
+          onAgree={() => setTermsAccepted(true)}
+        />
       </main>
     </div>
   );

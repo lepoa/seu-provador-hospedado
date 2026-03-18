@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   Link2,
   LogOut,
+  Mail,
   Package,
   Radio,
   ShoppingBag,
@@ -90,14 +91,22 @@ type DashboardTabValue =
   | "profiles"
   | "prints";
 
-type SidebarItem = {
-  id: string;
-  label: string;
-  icon: typeof LayoutDashboard;
-  kind: "tab";
-  value: string;
-  showPrintCount?: boolean;
-};
+type SidebarItem =
+  | {
+    id: string;
+    label: string;
+    icon: typeof LayoutDashboard;
+    kind: "tab";
+    value: string;
+    showPrintCount?: boolean;
+  }
+  | {
+    id: string;
+    label: string;
+    icon: typeof LayoutDashboard;
+    kind: "link";
+    href: string;
+  };
 
 type SidebarSection = {
   title: string;
@@ -142,6 +151,12 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
       { id: "equipe", label: "Equipe", icon: UsersRound, kind: "tab", value: "equipe" },
       { id: "profiles", label: "Time & Acessos", icon: UsersRound, kind: "tab", value: "profiles" },
       { id: "consultora", label: "Consultoria IA", icon: Sparkles, kind: "tab", value: "consultora" },
+    ],
+  },
+  {
+    title: "MARKETING",
+    items: [
+      { id: "email-marketing", label: "Email Marketing", icon: Mail, kind: "link", href: "/admin/email-marketing" },
     ],
   },
 ];
@@ -212,7 +227,11 @@ const Dashboard = () => {
   };
 
   const handleSidebarItemSelect = (item: SidebarItem) => {
-    handleTabChange(item.value as DashboardTabValue);
+    if (item.kind === "link") {
+      navigate(item.href);
+    } else {
+      handleTabChange(item.value as DashboardTabValue);
+    }
   };
 
   const handleMobileNavSelect = (value: string) => {
@@ -401,7 +420,7 @@ const Dashboard = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleTabChange("products")}
+                onClick={() => navigate("/importar-estoque")}
                 className="h-9 gap-2 border-[#c6ab73] bg-[#f9f3e4] text-[#2a2a2a] hover:border-[#b59657] hover:bg-[#f6edd8]"
               >
                 <FileSpreadsheet className="h-4 w-4" />
@@ -459,9 +478,8 @@ const Dashboard = () => {
                       <div className="space-y-3 p-4">
                         <div className="flex items-center justify-between">
                           <span
-                            className={`rounded-full px-2 py-1 text-xs ${
-                              linkedProduct ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
-                            }`}
+                            className={`rounded-full px-2 py-1 text-xs ${linkedProduct ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                              }`}
                           >
                             {linkedProduct ? "Vinculado" : "Pendente"}
                           </span>

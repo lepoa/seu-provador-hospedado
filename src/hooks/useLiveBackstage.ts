@@ -343,7 +343,40 @@ export function useLiveBackstage(eventId: string | undefined, pauseRefetch: bool
         }
       }
 
-      // 3. Try fallback: search globally in live_customers for this handle to see if linked before
+      // 3. Try fallback: search in profiles table (app users)
+      if (!existingCrmCustomer) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("user_id, name, full_name, whatsapp")
+          .or(`instagram_handle.ilike.${handle},instagram_handle.ilike.@${handle}`)
+          .maybeSingle();
+
+        if (profile) {
+          // Find the corresponding CRM customer for this user_id or phone
+          const { data: crmCustomer } = await supabase
+            .from("customers")
+            .select("id, name, phone, email, instagram_handle")
+            .or(`user_id.eq.${profile.user_id},phone.eq.${profile.whatsapp}`)
+            .is("merged_into_customer_id", null)
+            .maybeSingle();
+
+          if (crmCustomer) {
+            existingCrmCustomer = crmCustomer;
+          } else {
+            // If they have a profile but no CRM customer yet, we'll still identify them 
+            // by creating a temporary 'existingCrmCustomer' object for the insert below
+            // to ensure they are linked to their user_id.
+            existingCrmCustomer = {
+              id: null, // Will be created in live_customers
+              name: profile.name || profile.full_name,
+              phone: profile.whatsapp,
+              user_id: profile.user_id
+            } as any;
+          }
+        }
+      }
+
+      // 4. Try fallback: search globally in live_customers for this handle to see if linked before
       if (!existingCrmCustomer) {
         const { data: previousLiveCustomer } = await supabase
           .from("live_customers")

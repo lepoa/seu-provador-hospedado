@@ -30,6 +30,9 @@ verify_jwt = false
 [functions.generate-business-insights]
 verify_jwt = false
 
+[functions.generate-ai-look]
+verify_jwt = false
+
 [functions.revalidate-payment]
 verify_jwt = false
 

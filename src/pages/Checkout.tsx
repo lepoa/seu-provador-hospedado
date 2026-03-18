@@ -24,6 +24,7 @@ import { MotoboyConfirmation, DeliveryPeriod, canProceedWithMotoboy } from "@/co
 import { PickupConfirmation } from "@/components/checkout/PickupConfirmation";
 import { ShippingAddressSelector } from "@/components/checkout/ShippingAddressSelector";
 import { useProductAvailableStock } from "@/hooks/useProductAvailableStock";
+import { sendOrderConfirmedEmail } from "@/hooks/useOrderEmail";
 
 function formatPrice(price: number): string {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(price);
@@ -684,6 +685,22 @@ const Checkout = () => {
       // CRITICAL: Clear cart immediately after order creation to prevent duplicates
       // This must happen BEFORE the payment step, not after MP redirect
       clearCart();
+
+      // Send order confirmation email — fire-and-forget, does not block checkout
+      if (user?.email) {
+        sendOrderConfirmedEmail({
+          customerName: fullName,
+          customerEmail: user.email,
+          orderId: order.id,
+          items: items.map((item) => ({
+            name: item.name,
+            size: item.size,
+            quantity: item.quantity,
+            price: item.price,
+          })),
+          total: computedTotal,
+        }).catch((err) => console.warn("[checkout] Email confirmation failed:", err));
+      }
 
       setCurrentStep("payment");
       toast.success("Pedido criado! Agora finalize o pagamento.");

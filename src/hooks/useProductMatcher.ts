@@ -1,12 +1,12 @@
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { ImageAnalysisResult } from "@/hooks/useImageAnalysis";
-import { 
-  findMatchingProductsWithFallback, 
-  type MatchedProduct, 
+import {
+  findMatchingProductsWithFallback,
+  type MatchedProduct,
   type MatchResultWithFallback,
   type FindMatchesOptions,
-  type RefinementMode 
+  type RefinementMode
 } from "@/lib/productMatcher";
 
 function normalizeField(input: unknown): { value: string | null; confidence: number } {
@@ -39,13 +39,27 @@ function normalizeTags(input: unknown): string[] {
 }
 
 function normalizeAnalysis(analysis: ImageAnalysisResult): ImageAnalysisResult {
+  const extraTagsFromFields = [
+    analysis.decote?.value,
+    analysis.manga_alca?.value,
+    analysis.comprimento?.value,
+    analysis.textura?.value,
+  ].filter((v): v is string => !!v);
+
   return {
     categoria: normalizeField(analysis.categoria),
     cor: normalizeField(analysis.cor),
     estilo: normalizeField(analysis.estilo),
     ocasiao: normalizeField(analysis.ocasiao),
     modelagem: normalizeField(analysis.modelagem),
-    tags_extras: normalizeTags((analysis as { tags_extras?: unknown }).tags_extras),
+    decote: normalizeField(analysis.decote),
+    manga_alca: normalizeField(analysis.manga_alca),
+    comprimento: normalizeField(analysis.comprimento),
+    textura: normalizeField(analysis.textura),
+    tags_extras: [
+      ...normalizeTags((analysis as { tags_extras?: unknown }).tags_extras),
+      ...extraTagsFromFields,
+    ],
     resumo_visual:
       typeof (analysis as { resumo_visual?: unknown }).resumo_visual === "string"
         ? (analysis as { resumo_visual: string }).resumo_visual
@@ -59,6 +73,10 @@ const RELAXED_FALLBACK_ANALYSIS: ImageAnalysisResult = {
   estilo: { value: null, confidence: 0 },
   ocasiao: { value: null, confidence: 0 },
   modelagem: { value: null, confidence: 0 },
+  decote: { value: null, confidence: 0 },
+  manga_alca: { value: null, confidence: 0 },
+  comprimento: { value: null, confidence: 0 },
+  textura: { value: null, confidence: 0 },
   tags_extras: [],
 };
 
@@ -72,7 +90,7 @@ export function useProductMatcher() {
 
   const findMatches = useCallback(
     async (
-      analysis: ImageAnalysisResult, 
+      analysis: ImageAnalysisResult,
       options: FindMatchesOptions
     ): Promise<MatchResultWithFallback> => {
       setIsLoading(true);
@@ -133,9 +151,9 @@ export function useProductMatcher() {
           const viewStock = availableByProduct.get(p.id) || null;
 
           return {
-          ...p,
-          stock_by_size: viewStock || fallbackStock
-        };
+            ...p,
+            stock_by_size: viewStock || fallbackStock
+          };
         });
 
         const normalizedAnalysis = normalizeAnalysis(analysis);

@@ -25,8 +25,9 @@ const formatCurrency = (value: number) => {
 const generateQRDataUrl = async (data: string): Promise<string> => {
   try {
     return await QRCode.toDataURL(data, {
-      width: 150,
+      width: 250, // Increased from 150
       margin: 1,
+      errorCorrectionLevel: 'H', // Added high error correction
       color: {
         dark: '#000000',
         light: '#ffffff',
@@ -87,8 +88,8 @@ const getLabelStyles = () => `
     margin: 12px 0;
   }
   .qr-container img {
-    width: 120px;
-    height: 120px;
+    width: 150px; // Increased from 120px
+    height: 150px; // Increased from 120px
   }
   .details {
     display: flex;
@@ -212,7 +213,7 @@ export function BagLabelPrint({ bag, eventTitle, onPrint, onLabelPrinted }: BagL
 
     // Generate QR code as data URL
     const qrDataUrl = await generateQRDataUrl(bagUrl);
-    
+
     if (!qrDataUrl) {
       toast.error("Erro ao gerar QR code");
       return;
@@ -247,21 +248,21 @@ export function BagLabelPrint({ bag, eventTitle, onPrint, onLabelPrinted }: BagL
     `);
 
     printWindow.document.close();
-    
+
     // Mark label as printed
     if (onLabelPrinted) {
       await onLabelPrinted(bag.id);
     }
-    
+
     onPrint?.();
   };
 
   // Determine button state based on label_printed_at and needs_label_reprint
   const hasBeenPrinted = !!bag.labelPrintedAt;
   const needsReprint = bag.needsReprintLabel;
-  
+
   // Format print time if available
-  const printTimeLabel = bag.labelPrintedAt 
+  const printTimeLabel = bag.labelPrintedAt
     ? format(new Date(bag.labelPrintedAt), "HH:mm")
     : null;
 
@@ -274,14 +275,14 @@ export function BagLabelPrint({ bag, eventTitle, onPrint, onLabelPrinted }: BagL
             Alterada
           </Badge>
         )}
-        
+
         {/* Show print time if printed */}
         {hasBeenPrinted && (
           <span className="text-xs text-muted-foreground hidden sm:inline">
             Impressa {printTimeLabel}{needsReprint ? ' • Alterada' : ''}
           </span>
         )}
-        
+
         {needsReprint ? (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -408,7 +409,7 @@ export function BatchLabelPrint({ bags, eventTitle, onLabelsAsPrinted }: BatchLa
     `);
 
     printWindow.document.close();
-    
+
     // Mark all labels as printed
     if (onLabelsAsPrinted) {
       const bagIds = bags.map(b => b.id);
