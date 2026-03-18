@@ -332,38 +332,82 @@ export function CustomersManagerV2() {
   async function loadData() {
     setIsLoading(true);
     try {
-      const [customersRes, productsRes, pendingMap] = await Promise.all([
+      const [customersRes, productsRes, pendingMap, ordersRes] = await Promise.all([
         supabase.from("customers").select("*").order("last_order_at", { ascending: false, nullsFirst: false }),
         supabase
           .from("product_catalog")
           .select("id,name,price,image_url,images,main_image_index,stock_by_size,color,category")
           .eq("is_active", true),
         loadPendingOrdersMap(),
+        supabase.from("orders").select("customer_id,customer_phone,status,total,created_at"),
       ]);
 
       if (customersRes.error) throw customersRes.error;
       if (productsRes.error) throw productsRes.error;
 
-      const mappedCustomers: CustomerWithStats[] = (customersRes.data || []).map((c) => ({
-        id: c.id,
-        phone: c.phone,
-        name: c.name,
-        email: c.email,
-        size: c.size,
-        size_letter: c.size_letter,
-        size_number: c.size_number,
-        style_title: c.style_title,
-        created_at: c.created_at,
-        total_orders: c.total_orders || 0,
-        last_order_at: c.last_order_at,
-        total_spent: Number(c.total_spent || 0),
-        address_line: c.address_line,
-        city: c.city,
-        state: c.state,
-        zip_code: c.zip_code,
-        user_id: c.user_id,
-        document: c.document,
-      }));
+      // Build order stats by customer_id AND by normalized phone
+      const ordersByCustomerId: Record<string, { count: number; spent: number; lastAt: string | null }> = {};
+      const ordersByPhone: Record<string, { count: number; spent: number; lastAt: string | null }> = {};
+      const normalizePhone = (p: string | null) => p?.replace(/\D/g, "") || "";
+
+      for (const o of (ordersRes.data || [])) {
+        const isPaid = ["pago", "enviado", "entregue"].includes(o.status);
+        const total = isPaid ? Number(o.total || 0) : 0;
+
+        // By customer_id
+        if (o.customer_id) {
+          if (!ordersByCustomerId[o.customer_id]) {
+            ordersByCustomerId[o.customer_id] = { count: 0, spent: 0, lastAt: null };
+          }
+          ordersByCustomerId[o.customer_id].count++;
+          ordersByCustomerId[o.customer_id].spent += total;
+          if (!ordersByCustomerId[o.customer_id].lastAt || o.created_at > ordersByCustomerId[o.customer_id].lastAt!) {
+            ordersByCustomerId[o.customer_id].lastAt = o.created_at;
+          }
+        }
+
+        // By phone
+        const normPhone = normalizePhone(o.customer_phone);
+        if (normPhone.length >= 10) {
+          if (!ordersByPhone[normPhone]) {
+            ordersByPhone[normPhone] = { count: 0, spent: 0, lastAt: null };
+          }
+          ordersByPhone[normPhone].count++;
+          ordersByPhone[normPhone].spent += total;
+          if (!ordersByPhone[normPhone].lastAt || o.created_at > ordersByPhone[normPhone].lastAt!) {
+            ordersByPhone[normPhone].lastAt = o.created_at;
+          }
+        }
+      }
+
+      const mappedCustomers: CustomerWithStats[] = (customersRes.data || []).map((c) => {
+        const byId = ordersByCustomerId[c.id];
+        const normCustPhone = normalizePhone(c.phone);
+        const byPhone = normCustPhone.length >= 10 ? ordersByPhone[normCustPhone] : null;
+        // Use whichever has more orders (phone match catches orders linked to old customer_id)
+        const stats = (byPhone && (!byId || byPhone.count > byId.count)) ? byPhone : byId;
+
+        return {
+          id: c.id,
+          phone: c.phone,
+          name: c.name,
+          email: c.email,
+          size: c.size,
+          size_letter: c.size_letter,
+          size_number: c.size_number,
+          style_title: c.style_title,
+          created_at: c.created_at,
+          total_orders: stats?.count || c.total_orders || 0,
+          last_order_at: stats?.lastAt || c.last_order_at,
+          total_spent: stats?.spent || Number(c.total_spent || 0),
+          address_line: c.address_line,
+          city: c.city,
+          state: c.state,
+          zip_code: c.zip_code,
+          user_id: c.user_id,
+          document: c.document,
+        };
+      });
 
       const rfvMap: Record<string, number> = {};
       if (mappedCustomers.length > 0) {
