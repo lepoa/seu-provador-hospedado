@@ -218,6 +218,7 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
   // Delivery method edit state
   const [editingDeliveryOrder, setEditingDeliveryOrder] = useState<string | null>(null);
   const [newDeliveryMethod, setNewDeliveryMethod] = useState<string>("");
+  const [newShippingFee, setNewShippingFee] = useState<string>("");
 
   const { sellers } = useSellers();
 
@@ -700,15 +701,16 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
     // Recalculate shipping fee and total based on new method
     const isPickup = method === "retirada" || method === "pickup";
     const itemsTotal = (order.order_items || []).reduce((sum: number, i: any) => sum + (i.product_price * i.quantity), 0);
-    const newShippingFee = isPickup ? 0 : Number(order.shipping_fee || 0);
-    const newTotal = itemsTotal + newShippingFee - Number(order.coupon_discount || 0);
+    const parsedFee = parseFloat(newShippingFee.replace(",", "."));
+    const calcFee = isPickup ? 0 : (isNaN(parsedFee) ? Number(order.shipping_fee || 0) : parsedFee);
+    const calcTotal = itemsTotal + calcFee - Number(order.coupon_discount || 0);
 
     const { error } = await supabase
       .from("orders")
       .update({
         delivery_method: method,
-        shipping_fee: newShippingFee,
-        total: newTotal,
+        shipping_fee: calcFee,
+        total: calcTotal,
         updated_at: new Date().toISOString()
       })
       .eq("id", orderId);
@@ -719,7 +721,7 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
     }
 
     setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, delivery_method: method, shipping_fee: newShippingFee, total: newTotal } : o))
+      prev.map((o) => (o.id === orderId ? { ...o, delivery_method: method, shipping_fee: calcFee, total: newTotal } : o))
     );
 
     setEditingDeliveryOrder(null);
@@ -1389,6 +1391,30 @@ Qualquer dúvida estamos à disposição! \u{1F495}`;
                           )}
                         </div>
 
+
+                        {/* Price Breakdown */}
+                        <div className="mt-3 space-y-1 text-sm bg-muted/30 rounded-md p-3">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Subtotal:</span>
+                            <span>R$ {((order.order_items || []).reduce((sum: number, i: any) => sum + (i.product_price * i.quantity), 0)).toFixed(2).replace(".", ",")}</span>
+                          </div>
+                          {Number(order.shipping_fee || 0) > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Frete ({getDeliveryLabel(order.delivery_method)}):</span>
+                              <span>R$ {Number(order.shipping_fee || 0).toFixed(2).replace(".", ",")}</span>
+                            </div>
+                          )}
+                          {Number(order.coupon_discount || 0) > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Desconto:</span>
+                              <span className="text-green-600">- R$ {Number(order.coupon_discount || 0).toFixed(2).replace(".", ",")}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between font-semibold border-t pt-1 mt-1">
+                            <span>Total:</span>
+                            <span>R$ {Number(order.total || 0).toFixed(2).replace(".", ",")}</span>
+                          </div>
+                        </div>
                         <Separator className="my-4" />
 
                         <div className="space-y-2 text-sm">
@@ -1410,6 +1436,18 @@ Qualquer dúvida estamos à disposição! \u{1F495}`;
                                     <SelectItem value="correios">Correios</SelectItem>
                                   </SelectContent>
                                 </Select>
+                                {(newDeliveryMethod === "correios" || newDeliveryMethod === "motoboy") && (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-xs text-muted-foreground">Frete R$</span>
+                                    <input
+                                      type="text"
+                                      className="h-7 w-[70px] text-xs border rounded px-1 text-right"
+                                      placeholder="0,00"
+                                      value={newShippingFee}
+                                      onChange={(e) => setNewShippingFee(e.target.value)}
+                                    />
+                                  </div>
+                                )}
                                 <Button
                                   size="sm"
                                   className="h-7 px-2"
