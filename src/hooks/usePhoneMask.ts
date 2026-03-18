@@ -1,7 +1,8 @@
 import { useState, useCallback } from "react";
 
 // Formats phone to display mask: (##) #####-####
-export function formatPhoneDisplay(value: string): string {
+export function formatPhoneDisplay(value: string | null | undefined): string {
+  if (!value) return "";
   const digits = value.replace(/\D/g, "");
   
   // Remove country code 55 if present for display

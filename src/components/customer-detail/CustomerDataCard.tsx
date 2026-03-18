@@ -32,7 +32,7 @@ interface CustomerDataCardProps {
   customer: {
     id: string;
     name: string | null;
-    phone: string;
+    phone: string | null;
     email: string | null;
     instagram: string | null;
     address_line: string | null;

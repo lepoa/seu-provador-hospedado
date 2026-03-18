@@ -6,7 +6,7 @@ import { buildWhatsAppLink } from "@/lib/whatsappHelpers";
 interface CustomerHeaderProps {
   customer: {
     id: string;
-    phone: string;
+    phone: string | null;
     name: string | null;
     email: string | null;
     instagram: string | null;
@@ -23,7 +23,8 @@ interface CustomerHeaderProps {
 }
 
 export function CustomerHeader({ customer, hasQuiz, hasPrints }: CustomerHeaderProps) {
-  const formatPhone = (phone: string) => {
+  const formatPhone = (phone: string | null) => {
+    if (!phone) return "Sem telefone";
     const digits = phone.replace(/\D/g, "");
     if (digits.length === 11) {
       return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
@@ -148,11 +149,15 @@ export function CustomerHeader({ customer, hasQuiz, hasPrints }: CustomerHeaderP
 
         {/* WhatsApp button */}
         <div className="flex items-center gap-2">
-          <WhatsAppButton
-            href={buildWhatsAppLink(whatsappMessage, customer.phone)}
-            variant="primary"
-            className="w-auto"
-          />
+          {customer.phone ? (
+            <WhatsAppButton
+              href={buildWhatsAppLink(whatsappMessage, customer.phone)}
+              variant="primary"
+              className="w-auto"
+            />
+          ) : (
+            <span className="text-xs text-muted-foreground">Sem telefone</span>
+          )}
         </div>
       </div>
     </div>
