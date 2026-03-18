@@ -332,7 +332,7 @@ export function CustomersManagerV2() {
   async function loadData() {
     setIsLoading(true);
     try {
-      const [customersRes, productsRes, pendingMap, ordersRes] = await Promise.all([
+      const [customersRes, productsRes, pendingMap, ordersRes, liveCustomersRes] = await Promise.all([
         supabase.from("customers").select("*").order("last_order_at", { ascending: false, nullsFirst: false }),
         supabase
           .from("product_catalog")
@@ -340,62 +340,65 @@ export function CustomersManagerV2() {
           .eq("is_active", true),
         loadPendingOrdersMap(),
         supabase.from("orders").select("customer_id,customer_phone,status,total,created_at"),
+        supabase.from("live_customers").select("id,client_id"),
       ]);
 
       if (customersRes.error) throw customersRes.error;
       if (productsRes.error) throw productsRes.error;
 
-      // Debug: log orders query result
-      console.log("[CustomersManagerV2] ordersRes error:", ordersRes.error);
-      console.log("[CustomersManagerV2] ordersRes count:", ordersRes.data?.length || 0);
-      if (ordersRes.data?.length) {
-        console.log("[CustomersManagerV2] sample order:", ordersRes.data[0]);
-      }
-
-      // Build order stats by customer_id AND by normalized phone
-      const ordersByCustomerId: Record<string, { count: number; spent: number; lastAt: string | null }> = {};
-      const ordersByPhone: Record<string, { count: number; spent: number; lastAt: string | null }> = {};
+      // Build order stats from orders table (by customer_id AND phone)
+      const salesByCustomer: Record<string, { count: number; spent: number; lastAt: string | null }> = {};
       const normalizePhone = (p: string | null) => p?.replace(/\D/g, "") || "";
+      const paidStatuses = ["pago", "enviado", "entregue"];
 
-      for (const o of (ordersRes.data || [])) {
-        const isPaid = ["pago", "enviado", "entregue"].includes(o.status);
-        const total = isPaid ? Number(o.total || 0) : 0;
-
-        // By customer_id
-        if (o.customer_id) {
-          if (!ordersByCustomerId[o.customer_id]) {
-            ordersByCustomerId[o.customer_id] = { count: 0, spent: 0, lastAt: null };
-          }
-          ordersByCustomerId[o.customer_id].count++;
-          ordersByCustomerId[o.customer_id].spent += total;
-          if (!ordersByCustomerId[o.customer_id].lastAt || o.created_at > ordersByCustomerId[o.customer_id].lastAt!) {
-            ordersByCustomerId[o.customer_id].lastAt = o.created_at;
-          }
+      const addSale = (custId: string, total: number, createdAt: string) => {
+        if (!salesByCustomer[custId]) {
+          salesByCustomer[custId] = { count: 0, spent: 0, lastAt: null };
         }
+        salesByCustomer[custId].count++;
+        salesByCustomer[custId].spent += total;
+        if (!salesByCustomer[custId].lastAt || createdAt > salesByCustomer[custId].lastAt!) {
+          salesByCustomer[custId].lastAt = createdAt;
+        }
+      };
 
-        // By phone
-        const normPhone = normalizePhone(o.customer_phone);
-        if (normPhone.length >= 10) {
-          if (!ordersByPhone[normPhone]) {
-            ordersByPhone[normPhone] = { count: 0, spent: 0, lastAt: null };
-          }
-          ordersByPhone[normPhone].count++;
-          ordersByPhone[normPhone].spent += total;
-          if (!ordersByPhone[normPhone].lastAt || o.created_at > ordersByPhone[normPhone].lastAt!) {
-            ordersByPhone[normPhone].lastAt = o.created_at;
-          }
+      // A. Count from orders table
+      const orderIdsFromOrders = new Set<string>();
+      for (const o of (ordersRes.data || [])) {
+        if (o.customer_id && paidStatuses.includes(o.status)) {
+          addSale(o.customer_id, Number(o.total || 0), o.created_at);
+          orderIdsFromOrders.add(o.id);
         }
       }
 
-      console.log("[CustomersManagerV2] ordersByPhone keys:", Object.keys(ordersByPhone));
-      console.log("[CustomersManagerV2] ordersByCustomerId keys:", Object.keys(ordersByCustomerId));
+      // B. Count from live_carts (matching CustomerSalesReport logic)
+      // Map live_customer.id → customer.id (client_id)
+      const liveCustomerToClient: Record<string, string> = {};
+      for (const lc of (liveCustomersRes.data || [])) {
+        if (lc.client_id) {
+          liveCustomerToClient[lc.id] = lc.client_id;
+        }
+      }
+
+      if (Object.keys(liveCustomerToClient).length > 0) {
+        const { data: liveCarts } = await supabase
+          .from("live_carts")
+          .select("id,live_customer_id,status,total,created_at,order_id")
+          .in("live_customer_id", Object.keys(liveCustomerToClient))
+          .in("status", paidStatuses);
+
+        for (const cart of (liveCarts || [])) {
+          // Skip if this cart already has an order linked (avoid double counting)
+          if (cart.order_id && orderIdsFromOrders.has(cart.order_id)) continue;
+          const clientId = liveCustomerToClient[cart.live_customer_id];
+          if (clientId) {
+            addSale(clientId, Number(cart.total || 0), cart.created_at);
+          }
+        }
+      }
 
       const mappedCustomers: CustomerWithStats[] = (customersRes.data || []).map((c) => {
-        const byId = ordersByCustomerId[c.id];
-        const normCustPhone = normalizePhone(c.phone);
-        const byPhone = normCustPhone.length >= 10 ? ordersByPhone[normCustPhone] : null;
-        // Use whichever has more orders (phone match catches orders linked to old customer_id)
-        const stats = (byPhone && (!byId || byPhone.count > byId.count)) ? byPhone : byId;
+        const stats = salesByCustomer[c.id];
 
         return {
           id: c.id,
