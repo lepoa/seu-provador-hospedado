@@ -92,7 +92,8 @@ export function ProductsManager({ userId, initialFilter }: ProductsManagerProps)
       const { data, error } = await supabase
         .from("product_available_stock")
         .select("*")
-        .in("product_id", productIds);
+        .in("product_id", productIds)
+        .limit(5000);
 
       if (error) throw error;
 
