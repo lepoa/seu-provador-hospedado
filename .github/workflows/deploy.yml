@@ -43,3 +43,10 @@ jobs:
           timeout: 600000
           log-level: verbose
           state-name: .ftp-deploy-sync-state-public-html.json
+
+      - name: Purge LiteSpeed cache
+        run: |
+          echo "Purging server cache..."
+          curl -sf -o /dev/null "https://lepoa.online/?purge=all" || true
+          curl -sf -o /dev/null "https://lepoa.online/index.html?nocache=${{ github.run_id }}" || true
+          echo "Cache purge request sent (run_id: ${{ github.run_id }})"
