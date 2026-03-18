@@ -1,8 +1,9 @@
 -- =======================================================
--- FIX: Restore 7-day reserved_until for live orders
--- Bug: migration 20260310 replaced trigger_sync_live_cart_to_orders()
---      without including reserved_until in the INSERT, causing live
---      orders to default to 24h reservation instead of 7 days.
+-- FIX: Live reservation system - multiple regression fixes
+-- Bug 1: migration 20260310 dropped reserved_until from order INSERT
+-- Bug 2: live_cart_items expiring to 'expirado' releasing stock
+-- Bug 3: apply_live_cart_paid_effects only processed 'confirmado' items,
+--         ignoring 'reservado' items when manually marking as paid
 -- =======================================================
 
 -- 1) Fix trigger_sync_live_cart_to_orders: add reserved_until back to INSERT
@@ -136,48 +137,108 @@ BEGIN
 END;
 $$;
 
--- 3) Backfill: Restore live orders that were incorrectly expired
---    These are orders with source='live', cancel_reason='reservation_expired',
---    whose live_carts are still active (not cancelled/expired/pago).
-UPDATE orders o
-SET
-  status = 'aguardando_pagamento',
-  cancel_reason = NULL,
-  canceled_at = NULL,
-  requires_physical_cancel = false,
-  attention_reason = NULL,
-  attention_at = NULL,
-  reserved_until = o.created_at + (
-    COALESCE(
-      (SELECT reservation_expiry_minutes FROM live_events le WHERE le.id = o.live_event_id),
-      10080
-    ) || ' minutes'
-  )::interval,
-  updated_at = now()
-WHERE o.source = 'live'
-  AND o.status = 'cancelado'
-  AND o.cancel_reason = 'reservation_expired'
-  AND o.live_cart_id IS NOT NULL
-  AND EXISTS (
-    SELECT 1 FROM live_carts lc
-    WHERE lc.id = o.live_cart_id
-      AND lc.status NOT IN ('cancelado', 'expirado', 'pago')
-  );
+-- 3) Fix apply_live_cart_paid_effects to include 'reservado' items (for manual payments)
+CREATE OR REPLACE FUNCTION public.apply_live_cart_paid_effects(p_live_cart_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  v_cart RECORD;
+  v_item RECORD;
+  v_committed JSONB;
+  v_newCommitted JSONB;
+  v_size TEXT;
+  v_items_committed JSONB := '[]'::jsonb;
+  v_movement_exists BOOLEAN;
+BEGIN
+  SELECT * INTO v_cart FROM live_carts WHERE id = p_live_cart_id FOR UPDATE;
+  
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Live cart not found');
+  END IF;
 
--- 4) Also fix any live orders still pending that have a 24h reserved_until
---    (created after the buggy migration but not yet expired)
-UPDATE orders o
-SET
-  reserved_until = o.created_at + (
-    COALESCE(
-      (SELECT reservation_expiry_minutes FROM live_events le WHERE le.id = o.live_event_id),
-      10080
-    ) || ' minutes'
-  )::interval,
-  updated_at = now()
-WHERE o.source = 'live'
-  AND o.status IN ('aguardando_pagamento', 'pendente')
-  AND o.live_cart_id IS NOT NULL
-  AND o.reserved_until IS NOT NULL
-  AND o.reserved_until < o.created_at + interval '2 days'  -- Only fix the ones with ~24h reservation
-  AND o.live_event_id IS NOT NULL;
+  IF v_cart.stock_decremented_at IS NOT NULL THEN
+    RETURN jsonb_build_object(
+      'success', true, 
+      'already_processed', true,
+      'live_cart_id', p_live_cart_id,
+      'message', 'Stock already committed at ' || v_cart.stock_decremented_at::text
+    );
+  END IF;
+
+  SELECT EXISTS(
+    SELECT 1 FROM inventory_movements 
+    WHERE order_id = p_live_cart_id 
+    AND movement_type IN ('live_sale_decrement', 'live_sale_committed')
+  ) INTO v_movement_exists;
+
+  IF v_movement_exists THEN
+    UPDATE live_carts SET stock_decremented_at = now() WHERE id = p_live_cart_id;
+    RETURN jsonb_build_object(
+      'success', true, 
+      'already_processed', true,
+      'reason', 'Movement already exists',
+      'live_cart_id', p_live_cart_id
+    );
+  END IF;
+
+  -- FIX: Include both 'confirmado' AND 'reservado' items
+  FOR v_item IN
+    SELECT 
+      lci.product_id,
+      (lci.variante->>'tamanho')::text as size,
+      lci.qtd as quantity
+    FROM live_cart_items lci
+    WHERE lci.live_cart_id = p_live_cart_id
+    AND lci.status IN ('confirmado', 'reservado')
+  LOOP
+    v_size := v_item.size;
+    IF v_size IS NULL OR v_size = '' THEN
+      CONTINUE;
+    END IF;
+
+    SELECT committed_by_size
+    INTO v_committed
+    FROM product_catalog
+    WHERE id = v_item.product_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+      CONTINUE;
+    END IF;
+
+    v_committed := COALESCE(v_committed, '{}'::jsonb);
+    
+    v_newCommitted := v_committed || jsonb_build_object(
+      v_size, COALESCE((v_committed->>v_size)::int, 0) + v_item.quantity
+    );
+
+    UPDATE product_catalog
+    SET committed_by_size = v_newCommitted
+    WHERE id = v_item.product_id;
+
+    v_items_committed := v_items_committed || jsonb_build_object(
+      'product_id', v_item.product_id,
+      'size', v_size,
+      'quantity', v_item.quantity
+    );
+  END LOOP;
+
+  INSERT INTO inventory_movements (order_id, movement_type, items_json)
+  VALUES (p_live_cart_id, 'live_sale_committed', v_items_committed);
+
+  UPDATE live_carts 
+  SET stock_decremented_at = now() 
+  WHERE id = p_live_cart_id;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'live_cart_id', p_live_cart_id,
+    'stock_committed', true,
+    'items_count', jsonb_array_length(v_items_committed),
+    'items', v_items_committed
+  );
+END;
+$$;
