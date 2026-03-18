@@ -108,6 +108,8 @@ interface Order {
   shipping_fee?: number | null;
   subtotal?: number | null;
   coupon_discount?: number | null;
+  coupon_id?: string | null;
+  coupon?: { code: string; discount_type: string; discount_value: number } | null;
 }
 
 
@@ -334,7 +336,8 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
         .select(`
           *,
           live_event:live_events(titulo),
-          order_items(*)
+          order_items(*),
+          coupon:coupons(code, discount_type, discount_value)
         `)
         .order("created_at", { ascending: false });
 
@@ -1406,7 +1409,7 @@ Qualquer dúvida estamos à disposição! \u{1F495}`;
                           )}
                           {Number(order.coupon_discount || 0) > 0 && (
                             <div className="flex justify-between">
-                              <span className="text-muted-foreground">Desconto:</span>
+                              <span className="text-muted-foreground">Desconto{order.coupon ? ` (${order.coupon.code.toUpperCase()})` : ""}:</span>
                               <span className="text-green-600">- R$ {Number(order.coupon_discount || 0).toFixed(2).replace(".", ",")}</span>
                             </div>
                           )}
