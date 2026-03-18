@@ -24,21 +24,44 @@ export function useProductAvailableStock(productIds?: string[]) {
     try {
       setIsLoading(true);
       
-      let query = supabase
-        .from("product_available_stock")
-        .select("*");
+      let allData: StockEntry[] = [];
       
       if (productIds && productIds.length > 0) {
-        query = query.in("product_id", productIds);
+        // Batch queries in chunks of 50 product IDs to stay under
+        // Supabase's server-side max_rows limit (1000 rows)
+        const BATCH_SIZE = 50;
+        const batches: string[][] = [];
+        for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
+          batches.push(productIds.slice(i, i + BATCH_SIZE));
+        }
+        
+        const results = await Promise.all(
+          batches.map((batch) =>
+            supabase
+              .from("product_available_stock")
+              .select("*")
+              .in("product_id", batch)
+          )
+        );
+        
+        for (const result of results) {
+          if (result.error) throw result.error;
+          if (result.data) allData.push(...(result.data as StockEntry[]));
+        }
+      } else {
+        // No product IDs filter — fetch all (paginated)
+        const { data, error: fetchError } = await supabase
+          .from("product_available_stock")
+          .select("*")
+          .limit(5000);
+        
+        if (fetchError) throw fetchError;
+        allData = (data || []) as StockEntry[];
       }
-      
-      const { data, error: fetchError } = await query;
-      
-      if (fetchError) throw fetchError;
       
       const stockMap = new Map<string, Map<string, StockEntry>>();
       
-      (data || []).forEach((entry: StockEntry) => {
+      allData.forEach((entry: StockEntry) => {
         if (!stockMap.has(entry.product_id)) {
           stockMap.set(entry.product_id, new Map());
         }
