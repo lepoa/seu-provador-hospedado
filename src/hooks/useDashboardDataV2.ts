@@ -284,10 +284,32 @@ export function useDashboardDataV2(filters: DashboardFilters) {
       const previous7Start = startOfDay(subDays(endDate, 13));
       const previous7End = endOfDay(subDays(endDate, 7));
 
-      const receitaHojeQuery = buildOrdersQuery(todayStart, todayEnd);
-      const receitaOntemQuery = buildOrdersQuery(yesterdayStart, yesterdayEnd);
-      const receita7dQuery = buildOrdersQuery(last7Start, last7End);
-      const receita7dPrevQuery = buildOrdersQuery(previous7Start, previous7End);
+      // Pulse queries: filter by paid_at (revenue = day payment was made, not day of live)
+      const buildPulseQuery = (from: Date, to: Date) => {
+        let query = supabase
+          .from("orders")
+          .select("id, status, payment_status, total")
+          .gte("paid_at", from.toISOString())
+          .lte("paid_at", to.toISOString());
+
+        if (filters.channel === "catalog") {
+          query = query.is("live_event_id", null);
+        } else if (filters.channel === "live") {
+          query = query.not("live_event_id", "is", null);
+        }
+        if (filters.liveEventId) {
+          query = query.eq("live_event_id", filters.liveEventId);
+        }
+        if (filters.sellerId) {
+          query = query.eq("seller_id", filters.sellerId);
+        }
+        return query;
+      };
+
+      const receitaHojeQuery = buildPulseQuery(todayStart, todayEnd);
+      const receitaOntemQuery = buildPulseQuery(yesterdayStart, yesterdayEnd);
+      const receita7dQuery = buildPulseQuery(last7Start, last7End);
+      const receita7dPrevQuery = buildPulseQuery(previous7Start, previous7End);
 
       // Fetch customers for top customers
       const customersQuery = supabase
@@ -342,26 +364,11 @@ export function useDashboardDataV2(filters: DashboardFilters) {
         const paid = ordersList.filter(o => isPaidOrder(o));
         const cancelled = ordersList.filter(o => isCancelledOrder(o));
 
-        // Exclude gifts from revenue calculations (price = 0)
-        const paidTotal = paid.reduce((sum, o) => {
-          const items = o.order_items || [];
-          const itemsTotal = items.reduce((s: number, i: any) => {
-            if (i.product_price === 0) return s; // Skip gifts
-            return s + (i.product_price * i.quantity);
-          }, 0);
-          return sum + itemsTotal;
-        }, 0);
+        // Use orders.total for revenue (more reliable than summing order_items)
+        const paidTotal = paid.reduce((sum, o) => sum + Number(o.total || 0), 0);
+        const reservedTotal = notCancelled.reduce((sum, o) => sum + Number(o.total || 0), 0);
 
-        const reservedTotal = notCancelled.reduce((sum, o) => {
-          const items = o.order_items || [];
-          const itemsTotal = items.reduce((s: number, i: any) => {
-            if (i.product_price === 0) return s;
-            return s + (i.product_price * i.quantity);
-          }, 0);
-          return sum + itemsTotal;
-        }, 0);
-
-        // Count pieces excluding gifts
+        // Count pieces from order_items (excluding gifts)
         const totalPieces = paid.reduce((sum, o) => {
           const items = o.order_items || [];
           return sum + items.filter((i: any) => i.product_price > 0).reduce((s: number, i: any) => s + i.quantity, 0);
@@ -571,21 +578,32 @@ export function useDashboardDataV2(filters: DashboardFilters) {
         return { value: current, previousValue: previous, change, changePercent };
       };
 
-      const receitaHoje = calcKPIs(receitaHojeOrders);
-      const receitaOntem = calcKPIs(receitaOntemOrders);
-      const receita7d = calcKPIs(receita7dOrders);
-      const receita7dPrev = calcKPIs(receita7dPrevOrders);
+      // Pulse uses paid_at queries - calculate revenue from orders.total
+      const calcPulseRevenue = (ordersList: any[]) => {
+        const paid = ordersList.filter(o => isPaidOrder(o));
+        const total = paid.reduce((sum, o) => sum + Number(o.total || 0), 0);
+        return { total, count: paid.length };
+      };
+
+      const pulseHoje = calcPulseRevenue(receitaHojeOrders);
+      const pulseOntem = calcPulseRevenue(receitaOntemOrders);
+      const pulse7d = calcPulseRevenue(receita7dOrders);
+      const pulse7dPrev = calcPulseRevenue(receita7dPrevOrders);
+
+      // Conversion uses main query (by created_at)
+      const receita7d = calcKPIs(orders.filter(o => new Date(o.created_at) >= last7Start && new Date(o.created_at) <= last7End));
+      const receita7dPrev = calcKPIs(orders.filter(o => new Date(o.created_at) >= previous7Start && new Date(o.created_at) <= previous7End));
 
       setExecutivePulse({
-        receitaHoje: createKPI(receitaHoje.paidTotal, receitaOntem.paidTotal),
-        receita7d: createKPI(receita7d.paidTotal, receita7dPrev.paidTotal),
+        receitaHoje: createKPI(pulseHoje.total, pulseOntem.total),
+        receita7d: createKPI(pulse7d.total, pulse7dPrev.total),
         conversao: createKPI(
           receita7d.reservedTotal > 0 ? (receita7d.paidTotal / receita7d.reservedTotal) * 100 : 0,
           receita7dPrev.reservedTotal > 0 ? (receita7dPrev.paidTotal / receita7dPrev.reservedTotal) * 100 : 0
         ),
         ticketMedio: createKPI(
-          receita7d.paidCount > 0 ? receita7d.paidTotal / receita7d.paidCount : 0,
-          receita7dPrev.paidCount > 0 ? receita7dPrev.paidTotal / receita7dPrev.paidCount : 0
+          pulse7d.count > 0 ? pulse7d.total / pulse7d.count : 0,
+          pulse7dPrev.count > 0 ? pulse7dPrev.total / pulse7dPrev.count : 0
         ),
       });
 
