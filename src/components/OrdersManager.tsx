@@ -703,7 +703,7 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
 
     // Recalculate shipping fee and total based on new method
     const isPickup = method === "retirada" || method === "pickup";
-    const itemsTotal = (order.order_items || []).reduce((sum: number, i: any) => sum + (i.product_price * i.quantity), 0);
+    const itemsTotal = (orderItems[order.id] || []).reduce((sum: number, i: any) => sum + (i.product_price * i.quantity), 0);
     const parsedFee = parseFloat(newShippingFee.replace(",", "."));
     const calcFee = isPickup ? 0 : (isNaN(parsedFee) ? Number(order.shipping_fee || 0) : parsedFee);
     const calcTotal = itemsTotal + calcFee - Number(order.coupon_discount || 0);
@@ -1399,7 +1399,7 @@ Qualquer dúvida estamos à disposição! \u{1F495}`;
                         <div className="mt-3 space-y-1 text-sm bg-muted/30 rounded-md p-3">
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Subtotal:</span>
-                            <span>R$ {((order.order_items || []).reduce((sum: number, i: any) => sum + (i.product_price * i.quantity), 0)).toFixed(2).replace(".", ",")}</span>
+                            <span>R$ {((orderItems[order.id] || []).reduce((sum: number, i: any) => sum + (i.product_price * i.quantity), 0)).toFixed(2).replace(".", ",")}</span>
                           </div>
                           {Number(order.shipping_fee || 0) > 0 && (
                             <div className="flex justify-between">
