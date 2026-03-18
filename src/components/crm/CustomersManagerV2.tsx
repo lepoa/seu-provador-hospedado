@@ -385,7 +385,7 @@ export function CustomersManagerV2() {
           .from("live_carts")
           .select("id,live_customer_id,status,total,created_at,order_id")
           .in("live_customer_id", Object.keys(liveCustomerToClient))
-          .in("status", paidStatuses);
+          .eq("status", "pago");
 
         for (const cart of (liveCarts || [])) {
           // Skip if this cart already has an order linked (avoid double counting)
