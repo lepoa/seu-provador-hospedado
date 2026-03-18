@@ -105,6 +105,9 @@ interface Order {
   payment_review_status?: string | null;
   payment_proof_url?: string | null;
   updated_at?: string;
+  shipping_fee?: number | null;
+  subtotal?: number | null;
+  coupon_discount?: number | null;
 }
 
 
@@ -694,21 +697,29 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
       return;
     }
 
+    // Recalculate shipping fee and total based on new method
+    const isPickup = method === "retirada" || method === "pickup";
+    const itemsTotal = (order.order_items || []).reduce((sum: number, i: any) => sum + (i.product_price * i.quantity), 0);
+    const newShippingFee = isPickup ? 0 : Number(order.shipping_fee || 0);
+    const newTotal = itemsTotal + newShippingFee - Number(order.coupon_discount || 0);
+
     const { error } = await supabase
       .from("orders")
       .update({
         delivery_method: method,
+        shipping_fee: newShippingFee,
+        total: newTotal,
         updated_at: new Date().toISOString()
       })
       .eq("id", orderId);
 
     if (error) {
-      toast.error("Erro ao atualizar método de entrega");
+      toast.error("Erro ao atualizar mÃ©todo de entrega");
       return;
     }
 
     setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, delivery_method: method } : o))
+      prev.map((o) => (o.id === orderId ? { ...o, delivery_method: method, shipping_fee: newShippingFee, total: newTotal } : o))
     );
 
     setEditingDeliveryOrder(null);
@@ -1394,9 +1405,9 @@ Qualquer dúvida estamos à disposição! \u{1F495}`;
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="pickup">Retirada na loja</SelectItem>
+                                    <SelectItem value="retirada">Retirada na loja</SelectItem>
                                     <SelectItem value="motoboy">Motoboy</SelectItem>
-                                    <SelectItem value="shipping">Correios</SelectItem>
+                                    <SelectItem value="correios">Correios</SelectItem>
                                   </SelectContent>
                                 </Select>
                                 <Button
