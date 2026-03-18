@@ -1509,7 +1509,7 @@ Qualquer dúvida estamos à disposição! \u{1F495}`;
                             <span>{order.customer_address}</span>
                           </div>
                           {/* CPF - show if available (for Correios) */}
-                          {order.delivery_method === 'shipping' && (
+                          {(order.delivery_method === 'shipping' || order.delivery_method === 'correios') && (
                             <div>
                               <span className="text-muted-foreground">CPF: </span>
                               {(() => {
@@ -1523,7 +1523,7 @@ Qualquer dúvida estamos à disposição! \u{1F495}`;
                           )}
 
                           {/* Tracking Code - show for Correios orders with label */}
-                          {order.delivery_method === 'shipping' && (order.tracking_code || order.me_label_url || order.status === 'etiqueta_gerada') && (
+                          {(order.delivery_method === 'shipping' || order.delivery_method === 'correios') && (order.tracking_code || order.me_label_url || order.status === 'etiqueta_gerada') && (
                             <div className="mt-2 pt-2 border-t border-dashed border-border">
                               {(() => {
                                 // Validation: Check if tracking code is valid (not ORD-... or other invalid formats)
