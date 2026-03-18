@@ -345,6 +345,13 @@ export function CustomersManagerV2() {
       if (customersRes.error) throw customersRes.error;
       if (productsRes.error) throw productsRes.error;
 
+      // Debug: log orders query result
+      console.log("[CustomersManagerV2] ordersRes error:", ordersRes.error);
+      console.log("[CustomersManagerV2] ordersRes count:", ordersRes.data?.length || 0);
+      if (ordersRes.data?.length) {
+        console.log("[CustomersManagerV2] sample order:", ordersRes.data[0]);
+      }
+
       // Build order stats by customer_id AND by normalized phone
       const ordersByCustomerId: Record<string, { count: number; spent: number; lastAt: string | null }> = {};
       const ordersByPhone: Record<string, { count: number; spent: number; lastAt: string | null }> = {};
@@ -379,6 +386,9 @@ export function CustomersManagerV2() {
           }
         }
       }
+
+      console.log("[CustomersManagerV2] ordersByPhone keys:", Object.keys(ordersByPhone));
+      console.log("[CustomersManagerV2] ordersByCustomerId keys:", Object.keys(ordersByCustomerId));
 
       const mappedCustomers: CustomerWithStats[] = (customersRes.data || []).map((c) => {
         const byId = ordersByCustomerId[c.id];
