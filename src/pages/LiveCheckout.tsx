@@ -15,6 +15,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { usePhoneMask } from "@/hooks/usePhoneMask";
 import { useAuth } from "@/hooks/useAuth";
 import { useCepLookup } from "@/hooks/useCepLookup";
+import { parseAddressLine } from "@/components/AddressForm";
 import { STORE_CONFIG } from "@/lib/storeDeliveryConfig";
 import { MotoboyConfirmation, DeliveryPeriod, canProceedWithMotoboy } from "@/components/checkout/MotoboyConfirmation";
 import { PickupConfirmation } from "@/components/checkout/PickupConfirmation";
@@ -80,20 +81,26 @@ export default function LiveCheckout() {
           if (data.whatsapp) {
             phoneMask.setDisplayValue(data.whatsapp);
           }
-          // Pre-fill address from profile
-          if (data.address_line) {
-            // Parse address_line (format: "Rua, Número, Complemento, Bairro")
-            const parts = data.address_line.split(", ").map((p: string) => p.trim());
-            if (parts[0] && !street) setStreet(parts[0]);
-            if (parts[1] && !number) setNumber(parts[1]);
-            if (parts[2] && !complement) setComplement(parts[2]);
-            if (parts[3] && !neighborhood) setNeighborhood(parts[3]);
-          }
-          if (data.city && !city) setCity(data.city);
-          if (data.state && !state) setState(data.state);
-          if (data.zip_code && !zipCode) setZipCode(data.zip_code.replace(/\D/g, ""));
-          if (data.address_reference && !reference) setReference(data.address_reference);
-          if (data.cpf && !cpf) setCpf(data.cpf.replace(/\D/g, ""));
+          // Pre-fill email from auth user
+          if (user?.email && !email) setEmail(user.email);
+          // Pre-fill address from profile using proper parseAddressLine utility
+          const parsed = parseAddressLine(
+            data.address_line,
+            data.city,
+            data.state,
+            data.zip_code,
+            data.address_reference,
+            data.cpf
+          );
+          if (parsed.street && !street) setStreet(parsed.street);
+          if (parsed.number && !number) setNumber(parsed.number);
+          if (parsed.complement && !complement) setComplement(parsed.complement);
+          if (parsed.neighborhood && !neighborhood) setNeighborhood(parsed.neighborhood);
+          if (parsed.city && !city) setCity(parsed.city);
+          if (parsed.state && !state) setState(parsed.state);
+          if (parsed.zipCode && !zipCode) setZipCode(parsed.zipCode);
+          if (parsed.reference && !reference) setReference(parsed.reference);
+          if (parsed.document && !cpf) setCpf(parsed.document);
         }
       });
     }
