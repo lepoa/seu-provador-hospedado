@@ -339,7 +339,7 @@ const generatePackingSlipHtml = (order: Order, items: OrderItem[], logoDataUrl?:
   const printableItems = items.filter((item) => !isCancelledItem(item) && item.quantity > 0);
   const orderNumber = order.id.slice(0, 8).toUpperCase();
   const orderDate = format(new Date(order.created_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR });
-  const deliveryClass = order.delivery_method === 'motoboy' ? 'motoboy' : order.delivery_method === 'pickup' ? 'pickup' : '';
+  const deliveryClass = order.delivery_method === 'motoboy' ? 'motoboy' : (order.delivery_method === 'pickup' || order.delivery_method === 'retirada') ? 'pickup' : '';
   
   const itemsHtml = printableItems.map(item => `
     <tr>
@@ -390,7 +390,7 @@ const generatePackingSlipHtml = (order: Order, items: OrderItem[], logoDataUrl?:
             <div class="info-value">${order.customer_phone}</div>
           </div>
         </div>
-        ${order.delivery_method !== 'pickup' ? `
+        ${order.delivery_method !== 'pickup' && order.delivery_method !== 'retirada' ? `
           <div class="info-block" style="margin-top: 8px;">
             <div class="info-label">Endereço de Entrega</div>
             <div class="info-value">${order.customer_address || 'Não informado'}</div>
