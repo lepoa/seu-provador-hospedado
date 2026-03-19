@@ -194,6 +194,7 @@ export function LiveEventsList() {
               <LiveEventCard 
                 key={event.id} 
                 event={event}
+                onOpenBackstage={() => navigate(`/dashboard/lives/${event.id}/backstage`)}
                 onViewReport={() => navigate(`/dashboard/lives/${event.id}/relatorio`)}
               />
             ))}
@@ -312,18 +313,11 @@ function LiveEventCard({
             <>
               <Button 
                 size="sm" 
-                className="flex-1 gap-1 bg-red-600 hover:bg-red-700"
+                className="flex-1 gap-1 bg-[#2D4A3E] hover:bg-[#1a3028] text-white font-medium"
                 onClick={onOpenBackstage}
               >
                 <Radio className="h-3 w-3" />
                 Backstage
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={onEndLive}
-              >
-                <Square className="h-3 w-3" />
               </Button>
             </>
           )}

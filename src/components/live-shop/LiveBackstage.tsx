@@ -1156,15 +1156,6 @@ export function LiveBackstage() {
             <Trophy className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Sorteio</span>
           </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            className="gap-1 h-8 shrink-0"
-            onClick={handleEndLive}
-          >
-            <Square className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Encerrar</span>
-          </Button>
         </div>
       </header>
 
