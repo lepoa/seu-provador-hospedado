@@ -339,7 +339,7 @@ export function CustomersManagerV2() {
           .select("id,name,price,image_url,images,main_image_index,stock_by_size,color,category")
           .eq("is_active", true),
         loadPendingOrdersMap(),
-        supabase.from("orders").select("customer_id,customer_phone,status,total,created_at"),
+        supabase.from("orders").select("id,customer_id,customer_phone,status,total,created_at"),
         supabase.from("live_customers").select("id,client_id"),
       ]);
 
