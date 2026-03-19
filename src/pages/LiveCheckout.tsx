@@ -71,7 +71,7 @@ export default function LiveCheckout() {
     }
   }, [user, authLoading, navigate]);
 
-  // Pre-fill from Profile
+  // Pre-fill from Profile (name, phone, AND address)
   useEffect(() => {
     if (user) {
       supabase.from("profiles").select("*").eq("user_id", user.id).single().then(({ data }) => {
@@ -80,6 +80,20 @@ export default function LiveCheckout() {
           if (data.whatsapp) {
             phoneMask.setDisplayValue(data.whatsapp);
           }
+          // Pre-fill address from profile
+          if (data.address_line) {
+            // Parse address_line (format: "Rua, Número, Complemento, Bairro")
+            const parts = data.address_line.split(", ").map((p: string) => p.trim());
+            if (parts[0] && !street) setStreet(parts[0]);
+            if (parts[1] && !number) setNumber(parts[1]);
+            if (parts[2] && !complement) setComplement(parts[2]);
+            if (parts[3] && !neighborhood) setNeighborhood(parts[3]);
+          }
+          if (data.city && !city) setCity(data.city);
+          if (data.state && !state) setState(data.state);
+          if (data.zip_code && !zipCode) setZipCode(data.zip_code.replace(/\D/g, ""));
+          if (data.address_reference && !reference) setReference(data.address_reference);
+          if (data.cpf && !cpf) setCpf(data.cpf.replace(/\D/g, ""));
         }
       });
     }
@@ -226,8 +240,28 @@ export default function LiveCheckout() {
     if (!nome.trim()) { toast.error("Preencha seu nome"); return; }
     if (!phoneMask.isValid) { toast.error("WhatsApp inválido"); return; }
 
-    // For motoboy/shipping we need address, for pickup we don't
-    // We'll collect address in delivery step if needed; just save name+phone now
+    // Save name, phone, AND address to profile for future purchases
+    if (user) {
+      const addressParts = [street, number, complement, neighborhood].filter(Boolean);
+      const fullAddressLine = addressParts.join(", ");
+      const cleanCpf = cpf.replace(/\D/g, "");
+
+      await supabase
+        .from("profiles")
+        .update({
+          name: nome.trim(),
+          full_name: nome.trim(),
+          whatsapp: phoneMask.getNormalizedValue(),
+          address_line: fullAddressLine || null,
+          city: city.trim() || null,
+          state: state.trim() || null,
+          zip_code: zipCode.replace(/\D/g, '') || null,
+          address_reference: reference.trim() || null,
+          cpf: cleanCpf.length === 11 ? cleanCpf : undefined,
+        })
+        .eq("user_id", user.id);
+    }
+
     setCurrentStep("delivery");
   };
 
