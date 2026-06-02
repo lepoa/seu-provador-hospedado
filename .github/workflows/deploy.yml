@@ -29,16 +29,16 @@ jobs:
           echo "Listing build directory contents:"
           ls -R dist/
 
-      - name: Sync files (FTP)
+      - name: Sync files (SFTP)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftps
-          port: 21
+          protocol: sftp
+          port: 65002
           local-dir: ./dist/
-          server-dir: /public_html/
+          server-dir: ./public_html/
           timeout: 600000
           log-level: verbose
           state-name: .ftp-deploy-sync-state-v2.json
