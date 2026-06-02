@@ -36,13 +36,15 @@ jobs:
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
           sudo apt-get install -y lftp
-          lftp -u "$FTP_USERNAME,$FTP_PASSWORD" -e "
-            set sftp:auto-confirm yes;
-            set net:timeout 60;
-            set net:max-retries 3;
-            mirror -R --no-perms --parallel=4 ./dist/ public_html/;
-            quit
-          " sftp://$FTP_SERVER:65002
+          cat > /tmp/lftp_deploy.conf << LFTP_EOF
+          set sftp:auto-confirm yes
+          set net:timeout 60
+          set net:max-retries 3
+          open -u $FTP_USERNAME,$FTP_PASSWORD sftp://$FTP_SERVER:65002
+          mirror -R --no-perms --parallel=4 ./dist/ public_html/
+          quit
+          LFTP_EOF
+          lftp -f /tmp/lftp_deploy.conf
 
       - name: Purge LiteSpeed cache
         run: |
