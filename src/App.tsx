@@ -1,4 +1,4 @@
-﻿import { Toaster } from "@/components/ui/toaster";
+import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import RuntimeLoggerPanel from "@/components/RuntimeLoggerPanel";
@@ -63,6 +63,7 @@ const DashboardConsultoraPage = lazy(() => import("./pages/DashboardConsultoraPa
 const BagTrackerPage = lazy(() => import("./pages/BagTrackerPage"));
 const ClientesRankingPage = lazy(() => import("./pages/ClientesRankingPage"));
 const CustomerDetail = lazy(() => import("./pages/CustomerDetail"));
+const FixOrders = lazy(() => import("./pages/FixOrders"));
 
 const queryClient = new QueryClient();
 
@@ -325,6 +326,7 @@ const App = () => (
               <Route path="/dashboard/consultora" element={withMerchantProtection(DashboardConsultoraPage)} />
               <Route path="/clientes/ranking" element={withMerchantProtection(ClientesRankingPage)} />
               <Route path="/importar-estoque" element={withMerchantProtection(ImportarEstoque)} />
+              <Route path="/dashboard/fix-orders" element={withMerchantProtection(FixOrders)} />
 
               {/* E-commerce routes */}
               <Route path="/catalogo" element={withRouteSuspense(Catalog)} />

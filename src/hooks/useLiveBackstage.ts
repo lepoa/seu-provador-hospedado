@@ -632,7 +632,7 @@ export function useLiveBackstage(eventId: string | undefined, pauseRefetch: bool
         .eq("id", eventId)
         .single();
 
-      const expiryMinutes = eventData?.reservation_expiry_minutes || 30;
+      const expiryMinutes = eventData?.reservation_expiry_minutes || 10080;
       const expirationDate = new Date();
       expirationDate.setMinutes(expirationDate.getMinutes() + expiryMinutes);
 

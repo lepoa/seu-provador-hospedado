@@ -66,6 +66,9 @@ export interface LiveOrderCart {
   // Customer notes
   customer_checkout_notes: string | null;
   customer_live_notes: string | null;
+  // Upsell tracking (in-store add-ons during pickup)
+  upsell_total?: number | null;
+  upsell_notes?: string | null;
   created_at: string;
   updated_at: string;
   public_token: string | null;
@@ -653,7 +656,7 @@ export function useLiveOrders(eventId: string | undefined) {
       .from("live_cart_items")
       .update({ status: 'confirmado' })
       .eq("live_cart_id", orderId)
-      .eq("status", 'reservado');
+      .in("status", ['reservado', 'expirado']);
 
     if (itemsError) {
       console.error('[markAsPaid] Failed to confirm items:', itemsError);
@@ -731,7 +734,7 @@ export function useLiveOrders(eventId: string | undefined) {
       .from("live_cart_items")
       .update({ status: 'confirmado' })
       .eq("live_cart_id", orderId)
-      .eq("status", 'reservado');
+      .in("status", ['reservado', 'expirado']);
 
     if (itemsError) {
       console.error('[markAsPaidWithProof] Failed to confirm items:', itemsError);

@@ -66,14 +66,19 @@ export function CustomerDataCard({ customer, onUpdate }: CustomerDataCardProps) 
         return;
       }
 
+      const normalizedInstagram = formData.instagram
+        ? formData.instagram.replace(/@/g, '').toLowerCase().trim()
+        : null;
+
       const { error } = await supabase
         .from("customers")
         .update({
           name: formData.name || null,
           email: formData.email || null,
           instagram: formData.instagram || null,
+          instagram_handle: normalizedInstagram,
           document: cleanCpf || null,
-        })
+        } as any)
         .eq("id", customer.id);
 
       if (error) throw error;

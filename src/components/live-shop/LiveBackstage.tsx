@@ -407,6 +407,8 @@ export function LiveBackstage() {
     if (result.success && result.checkoutUrl) {
       // Open payment link in new tab
       window.open(result.checkoutUrl, '_blank');
+    } else if (!result.success) {
+      toast.error(result.error || "Erro ao gerar link de pagamento. Tente novamente.");
     }
   };
 

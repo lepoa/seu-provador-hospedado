@@ -11,6 +11,7 @@ import {
   Search,
   SlidersHorizontal,
   Users,
+  UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CustomerCard, type CustomerManualSegment } from "@/components/crm/CustomerCard";
@@ -317,6 +318,13 @@ export function CustomersManagerV2() {
   const [exportScope, setExportScope] = useState<"filtered" | "all">("filtered");
   const [exportColumns, setExportColumns] = useState<Record<ExportColumnKey, boolean>>(DEFAULT_EXPORT_COLUMNS);
   const [isExporting, setIsExporting] = useState(false);
+
+  // In-store customer registration
+  const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [regName, setRegName] = useState('');
+  const [regPhone, setRegPhone] = useState('');
+  const [regInstagram, setRegInstagram] = useState('');
 
   const [catalogModalOpen, setCatalogModalOpen] = useState(false);
   const [selectedCustomerForCatalog, setSelectedCustomerForCatalog] = useState<CustomerWithStats | null>(null);
@@ -726,6 +734,11 @@ export function CustomersManagerV2() {
               </Button>
             </div>
 
+            <Button variant="outline" className="gap-2" onClick={() => setIsRegisterOpen(true)}>
+              <UserPlus className="h-4 w-4" />
+              Nova Cliente
+            </Button>
+
             <Button className="gap-2" onClick={() => setIsExportModalOpen(true)}>
               <Download className="h-4 w-4" />
               Exportar XLS
@@ -984,6 +997,129 @@ export function CustomersManagerV2() {
           availableProducts={products}
         />
       )}
+
+      {/* In-Store Customer Registration Modal */}
+      <Dialog open={isRegisterOpen} onOpenChange={(open) => {
+        setIsRegisterOpen(open);
+        if (!open) { setRegName(''); setRegPhone(''); setRegInstagram(''); }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5" />
+              Cadastrar Nova Cliente
+            </DialogTitle>
+            <DialogDescription>
+              Cadastre uma cliente que veio à loja. Ela poderá ser reconhecida automaticamente nas lives.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Nome *</Label>
+              <Input
+                placeholder="Nome completo"
+                value={regName}
+                onChange={(e) => setRegName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Telefone (WhatsApp) *</Label>
+              <Input
+                placeholder="(62) 99999-9999"
+                value={regPhone}
+                onChange={(e) => setRegPhone(e.target.value)}
+                inputMode="tel"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Instagram</Label>
+              <Input
+                placeholder="@usuario"
+                value={regInstagram}
+                onChange={(e) => setRegInstagram(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsRegisterOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              disabled={isRegistering || !regName.trim() || !regPhone.trim()}
+              onClick={async () => {
+                setIsRegistering(true);
+                try {
+                  // Normalize phone
+                  const cleanPhone = regPhone.replace(/\D/g, '');
+                  if (cleanPhone.length < 10) {
+                    toast.error("Telefone inválido. Insira com DDD.");
+                    setIsRegistering(false);
+                    return;
+                  }
+                  const formattedPhone = cleanPhone.length === 11
+                    ? `(${cleanPhone.slice(0,2)}) ${cleanPhone.slice(2,7)}-${cleanPhone.slice(7)}`
+                    : cleanPhone;
+
+                  // Check if phone already exists
+                  const { data: existing } = await supabase
+                    .from("customers")
+                    .select("id")
+                    .eq("phone", formattedPhone)
+                    .maybeSingle();
+
+                  if (existing) {
+                    toast.error("Já existe uma cliente com esse telefone.");
+                    setIsRegistering(false);
+                    return;
+                  }
+
+                  // Normalize Instagram handle for storage
+                  const igHandle = regInstagram.trim().replace(/^@/, '').toLowerCase();
+
+                  // Insert into customers (WITH instagram_handle for Identity Engine)
+                  const { data: newCustomer, error: insertError } = await supabase
+                    .from("customers")
+                    .insert({
+                      name: regName.trim(),
+                      phone: formattedPhone,
+                      instagram_handle: igHandle || null,
+                      instagram: igHandle || null,
+                    } as any)
+                    .select("id")
+                    .single();
+
+                  if (insertError) throw insertError;
+
+                  // If Instagram provided, insert into instagram_identities
+                  if (igHandle && newCustomer) {
+                    await supabase
+                      .from("instagram_identities")
+                      .insert({
+                        customer_id: newCustomer.id,
+                        instagram_handle_normalized: igHandle,
+                        instagram_handle_raw: igHandle,
+                      } as any);
+                  }
+
+                  toast.success(`${regName.trim()} cadastrada com sucesso!`);
+                  setIsRegisterOpen(false);
+                  setRegName(''); setRegPhone(''); setRegInstagram('');
+                  // Reload customer list
+                  loadData();
+                } catch (err: any) {
+                  console.error("Registration error:", err);
+                  toast.error("Erro ao cadastrar: " + (err.message || "Tente novamente"));
+                } finally {
+                  setIsRegistering(false);
+                }
+              }}
+            >
+              {isRegistering ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserPlus className="h-4 w-4 mr-2" />}
+              Cadastrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

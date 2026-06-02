@@ -7,6 +7,7 @@ export interface LiveReportKPIsV2 {
   // Current live metrics
   totalReservado: number;
   totalPago: number;
+  totalUpsell: number; // In-store add-on sales
   pedidosAtivos: number;
   taxaConversao: number; // % pago/reservado
   ticketMedio: number;
@@ -16,6 +17,7 @@ export interface LiveReportKPIsV2 {
   comparison: {
     totalReservado: number | null;
     totalPago: number | null;
+    totalUpsell: number | null;
     pedidosAtivos: number | null;
     taxaConversao: number | null;
     ticketMedio: number | null;
@@ -196,6 +198,7 @@ export function useLiveReportsV2(eventId: string | undefined) {
       // Sales metrics use SUBTOTAL (products only, excludes shipping)
       const totalReservado = carrinhosAtivos.reduce((sum, c) => sum + (c.subtotal || 0), 0);
       const totalPago = carrinhosPagos.reduce((sum, c) => sum + (c.subtotal || 0), 0);
+      const totalUpsell = carrinhosPagos.reduce((sum, c) => sum + ((c as any).upsell_total || 0), 0);
       const pedidosAtivos = carrinhosAtivos.length;
       const taxaConversao = totalReservado > 0 ? (totalPago / totalReservado) * 100 : 0;
       const ticketMedio = carrinhosPagos.length > 0 ? totalPago / carrinhosPagos.length : 0;
@@ -215,6 +218,7 @@ export function useLiveReportsV2(eventId: string | undefined) {
       let comparison: LiveReportKPIsV2['comparison'] = {
         totalReservado: null,
         totalPago: null,
+        totalUpsell: null,
         pedidosAtivos: null,
         taxaConversao: null,
         ticketMedio: null,
@@ -246,6 +250,7 @@ export function useLiveReportsV2(eventId: string | undefined) {
         comparison = {
           totalReservado: prevTotalReservado > 0 ? ((totalReservado - prevTotalReservado) / prevTotalReservado) * 100 : null,
           totalPago: prevTotalPago > 0 ? ((totalPago - prevTotalPago) / prevTotalPago) * 100 : null,
+          totalUpsell: null, // No upsell comparison for previous lives yet
           pedidosAtivos: prevPedidosAtivos > 0 ? ((pedidosAtivos - prevPedidosAtivos) / prevPedidosAtivos) * 100 : null,
           taxaConversao: prevTaxaConversao > 0 ? taxaConversao - prevTaxaConversao : null, // absolute difference for percentages
           ticketMedio: prevTicketMedio > 0 ? ((ticketMedio - prevTicketMedio) / prevTicketMedio) * 100 : null,
@@ -256,6 +261,7 @@ export function useLiveReportsV2(eventId: string | undefined) {
       setKpis({
         totalReservado,
         totalPago,
+        totalUpsell,
         pedidosAtivos,
         taxaConversao,
         ticketMedio,

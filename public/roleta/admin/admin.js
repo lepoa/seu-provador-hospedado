@@ -9,15 +9,15 @@
   document.getElementById("lim-code").textContent  = LIMITS.code;
   document.getElementById("lim-valid").textContent = LIMITS.valid;
 
-  // ====== Auth (demo — substitua por Supabase Auth em produção) ======
-  const AUTH_KEY = "lepoa-admin-auth-v1";
-  const CREDS = { user: "lepoa", pass: "2026" };
+  // ====== Auth via Supabase Auth ======
+  const SB_URL  = window.SB_URL  || "https://deibjfkveiyogvtscyeh.supabase.co";
+  const SB_ANON = window.SB_ANON || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlaWJqZmt2ZWl5b2d2dHNjeWVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA2MDA3MzMsImV4cCI6MjA4NjE3NjczM30.eYGXOHLLJq6wpRT605kxSc8t_qS15_ux174d0rUOmfY";
+  const sb = window.supabase.createClient(SB_URL, SB_ANON);
 
-  function isAuthed(){ return sessionStorage.getItem(AUTH_KEY) === "1"; }
-  function setAuthed(v){
-    if (v) sessionStorage.setItem(AUTH_KEY, "1");
-    else sessionStorage.removeItem(AUTH_KEY);
-  }
+  // ====== State (must be before auth check) ======
+  let prizes = window.loadPrizes();        // active working copy
+  let original = JSON.stringify(prizes);   // for dirty-check
+  let dirty = false;
 
   const loginEl = document.getElementById("login");
   const adminEl = document.getElementById("admin");
@@ -32,29 +32,23 @@
     adminEl.classList.remove("visible");
   }
 
-  if (isAuthed()) showAuthedUI(); else showLoginUI();
+  sb.auth.getSession().then(({ data: { session } }) => {
+    if (session) showAuthedUI(); else showLoginUI();
+  });
 
-  document.getElementById("login-form").addEventListener("submit", (e)=>{
+  document.getElementById("login-form").addEventListener("submit", async (e)=>{
     e.preventDefault();
-    const u = document.getElementById("lg-user").value.trim().toLowerCase();
-    const p = document.getElementById("lg-pass").value;
-    const err = document.getElementById("lg-err");
-    if (u === CREDS.user && p === CREDS.pass){
-      err.textContent = "";
-      setAuthed(true);
-      showAuthedUI();
-    } else {
-      err.textContent = "Usuário ou senha inválidos.";
-    }
+    const email = document.getElementById("lg-user").value.trim().toLowerCase();
+    const pass  = document.getElementById("lg-pass").value;
+    const err   = document.getElementById("lg-err");
+    err.textContent = "";
+    const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+    if (error) { err.textContent = "Email ou senha inválidos."; return; }
+    showAuthedUI();
   });
-  document.getElementById("btn-logout").addEventListener("click", ()=>{
-    setAuthed(false); showLoginUI();
+  document.getElementById("btn-logout").addEventListener("click", async ()=>{
+    await sb.auth.signOut(); showLoginUI();
   });
-
-  // ====== State ======
-  let prizes = window.loadPrizes();        // active working copy
-  let original = JSON.stringify(prizes);   // for dirty-check
-  let dirty = false;
 
   function markDirty(d){
     dirty = d;
@@ -308,4 +302,96 @@
     renderGrid();
     renderMiniWheel();
   }
+
+  // ====== TABS ======
+  document.querySelectorAll('.adm-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.adm-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const target = tab.getAttribute('data-tab');
+      document.getElementById('tab-' + target).classList.add('active');
+      if (target === 'leads') loadLeads();
+    });
+  });
+
+  // ====== LEADS ======
+  const SUPABASE_URL = "https://deibjfkveiyogvtscyeh.supabase.co";
+  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlaWJqZmt2ZWl5b2d2dHNjeWVoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDYwMDczMywiZXhwIjoyMDg2MTc2NzMzfQ.GXI0RzBXTnqdGQ-u-yoJeQwVulZwhvlFY3QY-szsDHE";
+
+  async function loadLeads() {
+    const container = document.getElementById('leads-container');
+    container.innerHTML = '<div class="leads-loading">Carregando leads...</div>';
+    try {
+      const resp = await fetch(
+        `${SUPABASE_URL}/rest/v1/roleta_leads?order=created_at.desc&limit=200`,
+        {
+          headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`,
+          },
+        }
+      );
+      if (!resp.ok) throw new Error("Erro " + resp.status);
+      const leads = await resp.json();
+      renderLeads(leads);
+    } catch (e) {
+      container.innerHTML = `<div class="leads-empty">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <div>Erro ao carregar leads: ${escape(e.message)}</div>
+      </div>`;
+    }
+  }
+
+  function renderLeads(leads) {
+    const container = document.getElementById('leads-container');
+    const countEl = document.getElementById('leads-count');
+    countEl.textContent = `${leads.length} lead${leads.length !== 1 ? 's' : ''} cadastrado${leads.length !== 1 ? 's' : ''}`;
+
+    if (leads.length === 0) {
+      container.innerHTML = `<div class="leads-empty">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+        <div>Nenhum lead ainda.<br/>Quando as clientes girarem a roleta, elas aparecerão aqui.</div>
+      </div>`;
+      return;
+    }
+
+    let html = `<table class="leads-table">
+      <thead><tr>
+        <th>Nome</th>
+        <th>WhatsApp</th>
+        <th>Prêmio</th>
+        <th>Cupom</th>
+        <th>Data</th>
+      </tr></thead><tbody>`;
+
+    leads.forEach(l => {
+      const dt = new Date(l.created_at);
+      const dateStr = dt.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' });
+      const timeStr = dt.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+      const whatsFormatted = formatWhatsApp(l.whatsapp);
+      const hasPrize = l.prize_label && l.prize_label !== '';
+      html += `<tr>
+        <td><strong>${escape(l.name)}</strong></td>
+        <td class="mono"><a href="https://wa.me/55${l.whatsapp}" target="_blank" rel="noopener" style="color:var(--olive-700);text-decoration:none">${whatsFormatted}</a></td>
+        <td>${hasPrize ? `<span class="badge won">${escape(l.prize_label)}</span>` : `<span class="badge pending">Aguardando</span>`}</td>
+        <td class="mono">${hasPrize ? escape(l.prize_code || '-') : '-'}</td>
+        <td style="white-space:nowrap;font-size:12px">${dateStr}<br/><span style="opacity:0.6">${timeStr}</span></td>
+      </tr>`;
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  }
+
+  function formatWhatsApp(raw) {
+    if (!raw) return '-';
+    const d = raw.replace(/\D/g, '');
+    if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+    if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+    return d;
+  }
+
+  document.getElementById('btn-refresh-leads').addEventListener('click', () => loadLeads());
+
 })();

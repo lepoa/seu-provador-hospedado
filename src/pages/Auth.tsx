@@ -145,7 +145,9 @@ const Auth = () => {
       if (data.user) {
         const { error: profileError } = await supabase
           .from("profiles")
-          .update({
+          .upsert({
+            user_id: data.user.id,
+            full_name: name,
             name,
             whatsapp: normalizedWhatsapp,
             instagram_handle: normalizedInstagram,
@@ -156,8 +158,7 @@ const Auth = () => {
             terms_version: CONSENT_TERMS_VERSION,
             privacy_version: CONSENT_PRIVACY_VERSION,
             consent_user_agent: navigator.userAgent,
-          })
-          .eq("user_id", data.user.id);
+          }, { onConflict: 'user_id' });
 
         if (profileError) {
           console.error("Profile update error:", profileError);
@@ -170,7 +171,7 @@ const Auth = () => {
             name,
             phone: normalizedWhatsapp,
             instagram_handle: normalizedInstagram,
-          }, { onConflict: 'phone' });
+          }, { onConflict: 'user_id' });
 
         if (customerError) {
           console.warn("Erro ao criar registro em customers:", customerError);

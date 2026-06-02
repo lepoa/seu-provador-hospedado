@@ -147,6 +147,22 @@ export function LiveReports() {
                   {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(kpis.totalPago)}
                 </div>
               </div>
+              {(kpis as any).totalUpsell > 0 && (
+                <>
+                  <div>
+                    <span className="text-muted-foreground">Venda Adicional:</span>
+                    <div className="font-bold text-lg text-emerald-600">
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format((kpis as any).totalUpsell)}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Total Real:</span>
+                    <div className="font-bold text-lg text-emerald-700">
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(kpis.totalPago + (kpis as any).totalUpsell)}
+                    </div>
+                  </div>
+                </>
+              )}
               <div>
                 <span className="text-muted-foreground">Itens Reservados:</span>
                 <div className="font-bold text-lg">{kpis.totalItensReservados} unidades</div>

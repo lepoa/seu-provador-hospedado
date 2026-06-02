@@ -1,16 +1,55 @@
 /* global React, ReactDOM */
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
+// ===================== SUPABASE (leads) =====================
+const _LEADS_URL = "https://deibjfkveiyogvtscyeh.supabase.co";
+const _LEADS_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlaWJqZmt2ZWl5b2d2dHNjeWVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA2MDA3MzMsImV4cCI6MjA4NjE3NjczM30.eYGXOHLLJq6wpRT605kxSc8t_qS15_ux174d0rUOmfY";
+
+async function saveLead(name, whatsapp) {
+  try {
+    const resp = await fetch(`${_LEADS_URL}/rest/v1/roleta_leads`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": _LEADS_KEY,
+        "Authorization": `Bearer ${_LEADS_KEY}`,
+        "Prefer": "return=representation",
+      },
+      body: JSON.stringify({ name, whatsapp }),
+    });
+    if (resp.ok) {
+      const rows = await resp.json();
+      return rows[0]?.id || null;
+    }
+  } catch (e) { /* silently fail — don't block the user */ }
+  return null;
+}
+
+async function updateLeadPrize(leadId, prizeLabel, prizeCode) {
+  if (!leadId) return;
+  try {
+    await fetch(`${_LEADS_URL}/rest/v1/roleta_leads?id=eq.${leadId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": _LEADS_KEY,
+        "Authorization": `Bearer ${_LEADS_KEY}`,
+      },
+      body: JSON.stringify({ prize_label: prizeLabel, prize_code: prizeCode }),
+    });
+  } catch (e) { /* silently fail */ }
+}
+
 // ===================== PRIZES =====================
-// Loaded from prizes-store.js (shared with admin.html)
-const PRIZES = (window.loadPrizes ? window.loadPrizes() : []).filter(p => p.enabled !== false);
+// Initial load from localStorage (fast), Supabase sync happens in React
+const INITIAL_PRIZES = (window.loadPrizes ? window.loadPrizes() : []).filter(p => p.enabled !== false);
 
 // Weighted random pick (house-favoring distribution)
-function pickPrizeIndex() {
-  const total = PRIZES.reduce((s, p) => s + p.weight, 0);
+function pickPrizeIndex(prizes) {
+  const total = prizes.reduce((s, p) => s + p.weight, 0);
   let r = Math.random() * total;
-  for (let i = 0; i < PRIZES.length; i++) {
-    r -= PRIZES[i].weight;
+  for (let i = 0; i < prizes.length; i++) {
+    r -= prizes[i].weight;
     if (r <= 0) return i;
   }
   return 0;
@@ -126,18 +165,19 @@ function Wheel({ rotation, segments, size = 380 }) {
       {segments.map((s, i) => {
         const midA = -90 + i * segAngle; // center angle of this segment (degrees)
         // Radial label: place text along the radius, reading from center outward.
-        // Anchor at outer end, rotate so baseline runs along the radius.
-        const rOuter = r * 0.92;
+        // Position text inward enough so it doesn't overflow on mobile.
+        const rOuter = r * 0.85;
         const lx = cx + rOuter * Math.cos((midA * Math.PI) / 180);
         const ly = cy + rOuter * Math.sin((midA * Math.PI) / 180);
         // Rotate so text reads from outer edge toward center.
-        // On the right half (cos(midA) >= 0 in standard math, but our SVG y is flipped)
-        // we rotate text so it reads inward; on the left half, flip it 180° so it isn't upside-down.
-        const baseRot = midA; // aligns text x-axis with radius pointing outward
+        const baseRot = midA;
         // Flip text on the bottom half so it's not upside down when read.
         const flip = (midA > 0 && midA < 180);
         const textRot = flip ? baseRot + 180 : baseRot;
         const anchor = flip ? "start" : "end";
+        // Truncate long labels for wheel display
+        const displayLabel = s.label && s.label.length > 12 ? s.label.slice(0, 11) + "…" : s.label;
+        const displaySub = s.sub && s.sub.length > 16 ? s.sub.slice(0, 15) + "…" : s.sub;
         return (
           <g key={s.id}>
             <path d={arc(i)} fill={`url(#grad-${i})`} stroke="rgba(43,50,32,0.35)" strokeWidth="0.8"/>
@@ -145,30 +185,30 @@ function Wheel({ rotation, segments, size = 380 }) {
               <text
                 textAnchor={anchor}
                 dominantBaseline="middle"
-                x={flip ? 12 : -12}
-                y="-6"
+                x={flip ? 8 : -8}
+                y="-5"
                 fill={s.text}
                 style={{
                   fontFamily: "Fraunces, Didot, serif",
-                  fontSize: 15,
+                  fontSize: 13.5,
                   fontWeight: 600,
-                  letterSpacing: "0.02em"
+                  letterSpacing: "0.01em"
                 }}
-              >{s.label}</text>
+              >{displayLabel}</text>
               <text
                 textAnchor={anchor}
                 dominantBaseline="middle"
-                x={flip ? 12 : -12}
-                y="8"
+                x={flip ? 8 : -8}
+                y="6"
                 fill={s.text}
                 style={{
                   fontFamily: "JetBrains Mono, monospace",
-                  fontSize: 7.5,
-                  letterSpacing: "0.14em",
+                  fontSize: 6.5,
+                  letterSpacing: "0.10em",
                   textTransform: "uppercase",
                   opacity: 0.85
                 }}
-              >{s.sub}</text>
+              >{displaySub}</text>
             </g>
             {/* gold divider dot at each boundary */}
             <circle
@@ -232,17 +272,20 @@ function IntroScreen({ onReady }) {
   const [whats, setWhats] = useState("");
   const [errors, setErrors] = useState({});
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
     const errs = {};
     if (name.trim().length < 2) errs.name = "Como devemos te chamar?";
     if (!isValidWhats(whats)) errs.whats = "WhatsApp com DDD, por favor.";
     setErrors(errs);
     if (Object.keys(errs).length) return;
+    const cleanWhats = whats.replace(/\D/g, "");
+    // Save to Supabase
+    const leadId = await saveLead(name.trim(), cleanWhats);
     saveState({
-      profile: { name: name.trim(), whats: whats.replace(/\D/g, ""), signupAt: Date.now() }
+      profile: { name: name.trim(), whats: cleanWhats, signupAt: Date.now(), leadId }
     });
-    onReady({ name: name.trim(), whats });
+    onReady({ name: name.trim(), whats, leadId });
   };
 
   return (
@@ -301,7 +344,7 @@ function IntroScreen({ onReady }) {
 }
 
 // ===================== WHEEL SCREEN =====================
-function WheelScreen({ profile, onWin, lockedUntil, onReset }) {
+function WheelScreen({ profile, onWin, lockedUntil, onReset, prizes }) {
   const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [ticking, setTicking] = useState(false);
@@ -319,13 +362,13 @@ function WheelScreen({ profile, onWin, lockedUntil, onReset }) {
     return () => clearInterval(id);
   }, [lockedUntil]);
 
-  const segAngle = 360 / PRIZES.length;
+  const segAngle = 360 / prizes.length;
 
   const handleSpin = () => {
     if (spinning || lockedUntil) return;
     setSpinning(true);
 
-    const targetIdx = pickPrizeIndex();
+    const targetIdx = pickPrizeIndex(prizes);
     // segment targetIdx is centered at -90 + targetIdx*segAngle (in SVG coords).
     // We want that center to land under the pointer (top = -90deg).
     // Rotating the wheel by R degrees, the new center angle = -90 + targetIdx*segAngle + R.
@@ -362,7 +405,7 @@ function WheelScreen({ profile, onWin, lockedUntil, onReset }) {
     setTimeout(() => {
       setSpinning(false);
       clearTimeout(tickTimeoutRef.current);
-      onWin(PRIZES[targetIdx], targetIdx);
+      onWin(prizes[targetIdx], targetIdx);
     }, totalDurationMs + 150);
   };
 
@@ -382,7 +425,7 @@ function WheelScreen({ profile, onWin, lockedUntil, onReset }) {
         <div className="wheel-wrap">
           <div className="wheel-outer-ring"></div>
           <div className="wheel-inner-ring"></div>
-          <Wheel rotation={rotation} segments={PRIZES} />
+          <Wheel rotation={rotation} segments={prizes} />
           <Pointer />
           <button
             className={`wheel-hub ${spinning ? "spinning" : ""}`}
@@ -481,56 +524,7 @@ function PrizeModal({ prize, onClose, onSpinAgain, allowReSpin }) {
   );
 }
 
-// ===================== TWEAKS PANEL =====================
-function TweaksPanel({ open, tweaks, setTweak, onClose }) {
-  return (
-    <div className={`tweaks ${open ? "open" : ""}`}>
-      <h4>Tweaks <button onClick={onClose}>×</button></h4>
 
-      <div className="tweak-row">
-        <label>Paleta</label>
-        <div className="seg">
-          {[
-            ["oliva-dourado", "Oliva"],
-            ["rose-cream",    "Rosé"],
-            ["noir",          "Noir"],
-          ].map(([v, l]) => (
-            <button
-              key={v}
-              className={tweaks.theme === v ? "active" : ""}
-              onClick={() => setTweak("theme", v)}
-            >{l}</button>
-          ))}
-        </div>
-      </div>
-
-      <div className="tweak-row">
-        <label>Estilo da roleta</label>
-        <div className="seg">
-          {[
-            ["elegante",  "Elegante"],
-            ["monograma", "Monograma"],
-            ["colorida",  "Colorida"],
-          ].map(([v, l]) => (
-            <button
-              key={v}
-              className={tweaks.wheelStyle === v ? "active" : ""}
-              onClick={() => setTweak("wheelStyle", v)}
-            >{l}</button>
-          ))}
-        </div>
-      </div>
-
-      <div className="tweak-row">
-        <label>Confete ao ganhar</label>
-        <div className="seg">
-          <button className={tweaks.confetti ? "active" : ""}  onClick={() => setTweak("confetti", true)}>Ligado</button>
-          <button className={!tweaks.confetti ? "active" : ""} onClick={() => setTweak("confetti", false)}>Desligado</button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ===================== APP =====================
 function App() {
@@ -539,33 +533,17 @@ function App() {
   const [result, setResult] = useState(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [lockedUntil, setLockedUntil] = useState(saved.lastSpinDate === todayKey() ? todayKey() : null);
+  const [prizes, setPrizes] = useState(INITIAL_PRIZES);
 
-  // Tweaks
-  const [tweaks, setTweaks] = useState(window.TWEAK_DEFAULTS || { theme: "oliva-dourado", wheelStyle: "elegante", confetti: true });
-  const [tweaksOpen, setTweaksOpen] = useState(false);
-
-  // Apply body classes
+  // Sync prizes from Supabase on mount
   useEffect(() => {
-    document.body.className = `theme-${tweaks.theme} style-${tweaks.wheelStyle}`;
-  }, [tweaks.theme, tweaks.wheelStyle]);
-
-  // Edit-mode protocol (Tweaks toolbar toggle)
-  useEffect(() => {
-    const handler = (e) => {
-      if (e.data?.type === "__activate_edit_mode") setTweaksOpen(true);
-      if (e.data?.type === "__deactivate_edit_mode") setTweaksOpen(false);
-    };
-    window.addEventListener("message", handler);
-    window.parent.postMessage({ type: "__edit_mode_available" }, "*");
-    return () => window.removeEventListener("message", handler);
-  }, []);
-
-  const setTweak = useCallback((k, v) => {
-    setTweaks(t => {
-      const next = { ...t, [k]: v };
-      window.parent.postMessage({ type: "__edit_mode_set_keys", edits: { [k]: v } }, "*");
-      return next;
-    });
+    if (window.syncPrizesFromSupabase) {
+      window.syncPrizesFromSupabase().then(updated => {
+        if (updated) {
+          setPrizes(updated.filter(p => p.enabled !== false));
+        }
+      });
+    }
   }, []);
 
   const handleReady = (p) => setProfile(p);
@@ -575,10 +553,11 @@ function App() {
     if (prize.code !== "__AGAIN") {
       saveState({ lastSpinDate: todayKey(), lastPrize: prize });
       setLockedUntil(todayKey());
-      if (tweaks.confetti) {
-        setShowConfetti(true);
-        setTimeout(() => setShowConfetti(false), 5000);
-      }
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 5000);
+      // Save prize to database
+      const leadId = profile?.leadId || loadState()?.profile?.leadId;
+      updateLeadPrize(leadId, prize.label, prize.code);
     }
   };
 
@@ -609,6 +588,7 @@ function App() {
           onWin={handleWin}
           lockedUntil={lockedUntil}
           onReset={handleReset}
+          prizes={prizes}
         />
       )}
 
@@ -626,13 +606,6 @@ function App() {
         />
       )}
       {showConfetti && <Confetti />}
-
-      <TweaksPanel
-        open={tweaksOpen}
-        tweaks={tweaks}
-        setTweak={setTweak}
-        onClose={() => setTweaksOpen(false)}
-      />
     </div>
   );
 }

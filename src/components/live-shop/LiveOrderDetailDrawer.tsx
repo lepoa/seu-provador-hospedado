@@ -29,6 +29,7 @@ import {
   Undo2,
   ChevronDown,
   RefreshCw,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -101,6 +102,134 @@ interface LiveOrderDetailDrawerProps {
   onRevertStatus?: (orderId: string, targetStatus: OperationalStatus, reason: string) => Promise<boolean>;
   onTrackingSynced?: (orderId: string, trackingCode: string) => void;
   chargeHistory?: { channel: string; created_at: string; charged_by?: string }[];
+}
+
+// -- UpsellSection: inline component for tracking in-store add-on sales --
+function UpsellSection({
+  orderId,
+  currentTotal,
+  currentNotes,
+}: {
+  orderId: string;
+  currentTotal: number;
+  currentNotes: string;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [total, setTotal] = useState(String(currentTotal || ''));
+  const [notes, setNotes] = useState(currentNotes || '');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    const parsedTotal = parseFloat(total.replace(',', '.')) || 0;
+    const { error } = await supabase
+      .from("live_carts")
+      .update({
+        upsell_total: parsedTotal,
+        upsell_notes: notes.trim() || null,
+      } as any)
+      .eq("id", orderId);
+
+    if (error) {
+      toast.error("Erro ao salvar venda adicional");
+    } else {
+      toast.success("Venda adicional salva!");
+      setIsEditing(false);
+    }
+    setIsSaving(false);
+  };
+
+  const formatPrice = (v: number) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+
+  const hasUpsell = currentTotal > 0;
+
+  if (!isEditing) {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h4 className="font-medium text-sm flex items-center gap-2 text-emerald-700">
+            <DollarSign className="h-4 w-4" />
+            Venda Adicional (Retirada)
+          </h4>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setTotal(String(currentTotal || ''));
+              setNotes(currentNotes || '');
+              setIsEditing(true);
+            }}
+            className="text-xs"
+          >
+            <Edit2 className="h-3 w-3 mr-1" />
+            {hasUpsell ? 'Editar' : 'Registrar'}
+          </Button>
+        </div>
+        {hasUpsell && (
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+            <p className="text-lg font-bold text-emerald-800">{formatPrice(currentTotal)}</p>
+            {currentNotes && (
+              <p className="text-sm text-emerald-600 mt-1">{currentNotes}</p>
+            )}
+          </div>
+        )}
+        {!hasUpsell && (
+          <p className="text-xs text-muted-foreground">Nenhuma venda adicional registrada</p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <h4 className="font-medium text-sm flex items-center gap-2 text-emerald-700">
+        <DollarSign className="h-4 w-4" />
+        Venda Adicional (Retirada)
+      </h4>
+      <div className="space-y-2">
+        <div>
+          <Label className="text-xs">Valor adicional (R$)</Label>
+          <Input
+            type="text"
+            inputMode="decimal"
+            placeholder="0,00"
+            value={total}
+            onChange={(e) => setTotal(e.target.value)}
+            className="mt-1"
+          />
+        </div>
+        <div>
+          <Label className="text-xs">Observação (peças extras, etc.)</Label>
+          <Input
+            type="text"
+            placeholder="Ex: Levou + 1 blusa e 1 saia"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="mt-1"
+          />
+        </div>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={isSaving}
+            className="bg-emerald-600 hover:bg-emerald-700"
+          >
+            {isSaving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Check className="h-3 w-3 mr-1" />}
+            Salvar
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setIsEditing(false)}
+          >
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function LiveOrderDetailDrawer({
@@ -828,6 +957,19 @@ Pode me enviar? 😊`;
                     </div>
                   )}
                 </div>
+              </>
+            )}
+
+
+            {/* Upsell Tracking - In-store add-ons during pickup */}
+            {isPaid && !isCancelled && (
+              <>
+                <Separator />
+                <UpsellSection
+                  orderId={order.id}
+                  currentTotal={order.upsell_total ?? 0}
+                  currentNotes={order.upsell_notes ?? ''}
+                />
               </>
             )}
 

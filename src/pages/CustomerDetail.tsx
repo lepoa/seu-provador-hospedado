@@ -215,9 +215,13 @@ const CustomerDetail = () => {
         }
 
         if (liveData?.instagram_handle) {
+          const normalizedHandle = liveData.instagram_handle.replace(/@/g, '').toLowerCase().trim();
           await (supabase
             .from("customers") as any)
-            .update({ instagram: liveData.instagram_handle })
+            .update({
+              instagram: liveData.instagram_handle,
+              instagram_handle: normalizedHandle,
+            })
             .eq("id", id);
           customerDataObj.instagram = liveData.instagram_handle;
         }

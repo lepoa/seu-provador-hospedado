@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Loader2, Sparkles, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -98,6 +98,29 @@ const BASE_COLORS = ["Preto", "Branco", "Bege", "Rosa", "Azul", "Verde", "Vermel
 const STYLES = ["elegante", "clássico", "minimal", "romântico", "casual", "moderno", "fashion", "sexy_chic"];
 const OCCASIONS = ["trabalho", "casual", "jantar", "eventos", "viagem", "dia a dia", "especial", "igreja"];
 const MODELINGS = ["ajustado", "regular", "soltinho", "oversized", "acinturado", "slim", "reto", "amplo"];
+
+// ─── Draft persistence ────────────────────────────────────────────────────────
+const DRAFT_KEY = "lepoa-product-draft-new";
+interface DraftData {
+  formData: Product;
+  images: string[];
+  mainImageIndex: number;
+  videoUrl: string | null;
+  stockBySize: Record<string, number>;
+}
+function saveDraft(d: DraftData) {
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch { /* quota / private mode */ }
+}
+function loadDraft(): DraftData | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    return raw ? (JSON.parse(raw) as DraftData) : null;
+  } catch { return null; }
+}
+function clearDraft() {
+  try { localStorage.removeItem(DRAFT_KEY); } catch { /* noop */ }
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 function toErrorDetails(error: unknown): Record<string, unknown> {
   if (!error || typeof error !== "object") return { raw: String(error) };
@@ -285,6 +308,8 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
     discount_value: null,
   });
 
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const { isAnalyzing, analysisResult, analyzeImage, clearAnalysis } = useImageAnalysis();
 
   // Build dynamic color list including the product's color if not in base list
@@ -366,39 +391,72 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
 
       loadAvailableCategories(normalizedCategory);
     } else {
-      // Reset to defaults for new product
-      setFormData({
-        name: "",
-        sku: null,
-        category: null,
-        price: 0,
-        color: null,
-        style: [],
-        occasion: [],
-        modeling: null,
-        sizes: [],
-        is_active: true,
-        image_url: null,
-        tags: [],
-        description: null,
-        // Pre-fill with defaults
-        weight_kg: 0.30,
-        length_cm: DEFAULT_DIMENSIONS.length,
-        width_cm: DEFAULT_DIMENSIONS.width,
-        height_cm: DEFAULT_DIMENSIONS.height,
-        discount_type: null,
-        discount_value: null,
-      });
-      setImages([]);
-      setMainImageIndex(0);
-      setVideoUrl(null);
-      setStockBySize({});
-      setLockedStockBySize({});
-      setAvailableColors(BASE_COLORS);
-      loadAvailableCategories();
+      // Restore draft (if any) or reset to defaults for new product
+      const draft = open ? loadDraft() : null;
+      if (draft) {
+        setFormData(draft.formData);
+        setImages(draft.images || []);
+        setMainImageIndex(draft.mainImageIndex || 0);
+        setVideoUrl(draft.videoUrl || null);
+        setStockBySize(normalizeStockMap(draft.stockBySize));
+        setLockedStockBySize({});
+        setAvailableColors(BASE_COLORS);
+        loadAvailableCategories(draft.formData.category);
+        toast.info("📝 Rascunho restaurado — continue de onde parou.");
+      } else {
+        setFormData({
+          name: "",
+          sku: null,
+          category: null,
+          price: 0,
+          color: null,
+          style: [],
+          occasion: [],
+          modeling: null,
+          sizes: [],
+          is_active: true,
+          image_url: null,
+          tags: [],
+          description: null,
+          // Pre-fill with defaults
+          weight_kg: 0.30,
+          length_cm: DEFAULT_DIMENSIONS.length,
+          width_cm: DEFAULT_DIMENSIONS.width,
+          height_cm: DEFAULT_DIMENSIONS.height,
+          discount_type: null,
+          discount_value: null,
+        });
+        setImages([]);
+        setMainImageIndex(0);
+        setVideoUrl(null);
+        setStockBySize({});
+        setLockedStockBySize({});
+        setAvailableColors(BASE_COLORS);
+        loadAvailableCategories();
+      }
     }
     clearAnalysis();
   }, [product, open]);
+
+  // Auto-save draft for new products (debounced 800 ms)
+  useEffect(() => {
+    if (product || !open) return; // only for new product form while open
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = setTimeout(() => {
+      const hasContent =
+        formData.name.trim() ||
+        formData.price > 0 ||
+        images.length > 0 ||
+        Object.keys(stockBySize).length > 0 ||
+        formData.description;
+      if (hasContent) {
+        saveDraft({ formData, images, mainImageIndex, videoUrl, stockBySize });
+      }
+    }, 800);
+    return () => {
+      if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    };
+  }, [product, open, formData, images, mainImageIndex, videoUrl, stockBySize]);
 
   const handleImagesChange = (newImages: string[], newMainIndex: number) => {
     setImages(newImages);
@@ -754,6 +812,7 @@ export function ProductForm({ open, onOpenChange, product, onSuccess, userId }: 
         mode: product?.id ? "update" : "create",
         quickSave,
       });
+      clearDraft(); // apaga rascunho após salvar com sucesso
       onSuccess();
       if (!quickSave) {
         onOpenChange(false);

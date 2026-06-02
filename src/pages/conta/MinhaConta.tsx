@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { getAvailableMissions, getMissionById } from "@/lib/missionsData";
 import { sendEmail } from "@/lib/sendEmail";
+import { formatPhoneDisplay, isValidBrazilianPhone } from "@/hooks/usePhoneMask";
 
 const authSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -35,13 +36,7 @@ interface ProfileData {
 }
 
 function formatPhone(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 11);
-
-  if (digits.length <= 2) return digits;
-  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
-
-  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  return formatPhoneDisplay(value);
 }
 
 export default function MinhaConta() {
@@ -439,8 +434,8 @@ export default function MinhaConta() {
         }
 
         const normalizedPhone = phone.replace(/\D/g, "");
-        if (normalizedPhone.length < 10) {
-          toast.error("Informe um telefone válido.");
+        if (!isValidBrazilianPhone(normalizedPhone)) {
+          toast.error("Informe um telefone celular válido (com DDD + 9 dígitos).");
           return;
         }
 
@@ -475,18 +470,32 @@ export default function MinhaConta() {
         }
 
         if (data.user?.id) {
-          const { error: customerError } = await supabase.from("customers").insert({
+          const { error: customerError } = await supabase.from("customers").upsert({
             user_id: data.user.id,
             name,
             email,
             phone: normalizedPhone,
-          });
+          }, { onConflict: 'user_id' });
 
           if (customerError) {
             console.warn("Erro ao criar registro em customers:", customerError);
           }
 
-          await saveConsentOnProfile(data.user.id);
+          // Save consent AND profile data (name/whatsapp) so checkout can skip profile step
+          const now = new Date().toISOString();
+          await supabase.from("profiles").upsert({
+            user_id: data.user.id,
+            full_name: name,
+            name,
+            whatsapp: normalizedPhone,
+            terms_accepted: true,
+            privacy_accepted: true,
+            terms_accepted_at: now,
+            privacy_accepted_at: now,
+            terms_version: CONSENT_TERMS_VERSION,
+            privacy_version: CONSENT_PRIVACY_VERSION,
+            consent_user_agent: navigator.userAgent,
+          }, { onConflict: 'user_id' });
         }
 
         toast.success("Conta criada com sucesso!");

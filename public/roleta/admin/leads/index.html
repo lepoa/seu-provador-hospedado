@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Le.Poá — Leads da Roleta</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;background:#f2f1e8;color:#1e2117;min-height:100vh}
+
+.topbar{background:#2b3220;color:#faf7f0;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.topbar h1{font-size:14px;font-weight:600;letter-spacing:.06em}
+.topbar nav{display:flex;gap:8px}
+.topbar a,.topbar button{color:#e6ca9a;text-decoration:none;font-size:11px;letter-spacing:.06em;text-transform:uppercase;background:none;border:1px solid rgba(230,202,154,.3);border-radius:6px;padding:5px 10px;cursor:pointer;white-space:nowrap}
+.topbar a:hover,.topbar button:hover{background:rgba(230,202,154,.12)}
+
+.login-wrap{display:flex;align-items:center;justify-content:center;min-height:80vh}
+.login-card{background:#fff;border-radius:16px;padding:36px 32px;width:320px;box-shadow:0 20px 50px -20px rgba(43,50,32,.35)}
+.login-card h2{font-size:20px;margin-bottom:20px;color:#2b3220}
+.lbl-small{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#6f7a4f;margin-bottom:5px}
+.login-card input{width:100%;padding:11px 14px;border:1px solid rgba(74,83,51,.22);border-radius:8px;font-size:15px;margin-bottom:14px;outline:none}
+.login-card input:focus{border-color:#6f7a4f;box-shadow:0 0 0 3px rgba(111,122,79,.15)}
+.btn-login{width:100%;padding:13px;background:#2b3220;color:#faf7f0;border:none;border-radius:99px;font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+.login-err{color:#b68680;font-size:12px;margin-top:8px;min-height:16px}
+
+.main{max-width:1060px;margin:0 auto;padding:20px 16px}
+
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.toolbar h2{font-size:17px;font-weight:600;color:#2b3220}
+.toolbar-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.search-input{padding:8px 12px;border:1px solid rgba(74,83,51,.22);border-radius:8px;font-size:13px;width:180px;outline:none}
+.search-input:focus{border-color:#6f7a4f}
+.btn-action{padding:7px 12px;border:none;border-radius:8px;font-size:12px;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;font-weight:600}
+.btn-csv{background:#6f7a4f;color:#faf7f0}.btn-csv:hover{background:#4a5333}
+.btn-refresh{background:#e8e7dc;color:#2b3220;border:1px solid rgba(74,83,51,.2)}.btn-refresh:hover{background:#d9d7cc}
+
+.stats{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.stat-card{background:#fff;border-radius:10px;padding:12px 16px;flex:1;min-width:100px;box-shadow:0 2px 8px rgba(43,50,32,.08)}
+.stat-card .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#6f7a4f;margin-bottom:3px}
+.stat-card .val{font-size:22px;font-weight:700;color:#2b3220}
+
+.filter-tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.tab{padding:6px 14px;border-radius:99px;border:1px solid rgba(74,83,51,.2);background:#fff;font-size:12px;cursor:pointer;font-weight:500;color:#4a5333;transition:all .15s}
+.tab.active{background:#2b3220;color:#faf7f0;border-color:#2b3220}
+.tab .count{display:inline-block;background:rgba(255,255,255,.2);border-radius:99px;padding:1px 6px;font-size:10px;margin-left:4px}
+.tab:not(.active) .count{background:rgba(43,50,32,.1)}
+
+.table-wrap{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(43,50,32,.08);overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:700px}
+thead{background:#2b3220;color:#faf7f0}
+thead th{padding:10px 12px;font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;text-align:left;white-space:nowrap}
+tbody tr{border-bottom:1px solid rgba(74,83,51,.08)}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:#faf9f5}
+tbody td{padding:10px 12px;font-size:13px;vertical-align:middle}
+
+.nome-cel{font-weight:600;color:#1e2117}
+.wpp-link{color:#2b3220;text-decoration:none;font-family:monospace;font-size:12px}
+.wpp-link:hover{text-decoration:underline;color:#6f7a4f}
+.date-cel{color:#6f7a4f;font-size:12px;white-space:nowrap}
+.prize-badge{display:inline-block;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.06em;background:#e8e7dc;color:#4a5333}
+.code-cel{font-family:monospace;font-size:11px;color:#6f7a4f}
+
+/* Mensagens */
+.msg-cell{display:flex;gap:5px;flex-wrap:wrap}
+.msg-btn{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;border:none;cursor:pointer;font-size:11px;font-weight:600;text-decoration:none;white-space:nowrap;transition:all .15s}
+.msg-btn-day{background:#dcf8c6;color:#128c3b}
+.msg-btn-day:hover{background:#c1f0a0}
+.msg-btn-reminder{background:#fff3cd;color:#856404}
+.msg-btn-reminder:hover{background:#ffe08a}
+.msg-btn.sent{opacity:.55}
+.msg-btn.sent:hover{opacity:1}
+
+.sent-indicator{font-size:10px;white-space:nowrap}
+.sent-day{color:#128c3b}
+.sent-reminder{color:#856404}
+
+.loading{text-align:center;padding:40px;color:#8a9468}
+.empty{text-align:center;padding:40px;color:#8a9468;font-size:14px}
+
+@media(max-width:640px){
+  .search-input{width:130px}
+  .toolbar{gap:8px}
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>LE.POÁ · LEADS DA ROLETA</h1>
+  <nav>
+    <a href="/roleta/admin/">← Admin</a>
+    <button id="btn-logout">Sair</button>
+  </nav>
+</div>
+
+<!-- Login -->
+<div id="login-wrap" class="login-wrap" style="display:none">
+  <div class="login-card">
+    <h2>Acesso restrito</h2>
+    <label class="lbl-small">Usuário</label>
+    <input id="lg-user" type="text" autocomplete="username" placeholder="lepoa"/>
+    <label class="lbl-small">Senha</label>
+    <input id="lg-pass" type="password" autocomplete="current-password" placeholder="••••"/>
+    <button class="btn-login" id="btn-login">Entrar</button>
+    <div class="login-err" id="lg-err"></div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app" style="display:none">
+  <div class="main">
+    <div class="toolbar">
+      <h2>Leads da Roleta</h2>
+      <div class="toolbar-right">
+        <input class="search-input" id="search" type="text" placeholder="Nome ou WhatsApp…"/>
+        <button class="btn-action btn-refresh" id="btn-refresh">↻ Atualizar</button>
+        <button class="btn-action btn-csv" id="btn-csv">Exportar CSV</button>
+      </div>
+    </div>
+
+    <div class="stats" id="stats"></div>
+
+    <div class="filter-tabs" id="filter-tabs">
+      <button class="tab active" data-filter="all">Todos <span class="count" id="cnt-all">0</span></button>
+      <button class="tab" data-filter="pending-day">💬 Msg do dia pendente <span class="count" id="cnt-day">0</span></button>
+      <button class="tab" data-filter="pending-reminder">⏰ Lembrete pendente <span class="count" id="cnt-reminder">0</span></button>
+      <button class="tab" data-filter="done">✓ Tudo enviado <span class="count" id="cnt-done">0</span></button>
+    </div>
+
+    <div class="table-wrap">
+      <div class="loading" id="loading">Carregando…</div>
+      <table id="table" style="display:none">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Nome</th>
+            <th>WhatsApp</th>
+            <th>Data</th>
+            <th>Prêmio</th>
+            <th>Cupom</th>
+            <th>Mensagens WhatsApp</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty" id="empty" style="display:none">Nenhum lead encontrado.</div>
+    </div>
+
+    <p style="margin-top:12px;font-size:11px;color:#8a9468;line-height:1.5">
+      💡 Clique no botão verde para enviar a mensagem do dia (logo após girar) e no amarelo para o lembrete (antes do cupom vencer).<br>
+      O status é salvo neste dispositivo. Ao clicar, o WhatsApp abre com a mensagem pronta — basta enviar.
+    </p>
+  </div>
+</div>
+
+<script>
+(function(){
+  const AUTH_KEY     = "lepoa-admin-auth-v1";
+  const AUTH_PAYLOAD = "lepoa-admin-auth-payload-v1";
+  const CONTACTS_KEY = "lepoa-leads-contacts-v1";
+
+  // Supabase — hardcoded para não depender de prizes-store.js
+  const SB_URL  = "https://deibjfkveiyogvtscyeh.supabase.co";
+  const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlaWJqZmt2ZWl5b2d2dHNjeWVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA2MDA3MzMsImV4cCI6MjA4NjE3NjczM30.eYGXOHLLJq6wpRT605kxSc8t_qS15_ux174d0rUOmfY";
+
+  // ---- Auth ----
+  async function isAuthed(){
+    const token   = sessionStorage.getItem(AUTH_KEY);
+    const payload = sessionStorage.getItem(AUTH_PAYLOAD);
+    if (!token || !payload) return false;
+    try {
+      const r = await fetch(`${SB_URL}/functions/v1/admin-auth/verify`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, payload })
+      });
+      return r.ok && (await r.json()).valid === true;
+    } catch { return false; }
+  }
+  function clearAuth(){
+    sessionStorage.removeItem(AUTH_KEY);
+    sessionStorage.removeItem(AUTH_PAYLOAD);
+  }
+
+  isAuthed().then(ok => { if (ok) showApp(); else showLogin(); });
+
+  document.getElementById("btn-login").addEventListener("click", tryLogin);
+  document.getElementById("lg-pass").addEventListener("keydown", e=>{ if(e.key==="Enter") tryLogin(); });
+  document.getElementById("btn-logout").addEventListener("click", ()=>{ clearAuth(); showLogin(); });
+
+  async function tryLogin(){
+    const u = document.getElementById("lg-user").value.trim().toLowerCase();
+    const p = document.getElementById("lg-pass").value;
+    try {
+      const r = await fetch(`${SB_URL}/functions/v1/admin-auth/login`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user: u, pass: p })
+      });
+      if (!r.ok) { document.getElementById("lg-err").textContent = "Usuário ou senha inválidos."; return; }
+      const { token, payload } = await r.json();
+      sessionStorage.setItem(AUTH_KEY, token);
+      sessionStorage.setItem(AUTH_PAYLOAD, payload);
+      showApp();
+    } catch {
+      document.getElementById("lg-err").textContent = "Erro de conexão. Tente novamente.";
+    }
+  }
+  function showLogin(){ document.getElementById("login-wrap").style.display="flex"; document.getElementById("app").style.display="none"; }
+  function showApp(){ document.getElementById("login-wrap").style.display="none"; document.getElementById("app").style.display="block"; loadAll(); }
+
+  // ---- State ----
+  let allLeads = [];
+  let prizeMap = {};
+  let contacts = JSON.parse(localStorage.getItem(CONTACTS_KEY) || "{}");
+  let activeFilter = "all";
+  let searchQ = "";
+  const SB_HDR = { apikey: SB_ANON, Authorization: "Bearer " + SB_ANON, Accept: "application/json" };
+
+  function saveContacts(){ localStorage.setItem(CONTACTS_KEY, JSON.stringify(contacts)); }
+  function contactKey(lead){ return lead.whatsapp + "_" + lead.spin_date; }
+  function getContact(lead){ return contacts[contactKey(lead)] || { day: false, reminder: false }; }
+
+  function markContact(lead, type){
+    const k = contactKey(lead);
+    contacts[k] = { day: false, reminder: false, ...(contacts[k]||{}), [type]: true };
+    saveContacts();
+    // Sincroniza no Supabase em background
+    const col = type === "day" ? "day_sent" : "reminder_sent";
+    fetch(SB_URL + "/rest/v1/roleta_lead_contacts", {
+      method: "POST",
+      headers: { ...SB_HDR, "Content-Type": "application/json", "Prefer": "resolution=merge-duplicates" },
+      body: JSON.stringify({ id: k, [col]: true })
+    }).catch(()=>{});
+  }
+
+  async function loadContacts(){
+    try {
+      const r = await fetch(SB_URL + "/rest/v1/roleta_lead_contacts?select=id,day_sent,reminder_sent", { headers: SB_HDR });
+      const rows = await r.json();
+      if (Array.isArray(rows)){
+        rows.forEach(row => {
+          contacts[row.id] = { day: !!row.day_sent, reminder: !!row.reminder_sent };
+        });
+        saveContacts();
+      }
+    } catch {}
+  }
+
+  // ---- Load ----
+  async function loadAll(){
+    document.getElementById("loading").style.display="block";
+    document.getElementById("loading").textContent="Carregando…";
+    document.getElementById("table").style.display="none";
+    document.getElementById("empty").style.display="none";
+
+    const headers = SB_HDR;
+
+    // Carrega prêmios (id → label, valid)
+    try {
+      const rp = await fetch(
+        SB_URL + "/rest/v1/roleta_prizes?singleton=eq.default&select=data",
+        { headers }
+      );
+      const rows = await rp.json();
+      if (Array.isArray(rows) && rows[0]?.data){
+        rows[0].data.forEach(p => { prizeMap[p.id] = { label: p.label, valid: p.valid }; });
+      }
+    } catch {}
+
+    // Carrega leads — ordena por data mais recente
+    try {
+      const r = await fetch(
+        SB_URL + "/rest/v1/roleta_spins?order=spin_date.desc&limit=1000",
+        { headers }
+      );
+      if (!r.ok) {
+        const body = await r.text().catch(()=>"");
+        throw new Error("HTTP " + r.status + " — " + body.slice(0,80));
+      }
+      const data = await r.json();
+      if (!Array.isArray(data)) throw new Error("Resposta inesperada: " + JSON.stringify(data).slice(0,100));
+      allLeads = data;
+      await loadContacts(); // sincroniza status entre dispositivos
+    } catch(err) {
+      allLeads = [];
+      document.getElementById("loading").style.display="none";
+      document.getElementById("empty").style.display="block";
+      document.getElementById("empty").innerHTML = "⚠️ Erro ao carregar leads: <b>" + err.message + "</b><br><small>Rode no Supabase: <code>create policy \"anon read spins\" on roleta_spins for select to anon using (true);</code></small>";
+      renderAll();
+      return;
+    }
+
+    document.getElementById("loading").style.display="none";
+    renderAll();
+  }
+
+  document.getElementById("btn-refresh").addEventListener("click", loadAll);
+
+  // ---- Filter logic ----
+  function getFiltered(){
+    let list = allLeads;
+    if (searchQ){
+      const q = searchQ.toLowerCase();
+      list = list.filter(l =>
+        (l.nome||"").toLowerCase().includes(q) ||
+        (l.whatsapp||"").includes(q.replace(/\D/g,""))
+      );
+    }
+    if (activeFilter === "pending-day")      return list.filter(l => !getContact(l).day);
+    if (activeFilter === "pending-reminder") return list.filter(l => getContact(l).day && !getContact(l).reminder);
+    if (activeFilter === "done")             return list.filter(l => getContact(l).day && getContact(l).reminder);
+    return list;
+  }
+
+  function getCounts(list){
+    return {
+      all: list.length,
+      pendingDay: list.filter(l => !getContact(l).day).length,
+      pendingReminder: list.filter(l => getContact(l).day && !getContact(l).reminder).length,
+      done: list.filter(l => getContact(l).day && getContact(l).reminder).length,
+    };
+  }
+
+  // ---- Render ----
+  function renderAll(){
+    const base = allLeads.filter(l => {
+      if (!searchQ) return true;
+      const q = searchQ.toLowerCase();
+      return (l.nome||"").toLowerCase().includes(q) || (l.whatsapp||"").includes(q.replace(/\D/g,""));
+    });
+    const counts = getCounts(base);
+
+    // Stats
+    const today = new Date().toISOString().slice(0,10);
+    const todayCount = allLeads.filter(l=>l.spin_date===today).length;
+    const unique = new Set(allLeads.map(l=>l.whatsapp)).size;
+    document.getElementById("stats").innerHTML = `
+      <div class="stat-card"><div class="lbl">Total de giros</div><div class="val">${allLeads.length}</div></div>
+      <div class="stat-card"><div class="lbl">Clientes únicas</div><div class="val">${unique}</div></div>
+      <div class="stat-card"><div class="lbl">Giros hoje</div><div class="val">${todayCount}</div></div>
+      <div class="stat-card"><div class="lbl">Msg pendentes</div><div class="val" style="color:${counts.pendingDay>0?'#856404':'#128c3b'}">${counts.pendingDay}</div></div>
+    `;
+
+    // Tab counts
+    document.getElementById("cnt-all").textContent = counts.all;
+    document.getElementById("cnt-day").textContent = counts.pendingDay;
+    document.getElementById("cnt-reminder").textContent = counts.pendingReminder;
+    document.getElementById("cnt-done").textContent = counts.done;
+
+    renderTable(getFiltered());
+  }
+
+  function renderTable(leads){
+    if (!leads.length){
+      document.getElementById("table").style.display="none";
+      document.getElementById("empty").style.display="block";
+      return;
+    }
+    document.getElementById("table").style.display="table";
+    document.getElementById("empty").style.display="none";
+
+    document.getElementById("tbody").innerHTML = leads.map((l, i) => {
+      const wpp = String(l.whatsapp||"").replace(/\D/g,"");
+      const wppFmt = wpp.length >= 10
+        ? `(${wpp.slice(0,2)}) ${wpp.slice(2,7)}-${wpp.slice(7)}`
+        : wpp;
+      const date = l.spin_date||"";
+      const dateFmt = date ? date.split("-").reverse().join("/") : "—";
+      const prize = prizeMap[l.prize_id] || {};
+      const prizeLabel = prize.label || l.prize_id || "—";
+      const prizeValid = prize.valid || "";
+      const contact = getContact(l);
+
+      const firstName = (l.nome||"").split(" ")[0] || "cliente";
+      const code = l.prize_code || "";
+      const msgDay = encodeURIComponent(
+        `Olá, ${firstName}! 🌿 Você girou a Roleta da Sorte da Le.Poá e ganhou *${prizeLabel}*! 🎉\n\nSeu cupom: *${code}*${prizeValid ? `\nVálido por ${prizeValid}` : ""}\n\nUse na loja física ou no site! Qualquer dúvida, estou aqui 💛`
+      );
+      const msgReminder = encodeURIComponent(
+        `Olá, ${firstName}! ⏰ Só para lembrar que seu cupom *${code}* da Le.Poá${prizeValid ? ` (válido por ${prizeValid})` : ""} está chegando ao fim!\n\nNão deixe expirar 🛍️ Aproveite seu desconto!`
+      );
+      const wppBase = "https://wa.me/55" + wpp;
+      const hrefDay      = wppBase + "?text=" + msgDay;
+      const hrefReminder = wppBase + "?text=" + msgReminder;
+      const onDay      = `target="_blank" rel="noopener" onclick="markDay('${esc(l.whatsapp)}','${esc(l.spin_date)}')"`;
+      const onReminder = `target="_blank" rel="noopener" onclick="markReminder('${esc(l.whatsapp)}','${esc(l.spin_date)}')"`;
+
+      return `<tr>
+        <td style="color:#aaa;font-size:11px">${leads.length-i}</td>
+        <td class="nome-cel">${esc(l.nome||"—")}</td>
+        <td><a class="wpp-link" href="${wppBase}" target="_blank" rel="noopener">${wppFmt}</a></td>
+        <td class="date-cel">${dateFmt}</td>
+        <td><span class="prize-badge">${esc(prizeLabel)}</span></td>
+        <td class="code-cel">${esc(l.prize_code||"—")}</td>
+        <td>
+          <div class="msg-cell">
+            <a class="msg-btn msg-btn-day ${contact.day?"sent":""}" href="${hrefDay}" ${onDay}>
+              ${contact.day ? "✓ Msg enviada &nbsp;↺" : "💬 Msg do dia"}
+            </a>
+            <a class="msg-btn msg-btn-reminder ${contact.reminder?"sent":""}" href="${hrefReminder}" ${onReminder}>
+              ${contact.reminder ? "✓ Lembrete &nbsp;↺" : "⏰ Lembrete"}
+            </a>
+          </div>
+        </td>
+      </tr>`;
+    }).join("");
+  }
+
+  // ---- Mark sent (global functions called from inline onclick) ----
+  window.markDay = function(wpp, date){
+    const lead = allLeads.find(l=>l.whatsapp===wpp && l.spin_date===date);
+    if (lead){ markContact(lead,"day"); setTimeout(renderAll, 300); }
+  };
+  window.markReminder = function(wpp, date){
+    const lead = allLeads.find(l=>l.whatsapp===wpp && l.spin_date===date);
+    if (lead){ markContact(lead,"reminder"); setTimeout(renderAll, 300); }
+  };
+
+  // ---- Search ----
+  document.getElementById("search").addEventListener("input", e=>{
+    searchQ = e.target.value.trim();
+    renderAll();
+  });
+
+  // ---- Filter tabs ----
+  document.querySelectorAll(".tab").forEach(tab=>{
+    tab.addEventListener("click", ()=>{
+      document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+      tab.classList.add("active");
+      activeFilter = tab.dataset.filter;
+      renderAll();
+    });
+  });
+
+  // ---- CSV ----
+  document.getElementById("btn-csv").addEventListener("click", ()=>{
+    const rows = [["Nome","WhatsApp","Data","Premio","Cupom","Msg Dia","Lembrete"]];
+    allLeads.forEach(l=>{
+      const c = getContact(l);
+      rows.push([l.nome||"", l.whatsapp||"", l.spin_date||"",
+        (prizeMap[l.prize_id]||{}).label||l.prize_id||"",
+        l.prize_code||"",
+        c.day?"Sim":"Não", c.reminder?"Sim":"Não"]);
+    });
+    const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob = new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `leads-roleta-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  });
+
+  function esc(s){ return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
+})();
+</script>
+</body>
+</html>

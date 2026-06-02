@@ -214,27 +214,45 @@ const Checkout = () => {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (data) {
-      const name = data.full_name || data.name || "";
-      setFullName(name);
-      if (data.whatsapp) phoneMask.setDisplayValue(data.whatsapp);
+    let profileName = data?.full_name || data?.name || "";
+    let profileWhatsapp = data?.whatsapp || "";
+
+    // Fallback: if profiles doesn't have name/whatsapp, check customers table
+    if (!profileName || !profileWhatsapp) {
+      const { data: customerData } = await supabase
+        .from("customers")
+        .select("name, phone")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (customerData) {
+        if (!profileName && customerData.name) profileName = customerData.name;
+        if (!profileWhatsapp && customerData.phone) profileWhatsapp = customerData.phone;
+      }
+    }
+
+    if (profileName || profileWhatsapp || data) {
+      setFullName(profileName);
+      if (profileWhatsapp) phoneMask.setDisplayValue(profileWhatsapp);
 
       // Parse address into structured format
-      const parsedAddress = parseAddressLine(
-        data.address_line,
-        data.city,
-        data.state,
-        data.zip_code,
-        data.address_reference
-      );
-      setAddressData(parsedAddress);
+      if (data) {
+        const parsedAddress = parseAddressLine(
+          data.address_line,
+          data.city,
+          data.state,
+          data.zip_code,
+          data.address_reference
+        );
+        setAddressData(parsedAddress);
 
-      if (data.zip_code) {
-        setShippingZipCode(data.zip_code.replace(/\D/g, ""));
+        if (data.zip_code) {
+          setShippingZipCode(data.zip_code.replace(/\D/g, ""));
+        }
       }
 
       // Check if profile is complete
-      const hasRequiredFields = !!(name && data.whatsapp);
+      const hasRequiredFields = !!(profileName && profileWhatsapp);
       setProfileComplete(hasRequiredFields);
 
       // Skip profile step if complete

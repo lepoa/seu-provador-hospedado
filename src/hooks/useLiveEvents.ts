@@ -88,7 +88,7 @@ export function useLiveEvents() {
           titulo: form.titulo,
           data_hora_inicio: form.data_hora_inicio,
           observacoes: form.observacoes || null,
-          reservation_expiry_minutes: form.reservation_expiry_minutes || 30,
+          reservation_expiry_minutes: form.reservation_expiry_minutes || 10080,
           user_id: user?.id,
         })
         .select()

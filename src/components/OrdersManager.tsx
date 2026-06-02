@@ -4,7 +4,7 @@ import {
   Clock, CheckCircle, Truck, CreditCard, X, ChevronDown, Copy,
   Package, Search, MessageCircle, Radio, Store, StickyNote, User,
   Save, Edit2, RefreshCw, AlertCircle, Send, Timer, FileText, Printer,
-  MapPin, Lock, Filter, XCircle, ShieldCheck
+  MapPin, Lock, Filter, XCircle, ShieldCheck, Receipt
 } from "lucide-react";
 
 import { copyToClipboard } from "@/lib/clipboardUtils";
@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { useSellers } from "@/hooks/useSellers";
 import { RevalidatePaymentModal } from "./RevalidatePaymentModal";
 import { ManualPaymentValidationModal } from "./ManualPaymentValidationModal";
+import { ManualPaymentModal } from "./live-shop/ManualPaymentModal";
 
 import { OrderPackingSlipPrint, BatchPackingSlipPrint } from "./orders/OrderPackingSlipPrint";
 import { OrderShippingLabelPrint } from "./orders/OrderShippingLabelPrint";
@@ -42,10 +43,7 @@ import {
 } from "@/lib/whatsappTemplates";
 import {
   parseOrdersUrlParams,
-  getSpecialFilterLabel,
-  isPendingActionsFilter
 } from "@/lib/dashboardNavigation";
-import { getOperationalPendingOrders, type PendingOrderType } from "@/lib/pendingOrdersUtils";
 
 interface AddressSnapshot {
   name?: string;
@@ -110,6 +108,9 @@ interface Order {
   coupon_discount?: number | null;
   coupon_id?: string | null;
   coupon?: { code: string; discount_type: string; discount_value: number } | null;
+  // Payment info
+  paid_method?: string | null;
+  installments?: number | null;
 }
 
 
@@ -127,24 +128,351 @@ interface OrderItem {
 }
 
 const statusConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-  aberto: { label: "Aguardando Pagamento (sacola)", icon: Clock, color: "bg-blue-50 text-blue-600 border-blue-200" },
-  aguardando_retorno: { label: "Aguardando Retorno", icon: Clock, color: "bg-orange-50 text-orange-600 border-orange-200" },
-  pendente: { label: "Aguardando Pagamento (legado)", icon: Clock, color: "bg-amber-100 text-amber-800" },
-  aguardando_pagamento: { label: "Aguardando Pagamento", icon: CreditCard, color: "bg-orange-100 text-orange-800" },
-  manter_na_reserva: { label: "Manter na Reserva", icon: Clock, color: "bg-amber-50 text-amber-700 border-amber-200" },
-  pago: { label: "Pago", icon: CheckCircle, color: "bg-green-100 text-green-800" },
-  etiqueta_gerada: { label: "Etiqueta Gerada", icon: FileText, color: "bg-cyan-100 text-cyan-800" },
-  confirmado: { label: "Pago (legado)", icon: CheckCircle, color: "bg-blue-100 text-blue-800" },
-  enviado: { label: "Enviado", icon: Truck, color: "bg-purple-100 text-purple-800" },
-  entregue: { label: "Entregue", icon: CheckCircle, color: "bg-green-100 text-green-800" },
-  cancelado: { label: "Cancelado", icon: X, color: "bg-red-100 text-red-800" },
-  pagamento_rejeitado: { label: "Pagamento Rejeitado", icon: X, color: "bg-red-100 text-red-800" },
-  reembolsado: { label: "Reembolsado", icon: Clock, color: "bg-gray-100 text-gray-800" },
-  abandonado: { label: "Abandonado", icon: X, color: "bg-gray-100 text-gray-400" },
-  aguardando_pagamento_frete: { label: "Aguardando Pag. Frete", icon: CreditCard, color: "bg-yellow-100 text-yellow-800" },
-  aguardando_validacao_pagamento: { label: "Validar Pagamento", icon: ShieldCheck, color: "bg-purple-100 text-purple-800 animate-pulse border-purple-300" },
+  // 🟠 Precisa de ação (laranja/amber)
+  aberto: { label: "Aguardando Pagamento (sacola)", icon: Clock, color: "bg-[#fff3e0] text-[#e65100] border-[#ffcc80]" },
+  aguardando_retorno: { label: "Aguardando Retorno", icon: Clock, color: "bg-[#ffe0b2] text-[#e65100] border-[#ffb74d]" },
+  pendente: { label: "Aguardando Pagamento (legado)", icon: Clock, color: "bg-[#fff3e0] text-[#e65100] border-[#ffcc80]" },
+  aguardando_pagamento: { label: "Aguardando Pagamento", icon: CreditCard, color: "bg-[#ffe0b2] text-[#bf360c] border-[#ffb74d]" },
+  aguardando_pagamento_frete: { label: "Aguardando Pag. Frete", icon: CreditCard, color: "bg-[#fff9c4] text-[#f57f17] border-[#fff176]" },
+  // 🔵 Em espera (azul)
+  manter_na_reserva: { label: "Manter na Reserva", icon: Clock, color: "bg-[#e3f2fd] text-[#1565c0] border-[#90caf9]" },
+  // 🟢 Positivos / Concluídos (verde)
+  pago: { label: "Pago", icon: CheckCircle, color: "bg-[#c8e6c9] text-[#1b5e20] border-[#81c784]" },
+  confirmado: { label: "Pago (legado)", icon: CheckCircle, color: "bg-[#c8e6c9] text-[#1b5e20] border-[#81c784]" },
+  etiqueta_gerada: { label: "Etiqueta Gerada", icon: FileText, color: "bg-[#e0f2f1] text-[#00695c] border-[#80cbc4]" },
+  enviado: { label: "Enviado", icon: Truck, color: "bg-[#a5d6a7] text-[#1b5e20] border-[#66bb6a]" },
+  entregue: { label: "Entregue", icon: CheckCircle, color: "bg-[#81c784] text-[#0d3b0f] border-[#4caf50]" },
+  // 🔴 Negativos (vermelho)
+  cancelado: { label: "Cancelado", icon: X, color: "bg-[#ffcdd2] text-[#b71c1c] border-[#ef9a9a]" },
+  pagamento_rejeitado: { label: "Pagamento Rejeitado", icon: X, color: "bg-[#ffcdd2] text-[#b71c1c] border-[#ef9a9a]" },
+  reembolsado: { label: "Reembolsado", icon: Clock, color: "bg-[#ffebee] text-[#c62828] border-[#ef9a9a]" },
+  abandonado: { label: "Abandonado", icon: X, color: "bg-[#f5f5f5] text-[#757575] border-[#e0e0e0]" },
+  // 🟣 Atenção gerente (roxo)
+  aguardando_validacao_pagamento: { label: "Validar Pagamento", icon: ShieldCheck, color: "bg-[#e1bee7] text-[#6a1b9a] animate-pulse border-[#ce93d8]" },
 };
 
+
+// -- OrderUpsellSection: tracks in-store add-on sales for live orders --
+function OrderUpsellSection({ cartId }: { cartId: string }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [currentTotal, setCurrentTotal] = useState(0);
+  const [currentNotes, setCurrentNotes] = useState('');
+  const [total, setTotal] = useState('');
+  const [notes, setNotes] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("live_carts")
+        .select("upsell_total, upsell_notes")
+        .eq("id", cartId)
+        .single();
+      if (data) {
+        setCurrentTotal((data as any).upsell_total || 0);
+        setCurrentNotes((data as any).upsell_notes || '');
+      }
+      setIsLoading(false);
+    })();
+  }, [cartId]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    const parsedTotal = parseFloat(total.replace(',', '.')) || 0;
+    const { error } = await supabase
+      .from("live_carts")
+      .update({
+        upsell_total: parsedTotal,
+        upsell_notes: notes.trim() || null,
+      } as any)
+      .eq("id", cartId);
+
+    if (error) {
+      toast.error("Erro ao salvar venda adicional");
+    } else {
+      setCurrentTotal(parsedTotal);
+      setCurrentNotes(notes.trim());
+      toast.success("Venda adicional salva!");
+      setIsEditing(false);
+    }
+    setIsSaving(false);
+  };
+
+  const fmt = (v: number) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+
+  if (isLoading) return null;
+
+  const hasUpsell = currentTotal > 0;
+
+  if (!isEditing) {
+    return (
+      <div>
+        <label className="text-sm font-medium mb-2 block flex items-center gap-2">
+          <CreditCard className="h-4 w-4 text-emerald-600" />
+          Venda Adicional (Retirada)
+        </label>
+        <div className="flex items-start gap-2">
+          {hasUpsell ? (
+            <div className="flex-1 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+              <p className="text-lg font-bold text-emerald-800">{fmt(currentTotal)}</p>
+              {currentNotes && (
+                <p className="text-sm text-emerald-600 mt-1">{currentNotes}</p>
+              )}
+            </div>
+          ) : (
+            <span className="text-sm text-muted-foreground italic">
+              Nenhuma venda adicional
+            </span>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setTotal(String(currentTotal || ''));
+              setNotes(currentNotes || '');
+              setIsEditing(true);
+            }}
+          >
+            <Edit2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <label className="text-sm font-medium mb-2 block flex items-center gap-2">
+        <CreditCard className="h-4 w-4 text-emerald-600" />
+        Venda Adicional (Retirada)
+      </label>
+      <div className="space-y-2">
+        <Input
+          type="text"
+          inputMode="decimal"
+          placeholder="Valor adicional (R$)"
+          value={total}
+          onChange={(e) => setTotal(e.target.value)}
+        />
+        <Input
+          type="text"
+          placeholder="Ex: Levou + 1 blusa e 1 saia"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+        />
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={isSaving}
+            className="bg-emerald-600 hover:bg-emerald-700"
+          >
+            <Save className="h-4 w-4 mr-1" />
+            Salvar
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setIsEditing(false)}
+          >
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// -- OrderRegisterCustomerSection: complete/create customer registration from order --
+function OrderRegisterCustomerSection({
+  orderId,
+  instagramHandle,
+  existingCustomerId,
+  onRegistered,
+}: {
+  orderId: string;
+  instagramHandle: string;
+  existingCustomerId: string | null;
+  onRegistered: (customerId: string, newName: string, newPhone: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isComplete, setIsComplete] = useState(false);
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+
+  // Extract clean Instagram handle
+  const cleanHandle = instagramHandle?.replace(/^@/, '').toLowerCase().trim() || '';
+
+  // Check if customer already has phone (complete registration)
+  useEffect(() => {
+    if (!existingCustomerId) {
+      setIsLoading(false);
+      setIsComplete(false);
+      return;
+    }
+    (async () => {
+      const { data } = await supabase
+        .from("customers")
+        .select("name, phone")
+        .eq("id", existingCustomerId)
+        .maybeSingle();
+      if (data?.phone) {
+        setIsComplete(true);
+        setName(data.name || '');
+        setPhone(data.phone || '');
+      } else {
+        setIsComplete(false);
+        setName(data?.name || '');
+      }
+      setIsLoading(false);
+    })();
+  }, [existingCustomerId]);
+
+  if (isLoading) return null;
+  if (isComplete) return null; // Customer already has phone — fully registered
+
+  if (!isOpen) {
+    return (
+      <div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50 w-full"
+          onClick={() => setIsOpen(true)}
+        >
+          <User className="h-4 w-4" />
+          {existingCustomerId ? `Completar cadastro de @${cleanHandle}` : `Cadastrar @${cleanHandle} como cliente`}
+        </Button>
+      </div>
+    );
+  }
+
+  const handleSave = async () => {
+    if (!name.trim() || !phone.trim()) {
+      toast.error("Preencha nome e telefone");
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const cleanPhone = phone.replace(/\D/g, '');
+      if (cleanPhone.length < 10) {
+        toast.error("Telefone inválido. Insira com DDD.");
+        setIsSaving(false);
+        return;
+      }
+      const formattedPhone = cleanPhone.length === 11
+        ? `(${cleanPhone.slice(0, 2)}) ${cleanPhone.slice(2, 7)}-${cleanPhone.slice(7)}`
+        : cleanPhone;
+
+      if (existingCustomerId) {
+        // UPDATE existing customer with missing data
+        const { error } = await supabase
+          .from("customers")
+          .update({ name: name.trim(), phone: formattedPhone })
+          .eq("id", existingCustomerId);
+
+        if (error) throw error;
+
+        // Also update orders table with name and phone
+        await supabase
+          .from("orders")
+          .update({ customer_name: name.trim(), customer_phone: formattedPhone })
+          .eq("id", orderId);
+
+        toast.success(`Cadastro de @${cleanHandle} atualizado!`);
+        onRegistered(existingCustomerId, name.trim(), formattedPhone);
+        setIsComplete(true);
+        setIsOpen(false);
+        return;
+      }
+
+      // Check duplicate phone
+      const { data: existing } = await supabase
+        .from("customers")
+        .select("id")
+        .eq("phone", formattedPhone)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase.from("orders").update({ customer_id: existing.id, customer_name: name.trim(), customer_phone: formattedPhone }).eq("id", orderId);
+        toast.success("Cliente já existente — pedido vinculado!");
+        onRegistered(existing.id, name.trim(), formattedPhone);
+        setIsComplete(true);
+        setIsOpen(false);
+        return;
+      }
+
+      // Insert new customer
+      const { data: newCustomer, error: insertError } = await supabase
+        .from("customers")
+        .insert({ name: name.trim(), phone: formattedPhone })
+        .select("id")
+        .single();
+
+      if (insertError) throw insertError;
+
+      // Insert instagram_identity
+      if (cleanHandle && newCustomer) {
+        await supabase
+          .from("instagram_identities")
+          .insert({ customer_id: newCustomer.id, instagram_handle_normalized: cleanHandle, instagram_handle_raw: cleanHandle } as any);
+      }
+
+      // Link customer to order with name and phone
+      await supabase.from("orders").update({ customer_id: newCustomer.id, customer_name: name.trim(), customer_phone: formattedPhone }).eq("id", orderId);
+
+      toast.success(`${name.trim()} cadastrada com sucesso!`);
+      onRegistered(newCustomer.id, name.trim(), formattedPhone);
+      setIsComplete(true);
+      setIsOpen(false);
+    } catch (err: any) {
+      console.error("Registration error:", err);
+      toast.error("Erro ao cadastrar: " + (err.message || "Tente novamente"));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="p-3 border border-emerald-200 rounded-lg bg-emerald-50/50 space-y-3">
+      <label className="text-sm font-medium flex items-center gap-2">
+        <User className="h-4 w-4 text-emerald-600" />
+        {existingCustomerId ? `Completar cadastro de @${cleanHandle}` : `Cadastrar @${cleanHandle}`}
+      </label>
+      <div className="space-y-2">
+        <Input
+          placeholder="Nome completo"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <Input
+          placeholder="Telefone (WhatsApp) com DDD"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          inputMode="tel"
+        />
+      </div>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          onClick={handleSave}
+          disabled={isSaving}
+          className="bg-zinc-800 hover:bg-zinc-900 text-white"
+        >
+          <Save className="h-4 w-4 mr-1" />
+          {existingCustomerId ? 'Salvar' : 'Cadastrar'}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => setIsOpen(false)}>
+          Cancelar
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 const statusOptions = [
   { value: "aguardando_retorno", label: "Aguardando Retorno" },
@@ -161,17 +489,67 @@ const statusOptions = [
   { value: "aguardando_validacao_pagamento", label: "Validar Pagamento" },
 ];
 
+// Operational filters — client-side, based on order properties
+const operationalFilterOptions = [
+  { value: "op_sem_vendedora", label: "🟡 Sem vendedora" },
+  { value: "op_aguardando_pagamento_24h", label: "🔴 Pag. pendente >24h" },
+  { value: "op_aguardando_retorno_24h", label: "🔴 Retorno pendente >24h" },
+  { value: "op_pago_sem_logistica", label: "🟠 Pagos sem logística" },
+  { value: "op_etiqueta_pendente", label: "🟠 Etiqueta sem postagem" },
+  { value: "op_pendencias", label: "⚠️ Todas as pendências" },
+];
 
-// Map special filter types to pending order types
-const specialFilterToPendingType: Record<string, PendingOrderType> = {
-  "aguardando-24h": "aguardando_pagamento_24h",
-  "aguardando-retorno": "aguardando_retorno_24h",
-  "nao-cobrado": "nao_cobrado",
-  "sem-logistica": "pago_sem_logistica",
-  "etiqueta-pendente": "etiqueta_pendente",
-  "sem-vendedora": "sem_vendedora",
-  "urgente": "urgente",
+const PAID_STATUSES_LIST = ['pago', 'preparar_envio', 'etiqueta_gerada', 'postado', 'em_rota', 'retirada', 'entregue'];
+const FINALIZED_STATUSES_LIST = ['postado', 'em_rota', 'retirada', 'entregue'];
+
+/** Check if a filterStatus is an operational filter (starts with op_) */
+const isOperationalFilter = (status: string) => status.startsWith("op_");
+
+/** Get human-readable label for operational filter */
+const getOperationalFilterLabel = (status: string): string | null => {
+  const opt = operationalFilterOptions.find(o => o.value === status);
+  return opt ? opt.label.replace(/^[🟡🔴🟠⚠️]\s*/, '') : null;
 };
+
+/** Client-side operational filter matching */
+function matchesOperationalFilter(order: Order, filterValue: string): boolean {
+  const now = Date.now();
+  const created = new Date(order.created_at).getTime();
+  const updated = new Date(order.updated_at || order.created_at).getTime();
+  const hoursSinceCreation = (now - created) / 3_600_000;
+  const hoursStalled = (now - updated) / 3_600_000;
+  const st = (order.status || '').toLowerCase();
+  const isPaid = PAID_STATUSES_LIST.includes(st);
+  const isFinalized = FINALIZED_STATUSES_LIST.includes(st);
+  if (st === 'cancelado') return false;
+
+  switch (filterValue) {
+    case 'op_sem_vendedora':
+      return !order.seller_id && !isFinalized;
+
+    case 'op_aguardando_pagamento_24h':
+      return (st === 'pendente' || st === 'aguardando_pagamento' || (!isPaid && order.source === 'live')) && hoursSinceCreation > 24;
+
+    case 'op_aguardando_retorno_24h':
+      return st === 'aguardando_retorno' && hoursStalled > 24;
+
+    case 'op_pago_sem_logistica':
+      return (st === 'pago' || st === 'preparar_envio') && order.delivery_method === 'shipping' && hoursStalled > 12;
+
+    case 'op_etiqueta_pendente':
+      return st === 'etiqueta_gerada' && hoursStalled > 24;
+
+    case 'op_pendencias':
+      return matchesOperationalFilter(order, 'op_sem_vendedora')
+        || matchesOperationalFilter(order, 'op_aguardando_pagamento_24h')
+        || matchesOperationalFilter(order, 'op_aguardando_retorno_24h')
+        || matchesOperationalFilter(order, 'op_pago_sem_logistica')
+        || matchesOperationalFilter(order, 'op_etiqueta_pendente');
+
+    default:
+      return true;
+  }
+}
 
 interface OrdersManagerProps {
   initialFilter?: string;
@@ -190,13 +568,24 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
 
   // Initialize filters from URL or props
   const [filterStatus, setFilterStatus] = useState<string>(() => {
+    // Check specialFilter from URL and convert to op_ filter
+    const sf = urlFilters.specialFilter;
+    if (sf) {
+      const sfToOp: Record<string, string> = {
+        'pendencias': 'op_pendencias',
+        'aguardando-24h': 'op_aguardando_pagamento_24h',
+        'aguardando-retorno': 'op_aguardando_retorno_24h',
+        'sem-logistica': 'op_pago_sem_logistica',
+        'etiqueta-pendente': 'op_etiqueta_pendente',
+        'sem-vendedora': 'op_sem_vendedora',
+      };
+      if (sfToOp[sf]) return sfToOp[sf];
+    }
     if (urlFilters.status !== "all") return urlFilters.status;
     return mapInitialFilter(initialFilter) || "all";
   });
   const [filterSource, setFilterSource] = useState<string>(() => urlFilters.source || "all");
   const [filterSeller, setFilterSeller] = useState<string | null>(() => urlFilters.seller);
-  const [specialFilter, setSpecialFilter] = useState<string | null>(() => urlFilters.specialFilter);
-  const [pendingOrderIds, setPendingOrderIds] = useState<Set<string>>(new Set());
 
   const [searchTerm, setSearchTerm] = useState("");
   const [editingTrackingCode, setEditingTrackingCode] = useState<string | null>(null);
@@ -207,6 +596,11 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
   const [revalidateOrderId, setRevalidateOrderId] = useState<string | null>(null);
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [validatingOrder, setValidatingOrder] = useState<Order | null>(null);
+
+  // Manual payment modal state
+  const [showManualPaymentModal, setShowManualPaymentModal] = useState(false);
+  const [manualPaymentOrderId, setManualPaymentOrderId] = useState<string | null>(null);
+  const [manualPaymentOrderTotal, setManualPaymentOrderTotal] = useState<number>(0);
 
 
   // WhatsApp message state per order
@@ -274,13 +668,27 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
 
   function mapInitialFilter(filter?: string): string | undefined {
     if (!filter) return undefined;
+    // Map old special filter names to operational filter values
+    const opMap: Record<string, string> = {
+      'pendencias': 'op_pendencias',
+      'aguardando-24h': 'op_aguardando_pagamento_24h',
+      'aguardando-retorno': 'op_aguardando_retorno_24h',
+      'nao-cobrado': 'op_pendencias',
+      'sem-logistica': 'op_pago_sem_logistica',
+      'etiqueta-pendente': 'op_etiqueta_pendente',
+      'sem-vendedora': 'op_sem_vendedora',
+      'urgente': 'op_pendencias',
+      'funil': 'all',
+    };
+    if (opMap[filter]) return opMap[filter];
+
     const filterMap: Record<string, string> = {
-      "aguardando": "aguardando_pagamento",
-      "pagos": "pago",
-      "separar": "pago",
-      "envio": "enviado",
-      "retirada": "pago",
-      "cancelado": "cancelado",
+      'aguardando': 'aguardando_pagamento',
+      'pagos': 'pago',
+      'separar': 'pago',
+      'envio': 'enviado',
+      'retirada': 'pago',
+      'cancelado': 'cancelado',
     };
     return filterMap[filter] || filter;
   }
@@ -288,24 +696,20 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
   // Sync filters with URL when they change
   useEffect(() => {
     const newUrlFilters = parseOrdersUrlParams(searchParams);
-    if (newUrlFilters.status !== "all") setFilterStatus(newUrlFilters.status);
+    // Convert specialFilter (from dashboard links) to op_ status
+    if (newUrlFilters.specialFilter) {
+      const mapped = mapInitialFilter(newUrlFilters.specialFilter);
+      if (mapped && mapped !== 'all') setFilterStatus(mapped);
+    } else if (newUrlFilters.status !== "all") {
+      setFilterStatus(newUrlFilters.status);
+    }
     if (newUrlFilters.source !== "all") setFilterSource(newUrlFilters.source);
     if (newUrlFilters.seller) setFilterSeller(newUrlFilters.seller);
-    if (newUrlFilters.specialFilter) setSpecialFilter(newUrlFilters.specialFilter);
   }, [searchParams]);
 
   useEffect(() => {
     loadOrders();
   }, []);
-
-  // Load pending order IDs when special filter is active
-  useEffect(() => {
-    if (specialFilter && isPendingActionsFilter(specialFilter)) {
-      loadPendingOrderIds();
-    } else {
-      setPendingOrderIds(new Set());
-    }
-  }, [specialFilter]);
 
   const mapLiveCartItemsToOrderItems = (items: any[] | null | undefined): OrderItem[] => {
     if (!items) return [];
@@ -337,7 +741,8 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
           *,
           live_event:live_events(titulo),
           order_items(*),
-          coupon:coupons(code, discount_type, discount_value)
+          coupon:coupons(code, discount_type, discount_value),
+          payments(installments, status)
         `)
         .order("created_at", { ascending: false });
 
@@ -400,6 +805,9 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
         me_shipment_id: cart.me_shipment_id,
         me_label_url: cart.me_label_url,
         paid_at: cart.paid_at,
+        // Payment info from live_carts
+        paid_method: cart.paid_method || null,
+        installments: null,
         // Live specific fields
         source: "live",
         live_cart_id: cart.id,
@@ -417,6 +825,12 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
           }));
         }
         delete order.order_items;
+        // Extract payment info from joined payments table
+        const paymentWithInstallments = (order.payments || []).find((p: any) => p.installments && p.installments > 0);
+        if (!order.installments && paymentWithInstallments) {
+          order.installments = paymentWithInstallments.installments;
+        }
+        delete order.payments;
         return acc;
       }, {});
 
@@ -444,32 +858,13 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
     }
   };
 
-  // Load pending order IDs for special filters
-  const loadPendingOrderIds = async () => {
-    if (!specialFilter) return;
 
-    // Handle "pendencias" (all types)
-    if (specialFilter === "pendencias") {
-      const result = await getOperationalPendingOrders({});
-      const ids = new Set(result.allOrders.map(o => o.id));
-      setPendingOrderIds(ids);
-      return;
-    }
-
-    const pendingType = specialFilterToPendingType[specialFilter];
-    if (!pendingType) return;
-
-    const result = await getOperationalPendingOrders({ type: pendingType });
-    const ids = new Set(result.allOrders.map(o => o.id));
-    setPendingOrderIds(ids);
-  };
 
   // Clear all filters and URL params
   const clearAllFilters = () => {
     setFilterStatus("all");
     setFilterSource("all");
     setFilterSeller(null);
-    setSpecialFilter(null);
     setSearchTerm("");
 
     // Clear URL params except tab
@@ -537,6 +932,15 @@ export function OrdersManager({ initialFilter }: OrdersManagerProps) {
     // Build update payload - set paid_at when changing to paid status
     const normalizedStatus = newStatus.toLowerCase().trim();
     const isPaidStatus = ['pago', 'paid', 'approved', 'payment_approved'].includes(normalizedStatus);
+
+    // INTERCEPT: If changing to "pago" manually, open the manual payment modal
+    // Skip if order was already paid (e.g., changing from pago to entregue and back)
+    if (isPaidStatus && !order.paid_at) {
+      setManualPaymentOrderId(orderId);
+      setManualPaymentOrderTotal(order.total);
+      setShowManualPaymentModal(true);
+      return; // Don't proceed — the modal will handle the update
+    }
 
     const updatePayload: Record<string, any> = {
       status: newStatus,
@@ -903,27 +1307,26 @@ Qualquer dúvida estamos à disposição! \u{1F495}`;
 
   // Check if any filters are active (for showing clear button)
   const hasActiveFilters = filterStatus !== "all" || filterSource !== "all" ||
-    filterSeller !== null || specialFilter !== null || searchTerm !== "";
+    filterSeller !== null || searchTerm !== "";
 
-  // Get active filter description
-  const specialFilterLabel = getSpecialFilterLabel(specialFilter);
+  // Get label for the active filter
+  const activeFilterLabel = isOperationalFilter(filterStatus)
+    ? getOperationalFilterLabel(filterStatus)
+    : (filterStatus !== "all" ? (statusConfig[filterStatus]?.label || filterStatus) : null);
 
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
-      // Special filter handling - when a pending action type is selected
-      if (specialFilter && isPendingActionsFilter(specialFilter)) {
-        // For "pendencias" show all pending orders
-        if (specialFilter === "pendencias") {
-          return pendingOrderIds.has(order.id);
-        }
-        // For specific pending types, use the pendingOrderIds set
-        return pendingOrderIds.has(order.id);
+      // Status filter (includes operational op_ filters)
+      let matchesStatus = false;
+      if (filterStatus === "all") {
+        matchesStatus = true;
+      } else if (filterStatus === "attention") {
+        matchesStatus = !!order.requires_physical_cancel;
+      } else if (isOperationalFilter(filterStatus)) {
+        matchesStatus = matchesOperationalFilter(order, filterStatus);
+      } else {
+        matchesStatus = order.status === filterStatus;
       }
-
-      // Regular status filter
-      const matchesStatus = filterStatus === "all" ||
-        (filterStatus === "attention" && order.requires_physical_cancel) ||
-        order.status === filterStatus;
 
       // Source filter
       const matchesSource = filterSource === "all" ||
@@ -943,7 +1346,7 @@ Qualquer dúvida estamos à disposição! \u{1F495}`;
 
       return matchesStatus && matchesSource && matchesSeller && matchesSearch;
     });
-  }, [orders, filterStatus, filterSource, filterSeller, specialFilter, pendingOrderIds, searchTerm]);
+  }, [orders, filterStatus, filterSource, filterSeller, searchTerm]);
 
   if (isLoading) {
     return (
@@ -963,18 +1366,9 @@ Qualquer dúvida estamos à disposição! \u{1F495}`;
             <span>Filtros ativos:</span>
           </div>
 
-          {specialFilterLabel && (
+          {filterStatus !== "all" && (
             <Badge variant="secondary" className="gap-1">
-              {specialFilterLabel}
-              <button onClick={() => setSpecialFilter(null)} className="ml-1 hover:text-destructive">
-                <XCircle className="h-3 w-3" />
-              </button>
-            </Badge>
-          )}
-
-          {filterStatus !== "all" && !specialFilter && (
-            <Badge variant="secondary" className="gap-1">
-              Status: {statusConfig[filterStatus]?.label || filterStatus}
+              {activeFilterLabel || filterStatus}
               <button onClick={() => setFilterStatus("all")} className="ml-1 hover:text-destructive">
                 <XCircle className="h-3 w-3" />
               </button>
@@ -1026,11 +1420,7 @@ Qualquer dúvida estamos à disposição! \u{1F495}`;
             <SelectItem value="live">Live</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={filterStatus} onValueChange={(v) => {
-          setFilterStatus(v);
-          // Clear special filter when changing status
-          if (specialFilter) setSpecialFilter(null);
-        }}>
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
           <SelectTrigger className="w-full sm:w-[200px]">
             <SelectValue placeholder="Filtrar por status" />
           </SelectTrigger>
@@ -1045,6 +1435,24 @@ Qualquer dúvida estamos à disposição! \u{1F495}`;
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
               </SelectItem>
+            ))}
+            <Separator className="my-1" />
+            <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">Operacional</div>
+            {operationalFilterOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filterSeller || "all"} onValueChange={(v) => setFilterSeller(v === "all" ? null : v)}>
+          <SelectTrigger className="w-full sm:w-[140px]">
+            <SelectValue placeholder="Vendedora" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas</SelectItem>
+            {sellers.map(s => (
+              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -1162,6 +1570,39 @@ Qualquer dúvida estamos à disposição! \u{1F495}`;
                           <StatusIcon className="h-3 w-3" />
                           {status.label}
                         </Badge>
+                        {/* Payment method sublabel for paid orders */}
+                        {(order.status === 'pago' || order.status === 'confirmado' || order.status === 'entregue' || order.status === 'etiqueta_gerada' || order.status === 'enviado') && order.paid_method && (() => {
+                          const m = order.paid_method!.toLowerCase();
+                          const installmentsSuffix = order.installments && order.installments >= 1 ? ` ${order.installments}x` : '';
+                          // Manual payment methods
+                          const manualMethods: Record<string, string> = {
+                            'rede': '🏪 Maquininha REDE',
+                            'pix_itau': '🏪 PIX Itaú',
+                            'pix_rede': '🏪 PIX REDE',
+                            'link_rede': '🏪 Link REDE',
+                            'dinheiro': '💵 Dinheiro',
+                          };
+                          const isManual = m in manualMethods;
+                          let label = '';
+                          if (isManual) {
+                            label = manualMethods[m];
+                          } else if (m === 'pix') {
+                            label = '◉ PIX (MP)';
+                          } else if (m === 'account_money' || m === 'mercadopago') {
+                            label = '💳 Saldo MP';
+                          } else if (m.includes('credit') || m.includes('debit')) {
+                            label = `💳 Crédito${installmentsSuffix} (MP)`;
+                          } else {
+                            // Card brand names: master, visa, elo, hipercard, amex, etc.
+                            const brand = order.paid_method!.charAt(0).toUpperCase() + order.paid_method!.slice(1).toLowerCase();
+                            label = `💳 ${brand}${installmentsSuffix} (MP)`;
+                          }
+                          return (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-sm font-medium ${isManual ? 'bg-emerald-50 text-emerald-700' : 'bg-sky-50 text-sky-700'}`}>
+                              {label}
+                            </span>
+                          );
+                        })()}
                         {expiryInfo && (
                           <Badge
                             className={`border-0 gap-1 text-[10px] px-1.5 py-0 ${expiryInfo.expired
@@ -1852,6 +2293,27 @@ Qualquer dúvida estamos à disposição! \u{1F495}`;
                           )}
                         </div>
 
+                        {/* Upsell - In-store add-ons (only for live orders) */}
+                        {order.live_cart_id && (
+                          <OrderUpsellSection cartId={order.live_cart_id} />
+                        )}
+
+                        {/* Quick customer registration for live orders */}
+                        {order.live_cart_id && (
+                          <OrderRegisterCustomerSection
+                            orderId={order.id}
+                            instagramHandle={order.customer_name}
+                            existingCustomerId={order.customer_id || null}
+                            onRegistered={(customerId, newName, newPhone) => {
+                              setOrders(prev => prev.map(o =>
+                                o.id === order.id
+                                  ? { ...o, customer_id: customerId, customer_name: newName, customer_phone: newPhone }
+                                  : o
+                              ));
+                            }}
+                          />
+                        )}
+
                         {/* Tracking Code (only when status is enviado) */}
                         {order.status === "enviado" && (
                           <div>
@@ -2128,6 +2590,70 @@ Qualquer dúvida estamos à disposição! \u{1F495}`;
         order={validatingOrder}
         onSuccess={loadOrders}
       />
+
+      {/* Manual Payment Modal - for marking orders as paid */}
+      {showManualPaymentModal && manualPaymentOrderId && (
+        <ManualPaymentModal
+          open={showManualPaymentModal}
+          onClose={() => {
+            setShowManualPaymentModal(false);
+            setManualPaymentOrderId(null);
+          }}
+          orderId={manualPaymentOrderId}
+          orderTotal={manualPaymentOrderTotal}
+          onConfirm={async (method, proofUrl, notes) => {
+            const order = orders.find(o => o.id === manualPaymentOrderId);
+            if (!order) return false;
+
+            const now = new Date().toISOString();
+            const updatePayload: Record<string, any> = {
+              status: 'pago',
+              paid_at: now,
+              paid_method: method,
+              payment_proof_url: proofUrl,
+              updated_at: now,
+            };
+            if (notes) updatePayload.internal_notes = `${order.internal_notes ? order.internal_notes + '\n' : ''}Pgto manual: ${notes}`;
+
+            const { error } = await supabase.from('orders').update(updatePayload).eq('id', manualPaymentOrderId);
+            if (error) {
+              toast.error('Erro ao confirmar pagamento');
+              return false;
+            }
+
+            // Sync live cart if needed
+            if (order.source === 'live' && order.live_cart_id) {
+              await supabase.from('live_carts').update({
+                status: 'pago',
+                operational_status: 'pago',
+                paid_at: now,
+                paid_method: method,
+                updated_at: now,
+              }).eq('id', order.live_cart_id);
+
+              await supabase.from('live_cart_items').update({ status: 'confirmado' }).eq('live_cart_id', order.live_cart_id).eq('status', 'reservado');
+
+              try {
+                await supabase.rpc('apply_live_cart_paid_effects', { p_live_cart_id: order.live_cart_id });
+              } catch (e) {
+                console.error('RPC error:', e);
+              }
+
+              await supabase.from('live_cart_status_history').insert({
+                live_cart_id: order.live_cart_id,
+                old_status: order.status,
+                new_status: 'pago',
+                notes: `Pagamento manual (${method}) com comprovante`,
+              });
+            }
+
+            // Update local state
+            setOrders(prev => prev.map(o => o.id === manualPaymentOrderId ? { ...o, ...updatePayload } : o));
+            toast.success('Pagamento registrado com sucesso!');
+            return true;
+          }}
+        />
+      )}
     </div>
 
   );
