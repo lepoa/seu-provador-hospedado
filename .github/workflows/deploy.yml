@@ -41,7 +41,7 @@ jobs:
           server-dir: /
           timeout: 600000
           log-level: verbose
-          state-name: .ftp-deploy-sync-state-public-html.json
+          state-name: .ftp-deploy-sync-state-v2.json
 
       - name: Purge LiteSpeed cache
         run: |
