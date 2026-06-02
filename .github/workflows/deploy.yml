@@ -41,7 +41,7 @@ jobs:
           set sftp:connect-program "sshpass -e ssh -a -x -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
           set net:timeout 60
           set net:max-retries 3
-          open -u $FTP_USERNAME sftp://$FTP_SERVER:65002
+          open sftp://$FTP_USERNAME@$FTP_SERVER:65002
           mirror -R --no-perms --parallel=4 ./dist/ public_html/
           quit
           LFTP_EOF
