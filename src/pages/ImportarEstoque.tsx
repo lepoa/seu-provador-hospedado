@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Header } from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { reconcileCommittedAfterImport, calculateDisplayStock } from "@/lib/stockCalculation";
+// stockCalculation imports removed: ERP import now always resets committed
 import { useAuth } from "@/hooks/useAuth";
 import { loadExcelJS } from "@/lib/loadExcel";
 import {
@@ -482,39 +482,68 @@ export default function ImportarEstoque() {
   };
 
   const buildGroupedProducts = async (rows: NewFormatRow[], hasNegativeValues: boolean, mappedSizesCount: number) => {
-    // Build SKUs to check for existing products
-    const skus = rows.map(r => `${r.referencia}-${slugify(r.cor1Desc)}`);
-    
-    // Fetch existing products by SKU
+    // Build both base SKU (ref-cor) and extended SKU (nome-ref-cor) for each row.
+    // Extended SKU is needed when two different products share the same ref code + color
+    // (e.g. MK00031 used for both "TRICOT ARGOLA" and "VESTIDO MIDI ANA").
+    const baseSkus     = rows.map(r => `${r.referencia}-${slugify(r.cor1Desc)}`);
+    const extendedSkus = rows.map((r, i) => `${slugify(r.tipoDesc)}-${baseSkus[i]}`);
+    const allSkus      = [...new Set([...baseSkus, ...extendedSkus])];
+
+    // Fetch existing products by SKU (both formats)
     const { data: existingProducts, error } = await supabase
       .from("product_catalog")
       .select("id, sku, group_key, name")
-      .in("sku", skus);
-    
+      .in("sku", allSkus);
+
     if (error) {
       console.error("Error fetching products:", error);
     }
-    
+
     const productBySku = new Map(
       existingProducts?.map(p => [p.sku, p]) || []
     );
-    
+
     // Build grouped products array
-    const grouped: GroupedProduct[] = rows.map(row => {
-      const sku = `${row.referencia}-${slugify(row.cor1Desc)}`;
-      const existingProduct = productBySku.get(sku);
-      
+    const grouped: GroupedProduct[] = rows.map((row, idx) => {
+      const baseSku     = baseSkus[idx];
+      const extendedSku = extendedSkus[idx];
+
+      // Resolution order:
+      // 1. Extended SKU match (precise: nome + ref + cor) — for products already imported with extended SKU
+      // 2. Base SKU match where name also matches (backward compat with old imports)
+      // 3. No match → new product
+      //    - If base SKU is taken by a DIFFERENT product (collision), use extendedSku
+      //    - Otherwise use baseSku (no collision, keep simple)
+      let existingProduct = productBySku.get(extendedSku);
+      let resolvedSku     = extendedSku;
+
+      if (!existingProduct) {
+        const byBase = productBySku.get(baseSku);
+        if (byBase) {
+          const nameMatches = byBase.name.trim().toLowerCase() === row.tipoDesc.trim().toLowerCase();
+          if (nameMatches) {
+            // Same product — use base SKU (backward compat)
+            existingProduct = byBase;
+            resolvedSku     = baseSku;
+          }
+          // else: SKU collision with a different product — keep resolvedSku = extendedSku, existingProduct = undefined
+        } else {
+          // No collision — use simpler base SKU
+          resolvedSku = baseSku;
+        }
+      }
+
       // Check if any size has stock > 0
       const totalStock = Object.values(row.stockBySize).reduce((sum, qty) => sum + qty, 0);
       const hasZeroStock = totalStock === 0;
-      
+
       // Determine price and variation
       const uniquePrices = [...new Set(row.prices)];
       const hasPriceVariation = uniquePrices.length > 1;
       const price = uniquePrices.length > 0 ? Math.max(...uniquePrices) : 0;
-      
+
       return {
-        groupKey: sku,
+        groupKey: resolvedSku,
         referencia: row.referencia,
         color: normalizeColor(row.cor1Desc), // Normalize color for form compatibility
         productName: row.tipoDesc,
@@ -528,7 +557,7 @@ export default function ImportarEstoque() {
         mappedSizesCount,
       };
     });
-    
+
     setGroupedProducts(grouped);
   };
 
@@ -550,34 +579,19 @@ export default function ImportarEstoque() {
           .map(([size]) => size);
         
         if (product.existingProductId) {
-          // LAYERED STOCK MODEL: 
-          // 1. Fetch current product to get previous ERP stock and committed
-          const { data: currentProduct } = await supabase
-            .from("product_catalog")
-            .select("erp_stock_by_size, committed_by_size")
-            .eq("id", product.existingProductId)
-            .single();
+          // ERP IMPORT = SOURCE OF TRUTH
+          // Always reset committed on import. The user enters sales in the ERP
+          // before importing, so committed is no longer needed after sync.
+          // This also correctly handles replenishment (reposição) scenarios
+          // where old committed values would incorrectly zero out new stock.
           
-          const prevErpStock = (currentProduct?.erp_stock_by_size || {}) as Record<string, number>;
-          const currentCommitted = (currentProduct?.committed_by_size || {}) as Record<string, number>;
-          
-          // 2. Reconcile committed: if ERP decreased, reduce committed
-          const reconciledCommitted = reconcileCommittedAfterImport(
-            prevErpStock,
-            product.stockBySize,
-            currentCommitted
-          );
-          
-          // 3. Calculate display stock = ERP - committed (for backward compat)
-          const displayStock = calculateDisplayStock(product.stockBySize, reconciledCommitted);
-          
-          // Update existing product with layered stock
+          // Update existing product: ERP stock = display stock, committed = 0
           const { error } = await supabase
             .from("product_catalog")
             .update({ 
               erp_stock_by_size: product.stockBySize,  // New ERP stock
-              committed_by_size: reconciledCommitted,   // Reconciled committed
-              stock_by_size: displayStock,              // Display stock = ERP - committed
+              committed_by_size: {},                     // Reset: ERP already absorbed sales
+              stock_by_size: product.stockBySize,        // Display = ERP (no committed to subtract)
               sizes: sizes,
             })
             .eq("id", product.existingProductId);
