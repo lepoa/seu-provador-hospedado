@@ -29,19 +29,17 @@ jobs:
           echo "Listing build directory contents:"
           ls -R dist/
 
-      - name: Sync files (SFTP)
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          protocol: sftp
-          port: 65002
-          local-dir: ./dist/
-          server-dir: ./public_html/
-          timeout: 600000
-          log-level: verbose
-          state-name: .ftp-deploy-sync-state-v2.json
+      - name: Sync files (SFTP via lftp)
+        run: |
+          sudo apt-get install -y lftp
+          lftp -e "
+            set sftp:auto-confirm yes;
+            set net:timeout 60;
+            set net:max-retries 3;
+            open sftp://${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}@${{ secrets.FTP_SERVER }}:65002;
+            mirror -R --no-perms --parallel=4 ./dist/ public_html/;
+            quit
+          "
 
       - name: Purge LiteSpeed cache
         run: |
