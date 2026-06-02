@@ -29,23 +29,45 @@ jobs:
           echo "Listing build directory contents:"
           ls -R dist/
 
-      - name: Sync files (SFTP via lftp + sshpass)
+      - name: Sync files (SFTP via Python/paramiko)
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-          SSHPASS: ${{ secrets.FTP_PASSWORD }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
-          sudo apt-get install -y lftp sshpass
-          cat > /tmp/lftp_deploy.conf << LFTP_EOF
-          set sftp:auto-confirm yes
-          set sftp:connect-program "sshpass -e ssh -a -x -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-          set net:timeout 60
-          set net:max-retries 3
-          open sftp://$FTP_USERNAME@$FTP_SERVER:65002
-          mirror -R --no-perms --parallel=4 ./dist/ public_html/
-          quit
-          LFTP_EOF
-          lftp -f /tmp/lftp_deploy.conf
+          pip install paramiko --quiet
+          python3 << 'PYEOF'
+          import paramiko, os, sys
+
+          def upload_dir(sftp, local_path, remote_path):
+              try:
+                  sftp.mkdir(remote_path)
+              except Exception:
+                  pass
+              for item in sorted(os.listdir(local_path)):
+                  local_item = os.path.join(local_path, item)
+                  remote_item = remote_path + "/" + item
+                  if os.path.isfile(local_item):
+                      print("  uploading:", remote_item)
+                      sftp.put(local_item, remote_item)
+                  elif os.path.isdir(local_item):
+                      upload_dir(sftp, local_item, remote_item)
+
+          hostname = os.environ["FTP_SERVER"]
+          username = os.environ["FTP_USERNAME"]
+          password = os.environ["FTP_PASSWORD"]
+
+          ssh = paramiko.SSHClient()
+          ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+          ssh.connect(hostname, port=65002, username=username, password=password, timeout=60)
+          sftp = ssh.open_sftp()
+
+          upload_dir(sftp, "./dist", "public_html")
+
+          sftp.close()
+          ssh.close()
+          print("Deploy completo!")
+          PYEOF
 
       - name: Purge LiteSpeed cache
         run: |
