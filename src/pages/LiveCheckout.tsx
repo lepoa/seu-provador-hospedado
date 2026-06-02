@@ -44,6 +44,15 @@ interface CartData {
   known_phone: string | null;
   known_customer_id: string | null;
   known_email: string | null;
+  known_name: string | null;
+  known_address_street: string | null;
+  known_address_number: string | null;
+  known_address_complement: string | null;
+  known_address_neighborhood: string | null;
+  known_address_city: string | null;
+  known_address_state: string | null;
+  known_address_zip_code: string | null;
+  known_address_reference: string | null;
 }
 
 interface CartItem {
@@ -64,13 +73,16 @@ export default function LiveCheckout() {
   const publicToken = new URLSearchParams(window.location.search).get("token");
   const { user, isLoading: authLoading } = useAuth();
 
-  // Enforce Login
+  // Enforce Login — only if no public_token (guest checkout bypasses login requirement)
+  // Customers arriving via the WhatsApp charge link already have a public_token
+  // that authenticates them at the server level; forcing them to log in causes
+  // payment abandonment (they don't have an account and can't proceed).
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (!authLoading && !user && !publicToken) {
       const currentUrl = encodeURIComponent(window.location.pathname + window.location.search);
       navigate(`/entrar?redirect=${currentUrl}`);
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, publicToken]);
 
   // Pre-fill from Profile (name, phone, AND address)
   useEffect(() => {
@@ -184,7 +196,7 @@ export default function LiveCheckout() {
 
       setCart(result);
 
-      // Pre-fill from known identity
+      // Pre-fill from known identity (current cart data first)
       if (result.customer_name) setNome(result.customer_name);
       if (result.known_phone) {
         phoneMask.setDisplayValue(result.known_phone);
@@ -197,7 +209,19 @@ export default function LiveCheckout() {
         setEmail(user.email);
       }
 
-      // Pre-fill address from snapshot if exists
+      // Pre-fill address from previous purchases (instagram_identities)
+      // These will be overridden below if this specific cart already has a snapshot saved
+      if (result.known_name && !result.customer_name) setNome(result.known_name);
+      if (result.known_address_street)       setStreet(result.known_address_street);
+      if (result.known_address_number)       setNumber(result.known_address_number);
+      if (result.known_address_complement)   setComplement(result.known_address_complement);
+      if (result.known_address_neighborhood) setNeighborhood(result.known_address_neighborhood);
+      if (result.known_address_city)         setCity(result.known_address_city);
+      if (result.known_address_state)        setState(result.known_address_state);
+      if (result.known_address_zip_code)     setZipCode(result.known_address_zip_code);
+      if (result.known_address_reference)    setReference(result.known_address_reference);
+
+      // Pre-fill address from snapshot if exists (this cart's previously saved data — takes priority)
       if (result.shipping_address_snapshot) {
         const snap = result.shipping_address_snapshot;
         if (snap.street) setStreet(snap.street);
@@ -331,6 +355,7 @@ export default function LiveCheckout() {
         p_shipping_deadline_days: deliveryMethod === "shipping" && selectedShipping ? (selectedShipping.deliveryDays || selectedShipping.deliveryTime || null) : null,
         p_customer_notes: deliveryNotes?.trim() || null,
         p_user_id: user?.id || null, // EXPLICIT USER ID
+        p_email: email?.trim() || null,
       });
 
       if (rpcError) throw rpcError;
