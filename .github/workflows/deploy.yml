@@ -29,19 +29,19 @@ jobs:
           echo "Listing build directory contents:"
           ls -R dist/
 
-      - name: Sync files (SFTP via lftp)
+      - name: Sync files (SFTP via lftp + sshpass)
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          SSHPASS: ${{ secrets.FTP_PASSWORD }}
         run: |
-          sudo apt-get install -y lftp
+          sudo apt-get install -y lftp sshpass
           cat > /tmp/lftp_deploy.conf << LFTP_EOF
           set sftp:auto-confirm yes
-          set sftp:connect-program "ssh -a -x -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+          set sftp:connect-program "sshpass -e ssh -a -x -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
           set net:timeout 60
           set net:max-retries 3
-          open -u $FTP_USERNAME,$FTP_PASSWORD sftp://$FTP_SERVER:65002
+          open -u $FTP_USERNAME sftp://$FTP_SERVER:65002
           mirror -R --no-perms --parallel=4 ./dist/ public_html/
           quit
           LFTP_EOF
