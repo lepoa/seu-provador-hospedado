@@ -38,6 +38,7 @@ jobs:
           sudo apt-get install -y lftp
           cat > /tmp/lftp_deploy.conf << LFTP_EOF
           set sftp:auto-confirm yes
+          set sftp:connect-program "ssh -a -x -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
           set net:timeout 60
           set net:max-retries 3
           open -u $FTP_USERNAME,$FTP_PASSWORD sftp://$FTP_SERVER:65002
